@@ -1,5 +1,5 @@
 // app.js
-// ======= CCF TIMER (RUN + TIMELINE + SCORE + HISTORY) =======
+// ======= CCF TIMER (RUN + TIMELINE + SCORE + HISTORY + METRONOME) =======
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,6 +19,12 @@ const UI = {
   btnCompression: $("btnCompression"),
   btnReset: $("btnReset"),
   btnClearTimeline: $("btnClearTimeline"),
+
+  // Metronome
+  btnMetro: $("btnMetro"),
+  btnMetroDown: $("btnMetroDown"),
+  btnMetroUp: $("btnMetroUp"),
+  metroBpm: $("metroBpm"),
 
   // Tabs / Screens
   screenRun: $("screenRun"),
@@ -67,7 +73,15 @@ const STORAGE_KEY = "ccf_sessions_v1";
 const HISTORY_LIMIT = 20;
 const CCF_GOAL = 80;
 
-// State
+// Metronome state
+const metro = {
+  enabled: false,
+  bpm: 110,
+  intervalId: null,
+  audioCtx: null,
+};
+
+// App State
 const state = {
   running: false,
   mode: "ready", // "compressing" | "paused" | "ready"
@@ -106,6 +120,7 @@ const state = {
   activeTab: "run", // "run" | "timeline" | "score"
 };
 
+// ---------- Helpers ----------
 function fmt(ms) {
   ms = Math.max(0, ms | 0);
   const totalSec = Math.floor(ms / 1000);
@@ -120,14 +135,7 @@ function calcCCF(compMs, handsOffMs) {
   return Math.round((compMs / total) * 100);
 }
 
-function nowMs() {
-  return performance.now();
-}
-
-function relMs() {
-  if (!state.sessionStartMs) return 0;
-  return nowMs() - state.sessionStartMs;
-}
+function nowMs() { return performance.now(); }
 
 function setStatus(text, kind) {
   UI.statusText.textContent = text;
@@ -188,6 +196,62 @@ function renderTimelineStrip(el) {
   }
 }
 
+// ---------- Metronome ----------
+function ensureAudio() {
+  if (!metro.audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    metro.audioCtx = new Ctx();
+  }
+  if (metro.audioCtx.state === "suspended") metro.audioCtx.resume();
+}
+
+function playClick() {
+  if (!metro.audioCtx) return;
+
+  const t = metro.audioCtx.currentTime;
+  const osc = metro.audioCtx.createOscillator();
+  const gain = metro.audioCtx.createGain();
+
+  osc.type = "square";
+  osc.frequency.setValueAtTime(1200, t);
+
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.18, t + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+
+  osc.connect(gain);
+  gain.connect(metro.audioCtx.destination);
+
+  osc.start(t);
+  osc.stop(t + 0.06);
+}
+
+function metroStart() {
+  metroStop();
+  const msPerBeat = Math.round(60000 / metro.bpm);
+
+  // immediate click so it feels "on"
+  playClick();
+
+  metro.intervalId = setInterval(() => {
+    // Click only when compressions are ON
+    if (state.mode === "compressing") playClick();
+  }, msPerBeat);
+}
+
+function metroStop() {
+  if (metro.intervalId) {
+    clearInterval(metro.intervalId);
+    metro.intervalId = null;
+  }
+}
+
+function updateMetroUI() {
+  UI.metroBpm.textContent = `${metro.bpm} BPM`;
+  UI.btnMetro.textContent = `METRONOME: ${metro.enabled ? "ON" : "OFF"}`;
+}
+
+// ---------- UI Buttons ----------
 function setScenarioButton() {
   UI.btnScenario.textContent = state.scenarioActive ? "END SCENARIO" : "START SCENARIO";
   if (state.scenarioActive) {
@@ -205,9 +269,20 @@ function setCompressionButton() {
     UI.btnCompression.disabled = true;
     UI.btnCompression.classList.remove("btnRed");
     UI.btnCompression.classList.add("btnGreen");
+
+    // disable metronome controls when scenario isn't active
+    UI.btnMetro.disabled = true;
+    UI.btnMetroDown.disabled = true;
+    UI.btnMetroUp.disabled = true;
     return;
   }
+
   UI.btnCompression.disabled = false;
+
+  // enable metronome controls during active scenario
+  UI.btnMetro.disabled = false;
+  UI.btnMetroDown.disabled = false;
+  UI.btnMetroUp.disabled = false;
 
   if (state.mode === "compressing") {
     UI.btnCompression.textContent = "PAUSE COMPRESSIONS";
@@ -231,7 +306,6 @@ function switchTab(tab) {
   UI.tabTimeline.classList.toggle("active", tab === "timeline");
   UI.tabScore.classList.toggle("active", tab === "score");
 
-  // render tab-specific views
   if (tab === "timeline") renderTimelineScreen();
   if (tab === "score") renderScoreScreen();
 }
@@ -266,6 +340,10 @@ function resetAll() {
 
   state.warnedThisPause = false;
 
+  // stop metronome on reset
+  metro.enabled = false;
+  metroStop();
+
   closeSheet();
   setStatus("READY", null);
   updateUI(true);
@@ -277,7 +355,6 @@ function finalizeCurrentPauseIfActive() {
   const n = nowMs();
   const dur = n - state.pauseStartMs;
 
-  // record pause event
   state.pauses.push({
     reason: state.currentPauseReason || "Other",
     startRelMs: (state.pauseStartMs - state.sessionStartMs),
@@ -298,7 +375,6 @@ function finalizeCycleIfNeeded() {
   const elapsed = n - state.cycleStartMs;
   if (elapsed < state.cycleMs) return;
 
-  // finalize current cycle snapshot
   const ccf = calcCCF(state.cycleCompMs, state.cycleHandsOffMs);
   state.cycles.push({
     ccf: ccf ?? 0,
@@ -307,12 +383,10 @@ function finalizeCycleIfNeeded() {
     longestPauseMs: state.cycleLongestPauseMs
   });
 
-  // reset cycle accumulators
   state.cycleCompMs = 0;
   state.cycleHandsOffMs = 0;
   state.cycleLongestPauseMs = 0;
 
-  // move cycle start forward (handle overshoot)
   const overshoot = elapsed % state.cycleMs;
   state.cycleStartMs = n - overshoot;
 }
@@ -320,15 +394,12 @@ function finalizeCycleIfNeeded() {
 function updateUI(force = false) {
   const n = nowMs();
 
-  // Session time
   const sessionMs = state.running && state.sessionStartMs ? (n - state.sessionStartMs) : 0;
   UI.sessionTime.textContent = fmt(sessionMs);
 
-  // Cycle time
   const cycleElapsed = state.running && state.cycleStartMs ? (n - state.cycleStartMs) : 0;
   UI.cycleTime.textContent = `${fmt(cycleElapsed)} / ${fmt(state.cycleMs)}`;
 
-  // metrics
   const liveCCF = calcCCF(state.compressionsMs, state.handsOffMs);
   UI.ccfLive.textContent = liveCCF === null ? "—%" : `${liveCCF}%`;
   UI.handsOff.textContent = fmt(state.handsOffMs);
@@ -337,9 +408,9 @@ function updateUI(force = false) {
 
   setScenarioButton();
   setCompressionButton();
+  updateMetroUI();
   renderTimelineStrip(UI.timelineStrip);
 
-  // keep other screens fresh too
   if (state.activeTab === "timeline") renderTimelineScreen();
   if (state.activeTab === "score") renderScoreScreen();
 }
@@ -357,13 +428,11 @@ function tick() {
       state.handsOffMs += dt;
       state.cycleHandsOffMs += dt;
 
-      // update longest pause "live"
       if (state.pauseStartMs != null) {
         const pauseDur = n - state.pauseStartMs;
         if (pauseDur > state.longestPauseMs) state.longestPauseMs = pauseDur;
         if (pauseDur > state.cycleLongestPauseMs) state.cycleLongestPauseMs = pauseDur;
 
-        // warning
         const warnEnabled = UI.warnToggle.checked;
         const warnAt = parseInt(UI.warnSeconds.value, 10) * 1000;
         if (warnEnabled && !state.warnedThisPause && pauseDur >= warnAt) {
@@ -375,7 +444,6 @@ function tick() {
       }
     }
 
-    // cycle rollovers
     finalizeCycleIfNeeded();
   }
 
@@ -384,8 +452,7 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
-// ---------- Rendering: Timeline / Score / History ----------
-
+// ---------- Timeline / Score / History rendering ----------
 function renderTimelineScreen() {
   renderTimelineStrip(UI.timelineStripBig);
 
@@ -393,7 +460,7 @@ function renderTimelineScreen() {
   if (state.pauses.length === 0) {
     const empty = document.createElement("div");
     empty.className = "item";
-    empty.innerHTML = `<div class="strong">No pauses recorded</div><div class="small">Start a scenario, pause with a reason, then resume.</div>`;
+    empty.innerHTML = `<div class="strong">No pauses recorded</div><div class="small">Pause with a reason, then resume.</div>`;
     UI.pauseList.appendChild(empty);
     return;
   }
@@ -418,17 +485,13 @@ function pausesByReason(pauses) {
     map[key].count += 1;
     map[key].totalMs += p.durationMs;
   }
-  // sort by total time desc
   return Object.entries(map).sort((a, b) => b[1].totalMs - a[1].totalMs);
 }
 
 function renderScoreScreen() {
-  // Final summary from current state (even if scenario not ended yet)
-  const durationMs = state.running && state.sessionStartMs ? (nowMs() - state.sessionStartMs) : (
-    state.sessionStartMs ? (state.lastTickMs - state.sessionStartMs) : 0
-  );
-
+  const durationMs = state.sessionStartMs && state.lastTickMs ? (state.lastTickMs - state.sessionStartMs) : 0;
   const finalCCF = calcCCF(state.compressionsMs, state.handsOffMs);
+
   UI.finalCCF.textContent = finalCCF === null ? "—%" : `${finalCCF}%`;
 
   const pass = (finalCCF !== null && finalCCF >= CCF_GOAL);
@@ -440,11 +503,10 @@ function renderScoreScreen() {
   UI.finalHandsOff.textContent = fmt(state.handsOffMs);
   UI.finalLongest.textContent = fmt(state.longestPauseMs);
 
-  // Breakdown
   UI.pauseBreakdown.innerHTML = "";
   const breakdown = pausesByReason(state.pauses);
   if (breakdown.length === 0) {
-    UI.pauseBreakdown.innerHTML = `<div class="item"><div class="strong">No pauses recorded</div><div class="small">Great! Or you never paused.</div></div>`;
+    UI.pauseBreakdown.innerHTML = `<div class="item"><div class="strong">No pauses recorded</div><div class="small">End a scenario to save data.</div></div>`;
   } else {
     for (const [reason, info] of breakdown) {
       const div = document.createElement("div");
@@ -460,11 +522,9 @@ function renderScoreScreen() {
     }
   }
 
-  // Cycles (include current unfinished as "Current" if scenario still running)
   UI.cycleList.innerHTML = "";
   const cycles = state.cycles.slice();
 
-  // Add current partial cycle as preview
   if (state.running && (state.cycleCompMs + state.cycleHandsOffMs) > 0) {
     cycles.push({
       ccf: calcCCF(state.cycleCompMs, state.cycleHandsOffMs) ?? 0,
@@ -476,7 +536,7 @@ function renderScoreScreen() {
   }
 
   if (cycles.length === 0) {
-    UI.cycleList.innerHTML = `<div class="item"><div class="strong">No cycles yet</div><div class="small">Start compressions to begin cycle tracking.</div></div>`;
+    UI.cycleList.innerHTML = `<div class="item"><div class="strong">No cycles yet</div><div class="small">Start compressions to begin.</div></div>`;
   } else {
     cycles.forEach((c, idx) => {
       const div = document.createElement("div");
@@ -493,7 +553,6 @@ function renderScoreScreen() {
     });
   }
 
-  // History
   renderHistory();
 }
 
@@ -525,7 +584,7 @@ function renderHistory() {
   UI.historyList.innerHTML = "";
 
   if (items.length === 0) {
-    UI.historyList.innerHTML = `<div class="item"><div class="strong">No saved sessions yet</div><div class="small">End a scenario to save it here.</div></div>`;
+    UI.historyList.innerHTML = `<div class="item"><div class="strong">No saved sessions yet</div><div class="small">End a scenario to save it.</div></div>`;
     return;
   }
 
@@ -548,14 +607,36 @@ function renderHistory() {
   }
 }
 
-// ---------- Actions ----------
-
+// ---------- Events ----------
 UI.tabRun.addEventListener("click", () => switchTab("run"));
 UI.tabTimeline.addEventListener("click", () => switchTab("timeline"));
 UI.tabScore.addEventListener("click", () => switchTab("score"));
 
+UI.btnMetro.addEventListener("click", () => {
+  if (!state.scenarioActive) return;
+
+  ensureAudio();
+  metro.enabled = !metro.enabled;
+
+  if (metro.enabled) metroStart();
+  else metroStop();
+
+  updateMetroUI();
+});
+
+UI.btnMetroDown.addEventListener("click", () => {
+  metro.bpm = Math.max(60, metro.bpm - 5);
+  updateMetroUI();
+  if (metro.enabled) metroStart();
+});
+
+UI.btnMetroUp.addEventListener("click", () => {
+  metro.bpm = Math.min(200, metro.bpm + 5);
+  updateMetroUI();
+  if (metro.enabled) metroStart();
+});
+
 UI.btnScenario.addEventListener("click", () => {
-  // Start scenario
   if (!state.scenarioActive) {
     resetAll();
     ensureRunning();
@@ -567,12 +648,9 @@ UI.btnScenario.addEventListener("click", () => {
     return;
   }
 
-  // End scenario
   if (confirm("End scenario and stop the timer?")) {
-    // finalize any active pause so list + stats are correct
     finalizeCurrentPauseIfActive();
 
-    // finalize current partial cycle snapshot (optional, only if any activity)
     if ((state.cycleCompMs + state.cycleHandsOffMs) > 0) {
       const ccf = calcCCF(state.cycleCompMs, state.cycleHandsOffMs) ?? 0;
       state.cycles.push({
@@ -586,7 +664,6 @@ UI.btnScenario.addEventListener("click", () => {
       state.cycleLongestPauseMs = 0;
     }
 
-    // stop segments and timer
     stopSegments();
     state.running = false;
     state.scenarioActive = false;
@@ -594,7 +671,11 @@ UI.btnScenario.addEventListener("click", () => {
     state.mode = "ready";
     setStatus("ENDED", null);
 
-    // Save to history
+    // stop metronome on end
+    metro.enabled = false;
+    metroStop();
+    updateMetroUI();
+
     const durationMs = state.sessionStartMs && state.lastTickMs ? (state.lastTickMs - state.sessionStartMs) : 0;
     const ccfFinal = calcCCF(state.compressionsMs, state.handsOffMs) ?? 0;
     addSessionToHistory({
@@ -608,7 +689,7 @@ UI.btnScenario.addEventListener("click", () => {
       cycles: state.cycles.slice(0)
     });
 
-    // Auto-show SCORE (your preference A)
+    // Auto-show SCORE
     switchTab("score");
     updateUI(true);
   }
@@ -617,16 +698,12 @@ UI.btnScenario.addEventListener("click", () => {
 UI.btnCompression.addEventListener("click", () => {
   if (!state.scenarioActive) return;
 
-  // If currently compressing -> pause requires reason
   if (state.mode === "compressing") {
     openSheet();
     return;
   }
 
-  // Starting/resuming compressions
   ensureRunning();
-
-  // finalize active pause (if any) before switching to compressions
   finalizeCurrentPauseIfActive();
 
   state.mode = "compressing";
@@ -659,7 +736,7 @@ UI.btnClearHistory.addEventListener("click", () => {
 UI.overlay.addEventListener("click", closeSheet);
 UI.btnSheetClose.addEventListener("click", closeSheet);
 
-// Build pause reason buttons
+// Pause reason buttons
 function buildReasons() {
   UI.reasonGrid.innerHTML = "";
   for (const reason of REASONS) {
@@ -672,7 +749,6 @@ function buildReasons() {
 
       ensureRunning();
 
-      // switch to paused and start pause tracking
       state.mode = "paused";
       state.currentPauseReason = reason;
       state.pauseStartMs = nowMs();
