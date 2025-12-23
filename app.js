@@ -23,8 +23,9 @@ const UI = {
   tagCPR: $("tagCPR"),
   tagPause: $("tagPause"),
 
-  // pause sheet
-  pauseSheet: $("pauseSheet"),
+  // pause overlay
+  overlay: $("overlay"),
+  pauseOverlayCard: $("pauseOverlayCard"),
   reasonGrid: $("reasonGrid"),
   selectedReason: $("selectedReason"),
 
@@ -78,129 +79,121 @@ const state = {
   longestPauseMs: 0,
 
   currentReason: null,
-  // completed pauses (reason + duration)
   pauses: [], // { reason, ms }
 
-  // timeline segments
   segments: [], // { kind:'green'|'red', ms:number }
   currentSeg: null, // { kind, t }
 
-  // metronome
   metroOn: false,
   bpm: 110,
   intervalId: null,
   audioCtx: null,
 };
 
-// ---------- helpers ----------
-function now() { return performance.now(); }
-
-function fmt(ms) {
+// ---- helpers ----
+function now(){ return performance.now(); }
+function fmt(ms){
   ms = Math.max(0, ms|0);
-  const s = Math.floor(ms / 1000);
-  const m = String(Math.floor(s / 60)).padStart(2,"0");
-  const ss = String(s % 60).padStart(2,"0");
-  return `${m}:${ss}`;
+  const s = Math.floor(ms/1000);
+  return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 }
-
-function calcCCF(compMs, offMs) {
+function calcCCF(compMs, offMs){
   const total = compMs + offMs;
   if (total <= 0) return null;
   return Math.round((compMs / total) * 100);
 }
 
-// ---------- state bar + active button visuals ----------
-function setStateBar(mode, ccfText, subText) {
+// ---- visuals ----
+function setStateBar(){
+  const ccf = calcCCF(state.compMs, state.offMs);
+  const ccfText = ccf == null ? "—%" : `${ccf}%`;
+  UI.stateMini.textContent = `CCF ${ccfText}`;
+  UI.ccfLive.textContent = ccfText;
+
   UI.stateBar.classList.remove("stateReady","stateCPR","statePause");
 
-  if (mode === "cpr") {
+  if (state.mode === "cpr"){
     UI.stateBar.classList.add("stateCPR");
     UI.stateLabel.textContent = "CPR ON";
-  } else if (mode === "paused") {
+    UI.stateSub.textContent = "Compressions ON";
+  } else if (state.mode === "paused"){
     UI.stateBar.classList.add("statePause");
     UI.stateLabel.textContent = "HANDS-OFF";
+    UI.stateSub.textContent = state.currentReason ? `Reason: ${state.currentReason}` : "Select pause reason";
   } else {
     UI.stateBar.classList.add("stateReady");
     UI.stateLabel.textContent = "READY";
+    UI.stateSub.textContent = "Tap CPR to start";
   }
-
-  UI.stateSub.textContent = subText;
-  UI.stateMini.textContent = `CCF ${ccfText}`;
 }
 
-function setActiveButtons() {
-  // reset to neutral
+function setActiveButtons(){
   UI.btnCPR.classList.remove("activeCPR");
   UI.btnPause.classList.remove("activePAUSE");
   UI.tagCPR.classList.add("hidden");
   UI.tagPause.classList.add("hidden");
 
-  if (state.mode === "cpr") {
+  if (state.mode === "cpr"){
     UI.btnCPR.classList.add("activeCPR");
     UI.tagCPR.classList.remove("hidden");
-  }
-  if (state.mode === "paused") {
+  } else if (state.mode === "paused"){
     UI.btnPause.classList.add("activePAUSE");
     UI.tagPause.classList.remove("hidden");
   }
 }
 
-// ---------- timeline ----------
-function startSegment(kind) {
+// ---- timeline ----
+function startSegment(kind){
   const t = now();
-  if (state.currentSeg) {
+  if (state.currentSeg){
     const dur = t - state.currentSeg.t;
     if (dur > 0) state.segments.push({ kind: state.currentSeg.kind, ms: dur });
   }
   state.currentSeg = { kind, t };
 }
-
-function stopCurrentSegment() {
+function stopCurrentSegment(){
   const t = now();
   if (!state.currentSeg) return;
   const dur = t - state.currentSeg.t;
   if (dur > 0) state.segments.push({ kind: state.currentSeg.kind, ms: dur });
   state.currentSeg = null;
 }
-
-function renderTimeline() {
+function renderTimeline(){
   const t = now();
   const segs = state.segments.slice();
   if (state.currentSeg) segs.push({ kind: state.currentSeg.kind, ms: t - state.currentSeg.t });
 
-  const total = segs.reduce((a, s) => a + s.ms, 0);
+  const total = segs.reduce((a,s)=>a+s.ms,0);
   UI.timeline.innerHTML = "";
   if (total <= 0) return;
 
-  for (const s of segs) {
+  for (const s of segs){
     const div = document.createElement("div");
     div.className = `seg ${s.kind}`;
-    div.style.width = `${(s.ms / total) * 100}%`;
+    div.style.width = `${(s.ms/total)*100}%`;
     UI.timeline.appendChild(div);
   }
 }
 
-// ---------- pause reason sheet (non-blocking) ----------
-function showPauseSheet(show) {
-  UI.pauseSheet.classList.toggle("hidden", !show);
+// ---- pause overlay (non-layout shifting) ----
+function openPauseOverlay(open){
+  UI.overlay.classList.toggle("hidden", !open);
+  UI.pauseOverlayCard.classList.toggle("hidden", !open);
+}
+function clearReasonSelectionUI(){
+  UI.reasonGrid.querySelectorAll("button").forEach(b=>b.classList.remove("selected"));
 }
 
-function clearReasonSelectionUI() {
-  UI.reasonGrid.querySelectorAll("button").forEach(b => b.classList.remove("selected"));
-}
-
-// ---------- metronome ----------
-function ensureAudio() {
-  if (!state.audioCtx) {
+// ---- metronome ----
+function ensureAudio(){
+  if (!state.audioCtx){
     const Ctx = window.AudioContext || window.webkitAudioContext;
     state.audioCtx = new Ctx();
   }
   if (state.audioCtx.state === "suspended") state.audioCtx.resume();
 }
-
-function playClick() {
+function playClick(){
   if (!state.audioCtx) return;
-
   const t = state.audioCtx.currentTime;
   const osc = state.audioCtx.createOscillator();
   const gain = state.audioCtx.createGain();
@@ -218,8 +211,7 @@ function playClick() {
   osc.start(t);
   osc.stop(t + 0.06);
 }
-
-function metronomePulseVisual() {
+function metronomePulseVisual(){
   UI.pulseDot.style.background = "rgba(34,197,94,.95)";
   UI.pulseDot.style.boxShadow = "0 0 18px rgba(34,197,94,.55)";
   UI.pulseFill.style.width = "100%";
@@ -229,13 +221,17 @@ function metronomePulseVisual() {
     UI.pulseFill.style.width = "0%";
   }, 90);
 }
-
-function metroStart() {
+function metroStop(){
+  if (state.intervalId){
+    clearInterval(state.intervalId);
+    state.intervalId = null;
+  }
+}
+function metroStart(){
   metroStop();
   const msPerBeat = Math.round(60000 / state.bpm);
 
-  // immediate tick if in CPR
-  if (state.mode === "cpr") {
+  if (state.mode === "cpr"){
     playClick();
     metronomePulseVisual();
   }
@@ -247,15 +243,7 @@ function metroStart() {
     metronomePulseVisual();
   }, msPerBeat);
 }
-
-function metroStop() {
-  if (state.intervalId) {
-    clearInterval(state.intervalId);
-    state.intervalId = null;
-  }
-}
-
-function updateMetroUI() {
+function updateMetroUI(){
   UI.metroBpm.textContent = `${state.bpm} BPM`;
   UI.btnMetro.textContent = `🔊 Metronome: ${state.metroOn ? "ON" : "OFF"}`;
 
@@ -269,18 +257,17 @@ function updateMetroUI() {
     : "Metronome visual runs during CPR (turn on below)";
 }
 
-// ---------- scoring ----------
-function pausesByReason() {
+// ---- scoring ----
+function pausesByReason(){
   const map = {};
-  for (const p of state.pauses) {
-    map[p.reason] = map[p.reason] || { count: 0, ms: 0 };
+  for (const p of state.pauses){
+    map[p.reason] = map[p.reason] || { count:0, ms:0 };
     map[p.reason].count += 1;
     map[p.reason].ms += p.ms;
   }
   return Object.entries(map).sort((a,b)=>b[1].ms - a[1].ms);
 }
-
-function renderScore() {
+function renderScore(){
   const ccf = calcCCF(state.compMs, state.offMs) ?? 0;
   const total = state.compMs + state.offMs;
 
@@ -298,10 +285,10 @@ function renderScore() {
 
   UI.breakdownList.innerHTML = "";
   const list = pausesByReason();
-  if (list.length === 0) {
+  if (list.length === 0){
     UI.breakdownList.innerHTML = `<div class="breakItem"><div class="strong">No pauses recorded</div><div class="muted">Nice work</div></div>`;
   } else {
-    for (const [reason, info] of list) {
+    for (const [reason, info] of list){
       const div = document.createElement("div");
       div.className = "breakItem";
       div.innerHTML = `
@@ -315,74 +302,56 @@ function renderScore() {
     }
   }
 }
-
-function openScore(open) {
+function openScore(open){
   UI.scoreOverlay.classList.toggle("hidden", !open);
 }
 
-// ---------- core loop ----------
-function tick() {
+// ---- loop ----
+function tick(){
   if (!state.running) return requestAnimationFrame(tick);
 
   const t = now();
   const dt = t - state.lastMs;
   state.lastMs = t;
 
-  if (state.mode === "cpr") {
+  if (state.mode === "cpr"){
     state.compMs += dt;
-  } else if (state.mode === "paused") {
+  } else if (state.mode === "paused"){
     state.offMs += dt;
-
-    if (state.pauseStartMs != null) {
+    if (state.pauseStartMs != null){
       const pauseDur = t - state.pauseStartMs;
       state.longestPauseMs = Math.max(state.longestPauseMs, pauseDur);
     }
   }
 
-  const total = state.compMs + state.offMs;
-  UI.sessionTime.textContent = fmt(total);
+  UI.sessionTime.textContent = fmt(state.compMs + state.offMs);
   UI.cprTime.textContent = fmt(state.compMs);
   UI.handsOff.textContent = fmt(state.offMs);
 
-  const ccf = calcCCF(state.compMs, state.offMs);
-  const ccfText = ccf == null ? "—%" : `${ccf}%`;
-  UI.ccfLive.textContent = ccfText;
-
-  if (state.mode === "cpr") {
-    setStateBar("cpr", ccfText, "Compressions ON");
-  } else if (state.mode === "paused") {
-    const reasonShort = state.currentReason ? ` • ${state.currentReason}` : "";
-    setStateBar("paused", ccfText, `Hands-Off (select reason)${reasonShort}`);
-  } else {
-    setStateBar("ready", ccfText, "Tap CPR to start");
-  }
-
+  setStateBar();
   setActiveButtons();
   renderTimeline();
 
   requestAnimationFrame(tick);
 }
 
-// ---------- session state transitions ----------
-function startSessionIfNeeded() {
+// ---- transitions ----
+function startSessionIfNeeded(){
   if (state.running) return;
-
   state.running = true;
   state.mode = "ready";
   state.startMs = now();
   state.lastMs = state.startMs;
-
   UI.btnEnd.disabled = false;
   updateMetroUI();
-
   requestAnimationFrame(tick);
 }
 
-function startCPR() {
+function startCPR(){
   startSessionIfNeeded();
 
   // finalize pause if we were paused
-  if (state.mode === "paused" && state.pauseStartMs != null) {
+  if (state.mode === "paused" && state.pauseStartMs != null){
     const t = now();
     const dur = t - state.pauseStartMs;
     state.pauses.push({ reason: state.currentReason || "Other", ms: dur });
@@ -392,32 +361,33 @@ function startCPR() {
   state.mode = "cpr";
   UI.btnPause.disabled = false;
 
-  // hide pause sheet during CPR
-  showPauseSheet(false);
+  // close pause overlay if open
+  openPauseOverlay(false);
 
   startSegment("green");
 
   if (state.metroOn) metroStart();
 }
 
-function startPause() {
+function startPause(){
   if (!state.running) return;
+  if (state.mode === "paused") return;
 
   state.mode = "paused";
   state.pauseCount += 1;
   state.pauseStartMs = now();
 
-  // show pause sheet (non-blocking)
-  showPauseSheet(true);
-
   startSegment("red");
+
+  // show overlay but DO NOT change layout
+  openPauseOverlay(true);
 }
 
-function endSession() {
+function endSession(){
   if (!state.running) return;
 
   // finalize pause if paused
-  if (state.mode === "paused" && state.pauseStartMs != null) {
+  if (state.mode === "paused" && state.pauseStartMs != null){
     const t = now();
     const dur = t - state.pauseStartMs;
     state.pauses.push({ reason: state.currentReason || "Other", ms: dur });
@@ -426,28 +396,27 @@ function endSession() {
 
   stopCurrentSegment();
 
-  // stop timer
   state.running = false;
   state.mode = "ready";
 
-  // stop metronome
   state.metroOn = false;
   metroStop();
   updateMetroUI();
 
-  // disable controls
   UI.btnPause.disabled = true;
   UI.btnEnd.disabled = true;
 
-  // hide pause sheet
-  showPauseSheet(false);
+  openPauseOverlay(false);
 
-  // show score
   renderScore();
   openScore(true);
+
+  setStateBar();
+  setActiveButtons();
+  renderTimeline();
 }
 
-function resetAll() {
+function resetAll(){
   metroStop();
   state.metroOn = false;
 
@@ -472,46 +441,46 @@ function resetAll() {
 
   UI.btnPause.disabled = true;
   UI.btnEnd.disabled = true;
-  UI.ccfLive.textContent = "—%";
+
   UI.sessionTime.textContent = "00:00";
   UI.cprTime.textContent = "00:00";
   UI.handsOff.textContent = "00:00";
-
+  UI.ccfLive.textContent = "—%";
   UI.selectedReason.textContent = "None";
   clearReasonSelectionUI();
 
-  showPauseSheet(false);
+  openPauseOverlay(false);
   openScore(false);
 
   updateMetroUI();
-  setStateBar("ready", "—%", "Tap CPR to start");
+  setStateBar();
   setActiveButtons();
   renderTimeline();
 }
 
-// ---------- build pause reasons ----------
-function buildReasons() {
+// ---- build reasons (auto-hide after selection) ----
+function buildReasons(){
   UI.reasonGrid.innerHTML = "";
-  for (const r of REASONS) {
+  for (const r of REASONS){
     const b = document.createElement("button");
     b.textContent = `${r.icon} ${r.key}`;
     b.addEventListener("click", () => {
       state.currentReason = r.key;
       UI.selectedReason.textContent = r.key;
+
       clearReasonSelectionUI();
       b.classList.add("selected");
+
+      // auto-hide after selection
+      openPauseOverlay(false);
     });
     UI.reasonGrid.appendChild(b);
   }
 }
 
-// ---------- events ----------
+// ---- events ----
 UI.btnCPR.addEventListener("click", startCPR);
-
-UI.btnPause.addEventListener("click", () => {
-  if (state.mode === "paused") return; // already paused
-  startPause();
-});
+UI.btnPause.addEventListener("click", startPause);
 
 UI.btnEnd.addEventListener("click", () => {
   if (confirm("End session and view score?")) endSession();
@@ -541,6 +510,9 @@ UI.btnBpmUp.addEventListener("click", () => {
 UI.btnScoreClose.addEventListener("click", () => openScore(false));
 UI.btnNewSession.addEventListener("click", () => resetAll());
 
-// ---------- init ----------
+// Optional: tap outside to close pause overlay
+UI.overlay.addEventListener("click", () => openPauseOverlay(false));
+
+// ---- init ----
 buildReasons();
 resetAll();
