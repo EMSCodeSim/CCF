@@ -90,6 +90,31 @@ const state = {
   audioCtx: null,
 };
 
+// ---- persistence (Reports page) ----
+const STORAGE_KEY = "ccf_sessions_v1";
+
+function loadSessions(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  }catch(_e){ return []; }
+}
+
+function saveSessions(arr){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch(_e){}
+}
+
+function pushSession(session){
+  const arr = loadSessions();
+  arr.unshift(session); // newest first
+  // keep last 50
+  if (arr.length > 50) arr.length = 50;
+  saveSessions(arr);
+}
+
+
 // ---- helpers ----
 function now(){ return performance.now(); }
 function fmt(ms){
@@ -409,8 +434,24 @@ function endSession(){
   openPauseOverlay(false);
 
   renderScore();
-  openScore(true);
+  // Save session for Reports page
+  const finalCCF = calcCCF(state.compMs, state.offMs) ?? 0;
+  const total = state.compMs + state.offMs;
+  const endedAt = new Date().toISOString();
 
+  pushSession({
+    endedAt,
+    totalMs: total,
+    compMs: state.compMs,
+    offMs: state.offMs,
+    finalCCF,
+    pauseCount: state.pauseCount,
+    longestPauseMs: state.longestPauseMs,
+    pauses: state.pauses,
+  });
+
+  // Go to Reports page (ads can live there)
+  window.location.href = "./reports.html";
   setStateBar();
   setActiveButtons();
   renderTimeline();
@@ -460,6 +501,8 @@ function resetAll(){
 
 // ---- build reasons (auto-hide after selection) ----
 function buildReasons(){
+  if (!UI.reasonGrid) return;
+
   UI.reasonGrid.innerHTML = "";
   for (const r of REASONS){
     const b = document.createElement("button");
@@ -479,14 +522,14 @@ function buildReasons(){
 }
 
 // ---- events ----
-UI.btnCPR.addEventListener("click", startCPR);
-UI.btnPause.addEventListener("click", startPause);
+if (UI.btnCPR) UI.btnCPR.addEventListener("click", startCPR);
+if (UI.btnPause) UI.btnPause.addEventListener("click", startPause);
 
-UI.btnEnd.addEventListener("click", () => {
+if (UI.btnEnd) UI.btnEnd.addEventListener("click", () => {
   if (confirm("End session and view score?")) endSession();
 });
 
-UI.btnMetro.addEventListener("click", () => {
+if (UI.btnMetro) UI.btnMetro.addEventListener("click", () => {
   if (!state.running) return;
   ensureAudio();
   state.metroOn = !state.metroOn;
@@ -495,24 +538,31 @@ UI.btnMetro.addEventListener("click", () => {
   updateMetroUI();
 });
 
-UI.btnBpmDown.addEventListener("click", () => {
+if (UI.btnBpmDown) UI.btnBpmDown.addEventListener("click", () => {
   state.bpm = Math.max(60, state.bpm - 5);
   updateMetroUI();
   if (state.metroOn) metroStart();
 });
 
-UI.btnBpmUp.addEventListener("click", () => {
+if (UI.btnBpmUp) UI.btnBpmUp.addEventListener("click", () => {
   state.bpm = Math.min(200, state.bpm + 5);
   updateMetroUI();
   if (state.metroOn) metroStart();
 });
 
-UI.btnScoreClose.addEventListener("click", () => openScore(false));
-UI.btnNewSession.addEventListener("click", () => resetAll());
+if (UI.btnScoreClose) UI.btnScoreClose.addEventListener("click", () => openScore(false));
+if (UI.btnNewSession) UI.btnNewSession.addEventListener("click", () => resetAll());
 
 // Optional: tap outside to close pause overlay
-UI.overlay.addEventListener("click", () => openPauseOverlay(false));
+if (UI.overlay) UI.overlay.addEventListener("click", () => openPauseOverlay(false));
 
 // ---- init ----
-buildReasons();
-resetAll();
+window.addEventListener("DOMContentLoaded", () => {
+  try {
+    buildReasons();
+    resetAll();
+  } catch (e) {
+    console.error("Init error:", e);
+    alert("App failed to start. Check console for details.");
+  }
+});
