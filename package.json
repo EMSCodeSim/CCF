@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "build": "echo \"No build step (static web in CCF/)\"",
+    "cap:copy": "npx cap copy android",
+    "cap:sync": "npx cap sync android"
+  }
+}
