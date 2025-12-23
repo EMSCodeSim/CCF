@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CCF CPR Timer</string>
+    <string name="title_activity_main">CCF CPR Timer</string>
+    <string name="package_name">com.emscodesim.ccf</string>
+    <string name="custom_url_scheme">com.emscodesim.ccf</string>
+</resources>
