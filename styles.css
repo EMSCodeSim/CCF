@@ -1,6 +1,6 @@
 :root{
   /* Friendlier palette */
-  --bg:#0b1220;
+  --bg:#163a63;
   --panel:#101a2e;
   --panel2:#0f1a33;
 
@@ -26,10 +26,12 @@
 body{
   margin:0;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-  background: radial-gradient(1200px 700px at 50% -20%, rgba(45,212,191,.18), rgba(0,0,0,0)),
-              radial-gradient(900px 500px at 80% 10%, rgba(96,165,250,.18), rgba(0,0,0,0)),
+  background: radial-gradient(1200px 700px at 50% -20%, rgba(45,212,191,.22), rgba(0,0,0,0)),
+              radial-gradient(900px 500px at 80% 10%, rgba(96,165,250,.22), rgba(0,0,0,0)),
+              radial-gradient(900px 600px at 20% 110%, rgba(251,113,133,.14), rgba(0,0,0,0)),
               var(--bg);
-  color:var(--text);
+color:var(--text);
+  background-color: var(--bg);
 }
 
 .topbar{
@@ -56,6 +58,7 @@ body{
   font-weight:1000;
   background:rgba(255,255,255,.08);
   color:var(--text);
+  background-color: var(--bg);
   cursor:pointer;
 }
 .endBtn:disabled{opacity:.45; cursor:not-allowed;}
@@ -193,6 +196,7 @@ body{
 .neutral{
   background:linear-gradient(180deg, var(--neutral1), var(--neutral2));
   color:var(--text);
+  background-color: var(--bg);
   border:1px solid rgba(255,255,255,.10);
 }
 .bigBtn:disabled{opacity:.45; cursor:not-allowed;}
@@ -241,6 +245,7 @@ body{
   border-radius:16px;
   background:rgba(255,255,255,.08);
   color:var(--text);
+  background-color: var(--bg);
   cursor:pointer;
   font-weight:1000;
 }
@@ -279,7 +284,8 @@ body{
 .pauseTitle{font-weight:1000; font-size:14px;}
 .pauseSub{color:var(--muted); font-weight:900; font-size:12px; margin-top:3px;}
 .picked{color:var(--muted); font-weight:1000; font-size:12px;}
-.picked span{color:var(--text);}
+.picked span{color:var(--text);
+  background-color: var(--bg);}
 
 .reasonGrid{
   margin-top:10px;
@@ -295,6 +301,7 @@ body{
   border:1px solid rgba(255,255,255,.10);
   background:rgba(255,255,255,.06);
   color:var(--text);
+  background-color: var(--bg);
   cursor:pointer;
 }
 .reasonGrid button.selected{
@@ -327,6 +334,7 @@ body{
   border:none;
   background:rgba(255,255,255,.10);
   color:var(--text);
+  background-color: var(--bg);
   border-radius:12px;
   width:40px;height:40px;
   cursor:pointer;
