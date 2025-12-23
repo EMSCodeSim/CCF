@@ -1,0 +1,6 @@
+{
+  "appId": "com.emscodesim.ccf",
+  "appName": "CCF CPR Timer",
+  "webDir": "CCF",
+  "bundledWebRuntime": false
+}
