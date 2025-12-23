@@ -18,56 +18,135 @@
   </header>
 
   <main class="container">
-    <section class="statusRow">
-      <div class="status">
-        <div class="label">STATUS</div>
-        <div class="value" id="statusText">READY</div>
-      </div>
-      <div class="ccf">
-        <div class="label">CCF (Live)</div>
-        <div class="value" id="ccfLive">—%</div>
-      </div>
+
+    <!-- RUN SCREEN -->
+    <section id="screenRun" class="screen">
+      <section class="statusRow">
+        <div class="status">
+          <div class="label">STATUS</div>
+          <div class="value" id="statusText">READY</div>
+        </div>
+        <div class="ccf">
+          <div class="label">CCF (Live)</div>
+          <div class="value" id="ccfLive">—%</div>
+        </div>
+      </section>
+
+      <section class="scenarioRow">
+        <button class="btn btnBlue" id="btnScenario">START SCENARIO</button>
+      </section>
+
+      <section class="timerBlock">
+        <div class="bigTime" id="sessionTime">00:00</div>
+        <div class="cyclePill" id="cycleTime">00:00 / 02:00</div>
+      </section>
+
+      <section class="actionsRow single">
+        <button class="btn btnGreen" id="btnCompression" disabled>START COMPRESSIONS</button>
+      </section>
+
+      <section class="cardsRow">
+        <div class="card">
+          <div class="cardLabel">Hands-Off</div>
+          <div class="cardValue" id="handsOff">00:00</div>
+        </div>
+        <div class="card">
+          <div class="cardLabel">Longest Pause</div>
+          <div class="cardValue" id="longestPause">00:00</div>
+        </div>
+        <div class="card">
+          <div class="cardLabel">Pauses</div>
+          <div class="cardValue" id="pauseCount">0</div>
+        </div>
+      </section>
+
+      <section class="timelineSection">
+        <div class="timelineHeader">
+          <div class="label">Timeline</div>
+          <button class="linkbtn" id="btnClearTimeline">Clear</button>
+        </div>
+        <div class="timelineStrip" id="timelineStrip" aria-label="Timeline"></div>
+        <div class="hint">Green = compressions • Red = pauses</div>
+      </section>
     </section>
 
-    <!-- Scenario control (above timer) -->
-    <section class="scenarioRow">
-      <button class="btn btnBlue" id="btnScenario">START SCENARIO</button>
+    <!-- TIMELINE SCREEN -->
+    <section id="screenTimeline" class="screen hidden">
+      <section class="panel">
+        <div class="panelHeader">
+          <div class="panelTitle">Timeline</div>
+          <div class="panelSub">Pauses with reason + duration</div>
+        </div>
+
+        <div class="timelineStrip big" id="timelineStripBig" aria-label="Timeline big"></div>
+        <div class="hint">Tap RUN to continue scenario</div>
+
+        <div class="listHeader">
+          <div>Time</div>
+          <div>Reason</div>
+          <div class="right">Dur</div>
+        </div>
+        <div id="pauseList" class="list"></div>
+      </section>
     </section>
 
-    <section class="timerBlock">
-      <div class="bigTime" id="sessionTime">00:00</div>
-      <div class="cyclePill" id="cycleTime">00:00 / 02:00</div>
+    <!-- SCORE SCREEN -->
+    <section id="screenScore" class="screen hidden">
+      <section class="panel">
+        <div class="panelHeader">
+          <div class="panelTitle">Score</div>
+          <div class="panelSub">Auto-shown when scenario ends</div>
+        </div>
+
+        <div class="scoreCard">
+          <div>
+            <div class="label">Final διαφο</div>
+            <div class="scoreValue" id="finalCCF">—%</div>
+          </div>
+          <div class="badge" id="scoreBadge">—</div>
+        </div>
+
+        <section class="cardsRow scoreCards">
+          <div class="card">
+            <div class="cardLabel">Scenario Time</div>
+            <div class="cardValue" id="finalDuration">00:00</div>
+          </div>
+          <div class="card">
+            <div class="cardLabel">Hands-Off</div>
+            <div class="cardValue" id="finalHandsOff">00:00</div>
+          </div>
+          <div class="card">
+            <div class="cardLabel">Longest Pause</div>
+            <div class="cardValue" id="finalLongest">00:00</div>
+          </div>
+        </section>
+
+        <section class="panelMini">
+          <div class="miniTitle">Pauses by Reason</div>
+          <div id="pauseBreakdown" class="breakdown"></div>
+        </section>
+
+        <section class="panelMini">
+          <div class="miniTitle">2-Minute Cycles</div>
+          <div id="cycleList" class="cycleList"></div>
+        </section>
+
+        <section class="panelMini">
+          <div class="miniTitle">Recent Sessions</div>
+          <div id="historyList" class="historyList"></div>
+          <button class="linkbtn danger" id="btnClearHistory">Clear History</button>
+        </section>
+      </section>
     </section>
 
-    <!-- Compression control (single large button below timer) -->
-    <section class="actionsRow single">
-      <button class="btn btnGreen" id="btnCompression" disabled>START COMPRESSIONS</button>
-    </section>
-
-    <section class="cardsRow">
-      <div class="card">
-        <div class="cardLabel">Hands-Off</div>
-        <div class="cardValue" id="handsOff">00:00</div>
-      </div>
-      <div class="card">
-        <div class="cardLabel">Longest Pause</div>
-        <div class="cardValue" id="longestPause">00:00</div>
-      </div>
-      <div class="card">
-        <div class="cardLabel">Pauses</div>
-        <div class="cardValue" id="pauseCount">0</div>
-      </div>
-    </section>
-
-    <section class="timelineSection">
-      <div class="timelineHeader">
-        <div class="label">Timeline</div>
-        <button class="linkbtn" id="btnClearTimeline">Clear</button>
-      </div>
-      <div class="timelineStrip" id="timelineStrip" aria-label="Timeline"></div>
-      <div class="hint">Green = compressions • Red = pauses</div>
-    </section>
   </main>
+
+  <!-- Bottom Tabs -->
+  <nav class="tabs">
+    <button class="tab active" id="tabRun">RUN</button>
+    <button class="tab" id="tabTimeline">TIMELINE</button>
+    <button class="tab" id="tabScore">SCORE</button>
+  </nav>
 
   <!-- Pause Reason Sheet -->
   <div class="overlay hidden" id="overlay"></div>
