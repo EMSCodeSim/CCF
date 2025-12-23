@@ -1,4 +1,5 @@
-// ======= CCF TIMER MVP (web -> Capacitor ready) =======
+// app.js
+// ======= CCF TIMER MVP (Scenario-based, web -> Capacitor ready) =======
 
 const $ = (id) => document.getElementById(id);
 
@@ -12,8 +13,8 @@ const UI = {
   pauseCount: $("pauseCount"),
   timelineStrip: $("timelineStrip"),
 
-  btnOn: $("btnOn"),
-  btnPause: $("btnPause"),
+  btnScenario: $("btnScenario"),
+  btnCompression: $("btnCompression"),
   btnReset: $("btnReset"),
   btnClearTimeline: $("btnClearTimeline"),
 
@@ -43,6 +44,9 @@ const state = {
   sessionStartMs: null,
   lastTickMs: null,
 
+  scenarioActive: false,
+  scenarioEnded: false,
+
   compressionsMs: 0,
   handsOffMs: 0,
 
@@ -62,7 +66,7 @@ const state = {
 };
 
 function fmt(ms) {
-  ms = Math.max(0, ms|0);
+  ms = Math.max(0, ms | 0);
   const totalSec = Math.floor(ms / 1000);
   const m = String(Math.floor(totalSec / 60)).padStart(2, "0");
   const s = String(totalSec % 60).padStart(2, "0");
@@ -87,6 +91,7 @@ function openSheet() {
   UI.overlay.classList.remove("hidden");
   UI.pauseSheet.classList.remove("hidden");
 }
+
 function closeSheet() {
   UI.overlay.classList.add("hidden");
   UI.pauseSheet.classList.add("hidden");
@@ -99,7 +104,6 @@ function ensureRunning() {
   state.sessionStartMs = now;
   state.cycleStartMs = now;
   state.lastTickMs = now;
-  setStatus("READY", null);
 }
 
 function startSegment(kind) {
@@ -122,7 +126,6 @@ function stopSegments() {
 }
 
 function renderTimeline() {
-  // Build normalized strip widths from segments + current active segment (partial)
   const now = performance.now();
   const segs = state.segments.slice();
   if (state.currentSeg) {
@@ -140,11 +143,48 @@ function renderTimeline() {
   }
 }
 
+function setScenarioButton() {
+  UI.btnScenario.textContent = state.scenarioActive ? "END SCENARIO" : "START SCENARIO";
+  // color shift when ending
+  if (state.scenarioActive) {
+    UI.btnScenario.classList.remove("btnBlue");
+    UI.btnScenario.classList.add("btnRed");
+  } else {
+    UI.btnScenario.classList.remove("btnRed");
+    UI.btnScenario.classList.add("btnBlue");
+  }
+}
+
+function setCompressionButton() {
+  if (!state.scenarioActive) {
+    UI.btnCompression.textContent = "START COMPRESSIONS";
+    UI.btnCompression.disabled = true;
+    UI.btnCompression.classList.remove("btnRed");
+    UI.btnCompression.classList.add("btnGreen");
+    return;
+  }
+
+  UI.btnCompression.disabled = false;
+
+  if (state.mode === "compressing") {
+    UI.btnCompression.textContent = "PAUSE COMPRESSIONS";
+    UI.btnCompression.classList.remove("btnGreen");
+    UI.btnCompression.classList.add("btnRed");
+  } else {
+    UI.btnCompression.textContent = "START COMPRESSIONS";
+    UI.btnCompression.classList.remove("btnRed");
+    UI.btnCompression.classList.add("btnGreen");
+  }
+}
+
 function resetAll() {
   state.running = false;
   state.mode = "ready";
   state.sessionStartMs = null;
   state.lastTickMs = null;
+
+  state.scenarioActive = false;
+  state.scenarioEnded = false;
 
   state.compressionsMs = 0;
   state.handsOffMs = 0;
@@ -161,6 +201,7 @@ function resetAll() {
   state.warnedThisPause = false;
 
   closeSheet();
+  setStatus("READY", null);
   updateUI(true);
 }
 
@@ -173,12 +214,10 @@ function updateUI(force = false) {
 
   // cycle time
   const cycleElapsed = state.running ? (now - state.cycleStartMs) : 0;
-  const cycleDisp = `${fmt(cycleElapsed)} / ${fmt(state.cycleMs)}`;
-  UI.cycleTime.textContent = cycleDisp;
+  UI.cycleTime.textContent = `${fmt(cycleElapsed)} / ${fmt(state.cycleMs)}`;
 
-  // wrap cycle (keeps simple 2-min blocks)
+  // wrap cycle
   if (state.running && cycleElapsed >= state.cycleMs) {
-    // roll forward by multiples to avoid drift
     const overshoot = cycleElapsed % state.cycleMs;
     state.cycleStartMs = now - overshoot;
   }
@@ -190,26 +229,8 @@ function updateUI(force = false) {
   UI.longestPause.textContent = fmt(state.longestPauseMs);
   UI.pauseCount.textContent = String(state.pauseCount);
 
-  // buttons
-  if (state.mode === "compressing") {
-    UI.btnOn.disabled = true;
-    UI.btnPause.disabled = false;
-    UI.btnOn.style.opacity = "0.85";
-  } else if (state.mode === "paused") {
-    UI.btnOn.disabled = false;
-    UI.btnPause.disabled = true;
-    UI.btnPause.style.opacity = "0.85";
-    UI.btnPause.textContent = "PAUSED";
-    UI.btnOn.textContent = "RESUME COMPRESSIONS";
-  } else {
-    UI.btnOn.disabled = false;
-    UI.btnPause.disabled = false;
-    UI.btnOn.textContent = "COMPRESSIONS ON";
-    UI.btnPause.textContent = "PAUSE";
-    UI.btnOn.style.opacity = "1";
-    UI.btnPause.style.opacity = "1";
-  }
-
+  setScenarioButton();
+  setCompressionButton();
   renderTimeline();
 }
 
@@ -223,19 +244,16 @@ function tick() {
     } else if (state.mode === "paused") {
       state.handsOffMs += dt;
 
-      // pause duration tracking
       if (state.pauseStartMs != null) {
         const pauseDur = now - state.pauseStartMs;
         if (pauseDur > state.longestPauseMs) state.longestPauseMs = pauseDur;
 
-        // warning
         const warnEnabled = UI.warnToggle.checked;
         const warnAt = parseInt(UI.warnSeconds.value, 10) * 1000;
         if (warnEnabled && !state.warnedThisPause && pauseDur >= warnAt) {
           state.warnedThisPause = true;
-          // simple alert effect: vibration on mobile if available
           if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
-          // flash status color quickly
+
           UI.statusText.style.filter = "drop-shadow(0 0 10px rgba(239,68,68,.8))";
           setTimeout(() => (UI.statusText.style.filter = "none"), 350);
         }
@@ -248,25 +266,53 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
-// Actions
-UI.btnOn.addEventListener("click", () => {
-  ensureRunning();
-
-  // if we were paused, end pause segment
-  if (state.mode === "paused") {
-    state.pauseStartMs = null;
-    state.pauseReason = null;
+// Scenario button
+UI.btnScenario.addEventListener("click", () => {
+  // Start scenario
+  if (!state.scenarioActive) {
+    resetAll();        // fresh session
+    ensureRunning();
+    state.scenarioActive = true;
+    state.mode = "ready";
+    setStatus("READY", null);
+    updateUI(true);
+    return;
   }
 
-  state.mode = "compressing";
-  state.warnedThisPause = false;
-  startSegment("green");
-  setStatus("COMPRESSIONS ON", "green");
+  // End scenario
+  if (confirm("End scenario and stop the timer?")) {
+    state.scenarioActive = false;
+    state.scenarioEnded = true;
+    stopSegments();
+    state.mode = "ready";
+    state.running = false;
+    setStatus("ENDED", null);
+    updateUI(true);
+  }
 });
 
-UI.btnPause.addEventListener("click", () => {
-  ensureRunning();
-  // require reason selection
+// Compression button
+UI.btnCompression.addEventListener("click", () => {
+  if (!state.scenarioActive) return;
+
+  // Start / resume compressions
+  if (state.mode !== "compressing") {
+    ensureRunning();
+
+    if (state.mode === "paused") {
+      state.pauseStartMs = null;
+      state.pauseReason = null;
+    }
+
+    state.mode = "compressing";
+    state.warnedThisPause = false;
+    startSegment("green");
+    setStatus("COMPRESSIONS ON", "green");
+    updateUI(true);
+    return;
+  }
+
+  // Pause (requires reason)
   openSheet();
 });
 
@@ -291,7 +337,8 @@ function buildReasons() {
     b.className = "chip";
     b.textContent = reason;
     b.addEventListener("click", () => {
-      // start pause
+      if (!state.scenarioActive) return;
+
       ensureRunning();
       state.mode = "paused";
       state.pauseReason = reason;
@@ -302,6 +349,7 @@ function buildReasons() {
       startSegment("red");
       setStatus(`PAUSED • ${reason}`, "red");
       closeSheet();
+      updateUI(true);
     });
     UI.reasonGrid.appendChild(b);
   }
