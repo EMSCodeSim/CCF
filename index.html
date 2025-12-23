@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CCF Timer</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="appbar">
+    <button class="iconbtn" id="btnMenu" aria-label="Menu">☰</button>
+    <div class="title">CCF Timer</div>
+    <div class="actions">
+      <button class="iconbtn" id="btnSettings" aria-label="Settings">⚙️</button>
+      <button class="iconbtn" id="btnReset" aria-label="Reset">⟳</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="statusRow">
+      <div class="status">
+        <div class="label">STATUS</div>
+        <div class="value" id="statusText">READY</div>
+      </div>
+      <div class="ccf">
+        <div class="label">CCF (Live)</div>
+        <div class="value" id="ccfLive">—%</div>
+      </div>
+    </section>
+
+    <section class="timerBlock">
+      <div class="bigTime" id="sessionTime">00:00</div>
+      <div class="cyclePill" id="cycleTime">00:00 / 02:00</div>
+    </section>
+
+    <section class="actionsRow">
+      <button class="btn btnGreen" id="btnOn">COMPRESSIONS ON</button>
+      <button class="btn btnRed" id="btnPause">PAUSE</button>
+    </section>
+
+    <section class="cardsRow">
+      <div class="card">
+        <div class="cardLabel">Hands-Off</div>
+        <div class="cardValue" id="handsOff">00:00</div>
+      </div>
+      <div class="card">
+        <div class="cardLabel">Longest Pause</div>
+        <div class="cardValue" id="longestPause">00:00</div>
+      </div>
+      <div class="card">
+        <div class="cardLabel">Pauses</div>
+        <div class="cardValue" id="pauseCount">0</div>
+      </div>
+    </section>
+
+    <section class="timelineSection">
+      <div class="timelineHeader">
+        <div class="label">Timeline</div>
+        <button class="linkbtn" id="btnClearTimeline">Clear</button>
+      </div>
+      <div class="timelineStrip" id="timelineStrip" aria-label="Timeline"></div>
+      <div class="hint">Green = compressions • Red = pauses</div>
+    </section>
+  </main>
+
+  <!-- Pause Reason Sheet -->
+  <div class="overlay hidden" id="overlay"></div>
+
+  <section class="sheet hidden" id="pauseSheet" role="dialog" aria-modal="true" aria-label="Pause reason">
+    <div class="sheetHeader">
+      <div>
+        <div class="sheetTitle">Select Pause Reason</div>
+        <div class="sheetSub">Required (one tap)</div>
+      </div>
+      <button class="iconbtn" id="btnSheetClose" aria-label="Close">✕</button>
+    </div>
+
+    <div class="chipGrid" id="reasonGrid">
+      <!-- populated by JS -->
+    </div>
+
+    <div class="sheetFooter">
+      <label class="toggle">
+        <input type="checkbox" id="warnToggle" checked />
+        <span>Warn at 10s</span>
+      </label>
+
+      <div class="warnRow">
+        <span class="small">Threshold:</span>
+        <select id="warnSeconds">
+          <option value="5">5s</option>
+          <option value="10" selected>10s</option>
+          <option value="15">15s</option>
+          <option value="20">20s</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <script src="./app.js"></script>
+</body>
+</html>
