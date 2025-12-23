@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CCF Reports</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="title">Reports</div>
+    <div class="modePill">BLS</div>
+  </div>
+
+  <div class="topActions">
+    <a class="endBtn ghost" href="./index.html">⬅︎ Timer</a>
+  </div>
+</header>
+
+<main class="app">
+  <section class="stateBar stateReady" aria-label="Reports header">
+    <div class="stateLeft">
+      <div class="stateLabel">SESSION REPORT</div>
+      <div class="stateSub" id="reportSubtitle">Most recent session</div>
+    </div>
+    <div class="stateRight">
+      <div class="stateMini" id="reportCount">0 saved</div>
+    </div>
+  </section>
+
+  <!-- AD ZONE (put ads here only) -->
+  <section class="adZone" aria-label="Ads">
+    <div class="adLabel">Ad (Reports only)</div>
+    <div class="adBox">Your ad network container goes here</div>
+  </section>
+
+  <section class="reportCard" id="latestCard" aria-label="Latest report"></section>
+
+  <section class="historyBlock">
+    <div class="historyTop">
+      <div class="historyTitle">History</div>
+      <div class="historyBtns">
+        <button class="endBtn" id="btnExport">⬇︎ Export CSV</button>
+        <button class="endBtn" id="btnClear">🗑 Clear</button>
+      </div>
+    </div>
+    <div id="historyList" class="historyList"></div>
+  </section>
+
+</main>
+
+<script src="./reports.js"></script>
+</body>
+</html>
