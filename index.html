@@ -19,7 +19,7 @@
 
 <main class="app">
 
-  <!-- STATE BAR (always visible) -->
+  <!-- STATE BAR -->
   <section class="stateBar stateReady" id="stateBar" aria-label="State">
     <div class="stateLeft">
       <div class="stateLabel" id="stateLabel">READY</div>
@@ -51,21 +51,8 @@
     <div class="timelineHint">Green = CPR • Red = Hands-Off</div>
   </section>
 
-  <!-- NON-BLOCKING PAUSE REASONS (appears only in PAUSE mode) -->
-  <section class="pauseSheet hidden" id="pauseSheet" aria-label="Pause reasons">
-    <div class="pauseSheetHeader">
-      <div>
-        <div class="pauseTitle">Pause Reason</div>
-        <div class="pauseSub">Select one while paused (CPR button always available)</div>
-      </div>
-      <div class="picked">Selected: <span id="selectedReason">None</span></div>
-    </div>
-
-    <div class="reasonGrid" id="reasonGrid"></div>
-  </section>
-
-  <!-- PRIMARY BUTTONS -->
-  <section class="controls">
+  <!-- BUTTONS (NEVER MOVE) -->
+  <section class="controls" aria-label="Controls">
     <button id="btnCPR" class="bigBtn neutral" aria-label="CPR">
       <div class="icon">❤️</div>
       <div class="label">CPR</div>
@@ -91,7 +78,22 @@
 
 </main>
 
-<!-- SCORE MODAL (blocking is OK after session ends) -->
+<!-- PAUSE REASONS OVERLAY (DOES NOT MOVE BUTTONS) -->
+<div class="overlay hidden" id="overlay" aria-hidden="true"></div>
+
+<section class="pauseOverlayCard hidden" id="pauseOverlayCard" role="dialog" aria-modal="true" aria-label="Pause reasons">
+  <div class="pauseOverlayHeader">
+    <div>
+      <div class="pauseTitle">Pause Reason</div>
+      <div class="pauseSub">Tap one reason (auto-hides)</div>
+    </div>
+    <div class="picked">Selected: <span id="selectedReason">None</span></div>
+  </div>
+
+  <div class="reasonGrid" id="reasonGrid"></div>
+</section>
+
+<!-- SCORE MODAL -->
 <div class="scoreOverlay hidden" id="scoreOverlay" role="dialog" aria-modal="true" aria-label="Session score">
   <section class="scoreCard">
     <div class="scoreTop">
