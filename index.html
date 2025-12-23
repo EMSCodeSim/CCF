@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -28,14 +29,19 @@
       </div>
     </section>
 
+    <!-- Scenario control (above timer) -->
+    <section class="scenarioRow">
+      <button class="btn btnBlue" id="btnScenario">START SCENARIO</button>
+    </section>
+
     <section class="timerBlock">
       <div class="bigTime" id="sessionTime">00:00</div>
       <div class="cyclePill" id="cycleTime">00:00 / 02:00</div>
     </section>
 
-    <section class="actionsRow">
-      <button class="btn btnGreen" id="btnOn">COMPRESSIONS ON</button>
-      <button class="btn btnRed" id="btnPause">PAUSE</button>
+    <!-- Compression control (single large button below timer) -->
+    <section class="actionsRow single">
+      <button class="btn btnGreen" id="btnCompression" disabled>START COMPRESSIONS</button>
     </section>
 
     <section class="cardsRow">
@@ -75,9 +81,7 @@
       <button class="iconbtn" id="btnSheetClose" aria-label="Close">✕</button>
     </div>
 
-    <div class="chipGrid" id="reasonGrid">
-      <!-- populated by JS -->
-    </div>
+    <div class="chipGrid" id="reasonGrid"></div>
 
     <div class="sheetFooter">
       <label class="toggle">
