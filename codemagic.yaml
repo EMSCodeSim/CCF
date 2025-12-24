@@ -3,18 +3,21 @@ workflows:
     name: Android Release (CCF)
     environment:
       node: 22
-      java: 17
+      java: 21
     scripts:
       - name: Install dependencies
         script: npm install
+
       - name: Capacitor sync/copy
         script: |
           npx cap sync android
           npx cap copy android
+
       - name: Build Android App Bundle (AAB)
         script: |
           cd android
           ./gradlew bundleRelease
+
     artifacts:
       - android/app/build/outputs/**/*.aab
       - android/app/build/outputs/**/*.apk
