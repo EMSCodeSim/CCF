@@ -10,9 +10,8 @@ workflows:
       vars:
         ANDROID_APP_ID: "com.emscodesim.ccf"
         ANDROID_APP_NAME: "CCF CPR Timer"
-      # Use the same keystore you already have in Codemagic
       android_signing:
-        - FireOpsCalcReleaseKey
+        - FireOpsCalcReleaseKey   # reuse same keystore entry name from Pump Calc
 
     scripts:
       - name: Show versions
@@ -25,8 +24,9 @@ workflows:
         script: |
           npm install
 
-      # For CCF (static web), there is no build step needed.
-      # If you later add a build tool, you can re-add npm run build here.
+      - name: Build web assets (static)
+        script: |
+          npm run build
 
       - name: Sync Capacitor Android
         script: |
@@ -45,3 +45,4 @@ workflows:
     artifacts:
       - android/app/build/outputs/**/*.aab
       - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/mapping.txt
