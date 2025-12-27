@@ -1,168 +1,145 @@
+<!-- index.html (UPDATED) -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CCF CPR Timer – BLS</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>CCF CPR Timer</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
+  <main class="container">
 
-<header class="topbar">
-  <div class="brand">
-    <div class="title">CCF CPR Timer</div>
-    <div class="modePill">BLS</div>
+    <!-- Sticky header -->
+    <header class="header topbar">
+      <div class="row">
+        <div class="left">
+          <h1>CCF CPR Timer</h1>
+          <span class="badge" id="modePill">BLS</span>
+        </div>
+        <div class="actions">
+          <button class="btnPill" id="btnReports" type="button" aria-label="Reports">
+            📊 <span>Reports</span>
+          </button>
+          <button class="btnPill end" id="btnEnd" type="button" aria-label="End Session">
+            ⏹ <span>End</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Status pill -->
+    <section class="statusPill" id="statusPill">
+      <div class="leftText">
+        <div class="title" id="statusTitle">READY</div>
+        <div class="sub" id="statusSub">Tap CPR to start</div>
+      </div>
+      <div class="rightText" id="statusRight">CCF —%</div>
+    </section>
+
+    <!-- Main time -->
+    <div class="bigTime" id="mainTimer">00:00</div>
+    <div class="ccfLine" id="ccfLine">CCF —%</div>
+
+    <!-- Coach + Bars -->
+    <section class="coachCard" id="coachCard">
+      <h3>Breaths (30:2)</h3>
+
+      <div class="coachRow">
+        <div class="coachLabel" id="breathHintLeft">30 compressions</div>
+        <div class="coachValue" id="breathHintRight"></div>
+      </div>
+
+      <!-- Breath bar -->
+      <div id="breathBarWrap" class="barWrap">
+        <div id="breathBarFill" class="barFill breath" style="width:0%"></div>
+      </div>
+      <div class="barMeta">
+        <span id="breathMetaLeft">Next breaths in —</span>
+        <span id="breathMetaRight"></span>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="coachRow">
+        <div class="coachLabel">Pulse Check</div>
+        <div class="coachValue" id="pulseTime">02:00</div>
+      </div>
+
+      <!-- Pulse bar -->
+      <div id="pulseBarWrap" class="barWrap">
+        <div id="pulseBarFill" class="barFill pulse" style="width:0%"></div>
+      </div>
+      <div class="barMeta">
+        <span id="pulseMetaLeft">Next pulse check in 2:00</span>
+        <span id="pulseMetaRight"></span>
+      </div>
+    </section>
+
+    <!-- CCF strip -->
+    <div class="ccfStrip" id="ccfStrip">
+      <div class="on" id="ccfOn"></div>
+      <div class="off" id="ccfOff"></div>
+    </div>
+    <div class="stripLegend">Green = CPR • Red = Hands-Off</div>
+
+    <!-- CPR / PAUSE -->
+    <section class="actionRow">
+      <button class="actionBtn cpr" id="btnCpr" type="button">
+        <div class="emoji">❤️</div>
+        <div class="label">CPR</div>
+        <div class="sub">On: <span id="cprOnTime">00:00</span></div>
+      </button>
+
+      <button class="actionBtn pause" id="btnPause" type="button">
+        <div class="emoji">⏸️</div>
+        <div class="label">PAUSE</div>
+        <div class="sub">Hands-Off: <span id="handsOffTime">00:00</span></div>
+      </button>
+    </section>
+
+    <!-- Metronome row (UNDER CPR/PAUSE like you asked) -->
+    <section class="metRow">
+      <button class="metToggle" id="btnMetronome" type="button">🎵 Metronome: <span id="metState">OFF</span></button>
+      <button class="metBtn" id="btnBpmDown" type="button" aria-label="Decrease BPM">−</button>
+      <div class="metValue"><span id="bpmValue">110</span> BPM</div>
+      <button class="metBtn" id="btnBpmUp" type="button" aria-label="Increase BPM">+</button>
+    </section>
+
+    <!-- Pause reasons -->
+    <section class="pausePanel" id="pausePanel">
+      <h4>Pause Reason</h4>
+      <p class="hint">Tap one reason (auto-hides)</p>
+
+      <div class="reasonGrid" id="reasonGrid">
+        <button class="reasonBtn" data-reason="Rhythm/Analysis" type="button">🫀 Rhythm/Analysis</button>
+        <button class="reasonBtn" data-reason="Shock" type="button">⚡ Shock</button>
+        <button class="reasonBtn" data-reason="Airway/Vent" type="button">💨 Airway/Vent</button>
+        <button class="reasonBtn" data-reason="Pulse Check" type="button">✋ Pulse Check</button>
+        <button class="reasonBtn" data-reason="IV/IO/Meds" type="button">💉 IV/IO/Meds</button>
+        <button class="reasonBtn" data-reason="Move/Transport" type="button">🚑 Move/Transport</button>
+        <button class="reasonBtn" data-reason="Other" type="button">❓ Other</button>
+      </div>
+
+      <div style="height:18px"></div>
+    </section>
+
+  </main>
+
+  <!-- Reports / Score overlay -->
+  <div class="overlay" id="reportsOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reportsTitle">
+      <div class="modalHeader">
+        <div class="modalTitle" id="reportsTitle">Session Score</div>
+        <button class="modalClose" id="btnCloseReports" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="modalBody" id="reportsBody">
+        <!-- app.js populates this -->
+      </div>
+    </div>
   </div>
 
-  <button id="btnEnd" class="endBtn" disabled>⏹ End</button>
-</header>
-
-<main class="app">
-
-  <!-- STATE BAR -->
-  <section class="stateBar stateReady" id="stateBar" aria-label="State">
-    <div class="stateLeft">
-      <div class="stateLabel" id="stateLabel">READY</div>
-      <div class="stateSub" id="stateSub">Tap CPR to start</div>
-    </div>
-    <div class="stateRight">
-      <div class="stateMini" id="stateMini">CCF —%</div>
-    </div>
-  </section>
-
-  <!-- TIMER -->
-  <section class="timer">
-    <div class="time" id="sessionTime">00:00</div>
-    <div class="ccfLine">CCF <span id="ccfLive">—%</span></div>
-  </section>
-
-
-  <div class="coachBars" aria-label="Breaths and pulse check timers">
-    <div class="coachBarRow">
-      <div class="coachBarTop">
-        <div class="coachBarTitle">Breaths (30:2)</div>
-        <div class="coachBarMeta" id="breathBarMeta">Next breaths in —</div>
-      </div>
-      <div class="coachBarTrack">
-        <div class="coachBarFill breathFill" id="breathBarFill" style="width: 0%"></div>
-      </div>
-    </div>
-
-    <div class="coachBarRow">
-      <div class="coachBarTop">
-        <div class="coachBarTitle">Pulse Check</div>
-        <div class="coachBarMeta" id="pulseBarMeta">Next pulse check in —</div>
-      </div>
-      <div class="coachBarTrack pulseTrack">
-        <div class="coachBarFill pulseFill" id="pulseBarFill" style="width: 0%"></div>
-        <div class="coachBarMarker" id="pulseBarMarker"></div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- METRONOME VISUAL -->
-  <section class="metroVisual" aria-label="Metronome visual">
-    <div class="pulseDot" id="pulseDot" aria-hidden="true"></div>
-    <div class="pulseBar">
-      <div class="pulseFill" id="pulseFill"></div>
-    </div>
-    <div class="metroHint" id="metroHint">Metronome visual runs during CPR (turn on below)</div>
-  </section>
-
-  <!-- TIMELINE -->
-  <section class="timelineWrap">
-    <div class="timeline" id="timelineStrip" aria-label="Timeline"></div>
-    <div class="timelineHint">Green = CPR • Red = Hands-Off</div>
-  </section>
-
-  <!-- BUTTONS (NEVER MOVE) -->
-  <section class="controls" aria-label="Controls">
-    <button id="btnCPR" class="bigBtn neutral" aria-label="CPR">
-      <div class="icon">❤️</div>
-      <div class="label">CPR</div>
-      <div class="sub"><span class="mini">On:</span> <span id="cprTime">00:00</span></div>
-      <div class="liveTag hidden" id="tagCPR">LIVE</div>
-    </button>
-
-    <button id="btnPause" class="bigBtn neutral" disabled aria-label="Pause">
-      <div class="icon">⏸️</div>
-      <div class="label">PAUSE</div>
-      <div class="sub"><span class="mini">Hands-Off:</span> <span id="handsOff">00:00</span></div>
-      <div class="liveTag hidden" id="tagPause">LIVE</div>
-    </button>
-  
-  <section class="metroRow">
-    <button id="btnMetro" class="metroBtn" disabled>🔊 Metronome: OFF</button>
-    <button id="btnBpmDown" class="bpmBtn" disabled>–</button>
-    <div id="metroBpm" class="bpmText">110 BPM</div>
-    <button id="btnBpmUp" class="bpmBtn" disabled>+</button>
-  </section>
-</section>
-</main>
-
-<!-- PAUSE REASONS OVERLAY (DOES NOT MOVE BUTTONS) -->
-<div class="overlay hidden" id="overlay" aria-hidden="true"></div>
-
-<section class="pauseOverlayCard hidden" id="pauseOverlayCard" role="dialog" aria-modal="true" aria-label="Pause reasons">
-  <div class="pauseOverlayHeader">
-    <div>
-      <div class="pauseTitle">Pause Reason</div>
-      <div class="pauseSub">Tap one reason (auto-hides)</div>
-    </div>
-    <div class="picked">Selected: <span id="selectedReason">None</span></div>
-  </div>
-
-  <div class="reasonGrid" id="reasonGrid"></div>
-</section>
-
-<!-- SCORE MODAL -->
-<div class="scoreOverlay hidden" id="scoreOverlay" role="dialog" aria-modal="true" aria-label="Session score">
-  <section class="scoreCard">
-    <div class="scoreTop">
-      <div>
-        <div class="scoreTitle">Session Score</div>
-        <div class="scoreSub" id="scoreWhen">—</div>
-      </div>
-      <button class="closeBtn" id="btnScoreClose">✕</button>
-    </div>
-
-    <div class="scoreBigRow">
-      <div class="scoreBig">
-        <div class="scoreLabel">Final CCF</div>
-        <div class="scoreValue" id="finalCCF">—%</div>
-      </div>
-      <div class="scoreBadge" id="scoreBadge">—</div>
-    </div>
-
-    <div class="scoreGrid">
-      <div class="miniCard">
-        <div class="miniLabel">Total Time</div>
-        <div class="miniValue" id="finalTime">00:00</div>
-      </div>
-      <div class="miniCard">
-        <div class="miniLabel">Hands-Off</div>
-        <div class="miniValue" id="finalHandsOff">00:00</div>
-      </div>
-      <div class="miniCard">
-        <div class="miniLabel">Longest Pause</div>
-        <div class="miniValue" id="finalLongest">00:00</div>
-      </div>
-      <div class="miniCard">
-        <div class="miniLabel">Pauses</div>
-        <div class="miniValue" id="finalPauses">0</div>
-      </div>
-    </div>
-
-    <div class="breakdownBlock">
-      <div class="breakTitle">Pauses by Reason</div>
-      <div id="breakdownList" class="breakList"></div>
-    </div>
-
-    <button id="btnNewSession" class="newBtn">Start New Session</button>
-  </section>
-</div>
-
-<script src="./app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
