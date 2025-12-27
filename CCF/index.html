@@ -15,9 +15,9 @@
   </div>
 
   <div class="topActions">
-  <a id="btnReports" class="endBtn ghost" href="reports.html">📊 Reports</a>
-  <button id="btnEnd" class="endBtn danger" disabled>⏹ End</button>
-</div>
+    <a id="btnReports" class="endBtn ghost" href="reports.html">📊 Reports</a>
+    <button id="btnEnd" class="endBtn danger" disabled>⏹ End</button>
+  </div>
 </header>
 
 <main class="app">
@@ -39,13 +39,66 @@
     <div class="ccfLine">CCF <span id="ccfLive">—%</span></div>
   </section>
 
-  <!-- METRONOME VISUAL -->
-  <section class="metroVisual" aria-label="Metronome visual">
+  <!-- METRONOME VISUAL + COACH BARS -->
+  <section class="metroVisual" aria-label="Metronome visual and coach prompts">
     <div class="pulseDot" id="pulseDot" aria-hidden="true"></div>
     <div class="pulseBar">
       <div class="pulseFill" id="pulseFill"></div>
     </div>
-    <div class="metroHint" id="metroHint">Metronome visual runs during CPR (turn on below)</div>
+
+    <!-- NEW: COACH BARS (30:2 breaths + 2-min pulse check) -->
+    <section class="coachPanel" id="coachPanel" aria-label="CPR Coach Prompts">
+      <!-- Breath (30:2) Coach -->
+      <div class="coachRow">
+        <div class="coachHead">
+          <div class="coachTitle">
+            <span class="coachDot breath"></span>
+            <span id="breathLabel">Breaths (30:2)</span>
+          </div>
+          <div class="coachMeta">
+            <span id="breathMeta">30 compressions</span>
+          </div>
+        </div>
+
+        <div class="barShell" role="progressbar" aria-label="Breath cycle progress"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+          <div id="breathFill" class="barFill breathFill" style="width:100%"></div>
+          <div class="barGloss"></div>
+        </div>
+
+        <div id="breathPrompt" class="coachPrompt">
+          <span class="promptIcon">🫁</span>
+          <span class="promptText">Keep compressions going</span>
+        </div>
+      </div>
+
+      <!-- 2-minute Pulse Check Coach -->
+      <div class="coachRow">
+        <div class="coachHead">
+          <div class="coachTitle">
+            <span class="coachDot pulse"></span>
+            <span id="pulseLabel">Pulse Check</span>
+          </div>
+          <div class="coachMeta">
+            <span id="pulseMeta">02:00</span>
+          </div>
+        </div>
+
+        <div class="barShell" role="progressbar" aria-label="Pulse check countdown"
+             aria-valuemin="0" aria-valuemax="120" aria-valuenow="120">
+          <div id="pulseFill2" class="barFill pulseFill" style="width:100%"></div>
+          <div class="barGloss"></div>
+        </div>
+
+        <div id="pulsePrompt" class="coachPrompt subtle">
+          <span class="promptIcon">⏱️</span>
+          <span class="promptText">Next pulse check in 2:00</span>
+        </div>
+      </div>
+
+      <!-- This replaces your old hint text -->
+      <div class="coachFooter" id="metroHint">Metronome visual runs during CPR (turn on below)</div>
+    </section>
   </section>
 
   <!-- TIMELINE -->
