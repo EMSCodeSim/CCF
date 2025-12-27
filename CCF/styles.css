@@ -1,523 +1,424 @@
-/* CCF CPR Timer – No-scroll, phone-first layout w/ Breath + Pulse coach bars */
-
 :root{
-  --bg1:#0b2b3a;
-  --bg2:#081a28;
-  --card:rgba(255,255,255,.08);
-  --card2:rgba(255,255,255,.06);
-  --stroke:rgba(255,255,255,.12);
-  --text:rgba(255,255,255,.92);
-  --muted:rgba(255,255,255,.68);
-  --muted2:rgba(255,255,255,.55);
-  --green:#31d06f;
-  --red:#ff5b6b;
-  --blue:#57b6ff;
-  --gold:#f3c44f;
+  /* Friendlier palette */
+  --bg:#0b1220;
+  --panel:#101a2e;
+  --panel2:#0f1a33;
+
+  --text:#eef3ff;
+  --muted:#a9b6d3;
+
+  --neutral1:#1a2742;
+  --neutral2:#141f36;
+
+  --teal:#2dd4bf;
+  --blue:#60a5fa;
+
+  --green:#22c55e;
+  --green2:#16a34a;
+  --red:#fb7185;   /* friendlier coral */
+  --red2:#ef4444;
+
+  --shadow: 0 18px 40px rgba(0,0,0,.40);
+  --border: rgba(255,255,255,.10);
 }
 
 *{box-sizing:border-box}
-html,body{height:100%}
 body{
   margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  background: radial-gradient(1200px 700px at 50% -20%, rgba(45,212,191,.18), rgba(0,0,0,0)),
+              radial-gradient(900px 500px at 80% 10%, rgba(96,165,250,.18), rgba(0,0,0,0)),
+              var(--bg);
   color:var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-  background: radial-gradient(1200px 800px at 20% 0%, rgba(87,182,255,.18), transparent 60%),
-              radial-gradient(900px 700px at 90% 10%, rgba(49,208,111,.12), transparent 60%),
-              linear-gradient(180deg, var(--bg1), var(--bg2));
-  overflow:hidden; /* no main scroll */
 }
 
-/* Prevent horizontal drift on iOS */
-html,body{width:100%; overflow-x:hidden;}
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 14px 10px 14px;
+}
+.brand{display:flex; gap:10px; align-items:center;}
+.title{font-weight:1000; letter-spacing:.2px;}
+.modePill{
+  background:rgba(96,165,250,.95);
+  color:#06152f;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:1000;
+}
+
+.endBtn{
+  border:none;
+  border-radius:14px;
+  padding:10px 12px;
+  font-weight:1000;
+  background:rgba(255,255,255,.08);
+  color:var(--text);
+  cursor:pointer;
+}
+.endBtn:disabled{opacity:.45; cursor:not-allowed;}
 
 .app{
-  width:min(520px, 100%);
+  max-width:420px;
   margin:0 auto;
-  height:100svh;
-  padding: max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom)) 14px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
+  padding:14px 16px 22px 16px;
 }
 
-/* --- Header --- */
-.topRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-}
-.brand{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-.brandTitle{
-  font-weight:800;
-  letter-spacing:.2px;
-  line-height:1.05;
-  font-size: clamp(18px, 4.5vw, 26px);
-}
-.badge{
-  background:rgba(87,182,255,.18);
-  border:1px solid rgba(87,182,255,.25);
-  color:rgba(255,255,255,.9);
-  padding:6px 10px;
-  border-radius:999px;
-  font-weight:800;
-  font-size:12px;
-}
-
-.topActions{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-
-.btn{
-  appearance:none;
-  border:1px solid var(--stroke);
-  background:rgba(255,255,255,.07);
-  color:var(--text);
-  border-radius:16px;
-  padding:10px 12px;
-  font-weight:800;
-  font-size:14px;
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  user-select:none;
-  -webkit-tap-highlight-color: transparent;
-}
-.btn:active{transform:translateY(1px)}
-
-.btnReports{padding:10px 14px}
-
-.btnEnd{
-  background:rgba(255,91,107,.12);
-  border-color:rgba(255,91,107,.25);
-}
-
-/* --- Status / Timer --- */
-.statusCard{
-  flex:0 0 auto;
-  background:linear-gradient(180deg, rgba(49,208,111,.14), rgba(49,208,111,.06));
-  border:1px solid rgba(49,208,111,.22);
-  border-radius:22px;
-  padding:12px 14px;
+/* STATE BAR */
+.stateBar{
   display:flex;
   justify-content:space-between;
   align-items:center;
+  gap:10px;
+  border-radius:18px;
+  padding:12px 12px;
+  box-shadow: var(--shadow);
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.05);
 }
-.statusLeft .label{
+.stateLabel{
+  font-weight:1000;
   font-size:12px;
-  letter-spacing:2px;
+  letter-spacing:.08em;
   text-transform:uppercase;
-  color:rgba(255,255,255,.70);
-  font-weight:900;
+  color:var(--muted);
 }
-.statusLeft .value{
-  font-size: clamp(16px, 4.2vw, 22px);
-  font-weight:900;
-  margin-top:2px;
+.stateSub{font-weight:1000; font-size:14px;}
+.stateRight{font-weight:1000; color:var(--muted); font-size:12px;}
+
+.stateReady{ border-color: rgba(255,255,255,.10); }
+.stateCPR{
+  background:linear-gradient(180deg, rgba(34,197,94,.18), rgba(255,255,255,.03));
+  border-color:rgba(34,197,94,.28);
 }
-.statusRight{
-  text-align:right;
-  color:rgba(255,255,255,.75);
-  font-weight:900;
+.statePause{
+  background:linear-gradient(180deg, rgba(251,113,133,.18), rgba(255,255,255,.03));
+  border-color:rgba(251,113,133,.28);
 }
 
-.timerBlock{
-  flex:0 0 auto;
-  text-align:center;
-  margin-top:0;
-}
-.timer{
-  font-weight:900;
-  letter-spacing:.5px;
-  font-size: clamp(54px, 13vw, 88px);
+/* TIMER */
+.timer{ text-align:center; margin-top:14px; }
+.time{
+  font-size:64px;
+  font-weight:1000;
   line-height:1;
 }
 .ccfLine{
-  margin-top:6px;
-  font-size: clamp(14px, 3.6vw, 18px);
-  font-weight:900;
-  color:rgba(255,255,255,.70);
-}
-
-/* --- Coach Bars block --- */
-.coachPanel{
-  flex:0 0 auto;
-  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
-  border:1px solid rgba(255,255,255,.12);
-  border-radius:22px;
-  padding:12px 12px;
-}
-
-.coachHeader{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  margin-bottom:8px;
-}
-.coachTitle{
-  font-weight:900;
+  margin-top:8px;
+  color:var(--muted);
   font-size:14px;
-  color:rgba(255,255,255,.85);
-}
-.coachSub{
-  font-weight:900;
-  font-size:12px;
-  color:rgba(255,255,255,.55);
+  font-weight:1000;
 }
 
-/* breath row */
-.breathRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  margin-bottom:10px;
+/* METRONOME VISUAL */
+.metroVisual{
+  margin-top:14px;
+  padding:12px 12px;
+  border-radius:18px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.07);
 }
-.breathHint{
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-  min-width:110px;
+.pulseDot{
+  width:14px;height:14px;border-radius:50%;
+  background:rgba(255,255,255,.18);
+  margin:0 auto 10px auto;
+  box-shadow:none;
 }
-.breathHint .small{
-  font-size:12px;
-  font-weight:900;
-  color:rgba(255,255,255,.70);
-}
-.breathHint .big{
-  font-size: clamp(14px, 3.8vw, 18px);
-  font-weight:900;
-  color:var(--gold);
-}
-
-.barWrap{
-  flex:1 1 auto;
-  height:14px;
-  border-radius:999px;
-  background:rgba(0,0,0,.25);
-  border:1px solid rgba(255,255,255,.10);
+.pulseBar{
+  height:10px;border-radius:999px;
+  background:rgba(255,255,255,.06);
   overflow:hidden;
-  position:relative;
+  border:1px solid rgba(255,255,255,.08);
 }
-.barFill{
+.pulseFill{
+  width:0%;
   height:100%;
-  width:100%;
-  border-radius:999px;
-  transform-origin:left center;
-  will-change:transform;
+  background:rgba(34,197,94,.85);
+  transition:width 80ms linear;
 }
-
-/* Breath bar uses gradient and shrinks */
-#breathFill{
-  background:linear-gradient(90deg, #2fe06f 0%, #ffd44f 55%, #ff6a7a 100%);
-  box-shadow:0 0 14px rgba(255,212,79,.25);
-}
-
-.promptLine{
+.metroHint{
   margin-top:8px;
   text-align:center;
-  font-weight:900;
-  letter-spacing:1px;
-  text-transform:uppercase;
-  color:var(--gold);
-  font-size: clamp(12px, 3.5vw, 15px);
-}
-
-/* Pulse bar */
-.pulseRow{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-.pulseLabel{
-  font-weight:900;
+  color:var(--muted);
   font-size:12px;
-  color:rgba(255,255,255,.65);
-  min-width:86px;
-}
-.pulseTime{
   font-weight:900;
-  font-size:14px;
-  color:rgba(255,255,255,.85);
-  min-width:56px;
-  text-align:right;
 }
 
-#pulseFill{
-  background:linear-gradient(90deg, rgba(87,182,255,.95), rgba(87,182,255,.55));
-  box-shadow:0 0 14px rgba(87,182,255,.22);
-}
-
-/* --- Timeline bar --- */
-.timelineWrap{
-  flex:0 0 auto;
-  margin-top:0;
-}
-.timelineBar{
-  height:14px;
+/* TIMELINE */
+.timelineWrap{ margin:14px 0 6px 0; }
+.timeline{
+  height:16px;
+  background:rgba(255,255,255,.05);
   border-radius:999px;
-  background:rgba(0,0,0,.22);
-  border:1px solid rgba(255,255,255,.12);
   overflow:hidden;
-}
-.timelineFill{
-  height:100%;
-  width:0%;
-  background:linear-gradient(90deg, rgba(49,208,111,.95), rgba(49,208,111,.65));
-}
-.timelineLegend{
-  margin-top:6px;
-  text-align:center;
-  color:rgba(255,255,255,.60);
-  font-weight:900;
-  font-size:12px;
-}
-
-/* --- Main Buttons --- */
-.controls{
-  flex:1 1 auto;
-  min-height:0;
   display:flex;
-  flex-direction:column;
-  gap:10px;
+  border:1px solid rgba(255,255,255,.08);
+}
+.seg{height:100%}
+.seg.green{background:rgba(34,197,94,.92)}
+.seg.red{background:rgba(251,113,133,.92)}
+.timelineHint{
+  text-align:center;
+  font-size:12px;
+  color:var(--muted);
+  margin-top:6px;
+  font-weight:900;
 }
 
-.mainBtns{
+/* BUTTONS (fixed position) */
+.controls{
   display:grid;
   grid-template-columns:1fr 1fr;
-  gap:12px;
+  gap:14px;
+  margin-top:16px;
 }
-
 .bigBtn{
-  border-radius:26px;
-  padding:14px 14px;
-  border:1px solid rgba(255,255,255,.14);
-  background:rgba(255,255,255,.07);
   position:relative;
-  min-height: clamp(108px, 22vh, 150px);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-}
-.bigBtn .icon{
-  font-size: clamp(30px, 8vw, 44px);
-  filter: drop-shadow(0 10px 18px rgba(0,0,0,.35));
-}
-.bigBtn .title{
-  font-size: clamp(20px, 5vw, 28px);
+  border:none;
+  border-radius:22px;
+  padding:18px 14px 16px 14px;
   font-weight:1000;
-  letter-spacing:.5px;
+  cursor:pointer;
+  text-align:center;
+  box-shadow: var(--shadow);
+  transition: filter 120ms ease, box-shadow 120ms ease, outline 120ms ease, background 120ms ease;
 }
-.bigBtn .sub{
-  font-size: clamp(13px, 3.6vw, 16px);
-  color:rgba(255,255,255,.70);
-  font-weight:900;
+.bigBtn .icon{ font-size:34px; }
+.bigBtn .label{ font-size:18px; margin-top:4px; }
+.bigBtn .sub{ font-size:13px; opacity:.9; margin-top:6px; font-weight:1000; }
+.mini{ opacity:.75; font-weight:1000; }
+
+.neutral{
+  background:linear-gradient(180deg, var(--neutral1), var(--neutral2));
+  color:var(--text);
+  border:1px solid rgba(255,255,255,.10);
 }
-.bigBtn .pill{
+.bigBtn:disabled{opacity:.45; cursor:not-allowed;}
+
+/* Active (only lights up when in use) */
+.activeCPR{
+  background:linear-gradient(180deg, rgba(34,197,94,.98), rgba(22,163,74,.98));
+  color:#05210f;
+  border:1px solid rgba(34,197,94,.25);
+  outline:3px solid rgba(34,197,94,.18);
+  box-shadow: 0 0 0 4px rgba(34,197,94,.07), var(--shadow);
+}
+.activePAUSE{
+  background:linear-gradient(180deg, rgba(251,113,133,.98), rgba(239,68,68,.98));
+  color:#2a0707;
+  border:1px solid rgba(251,113,133,.25);
+  outline:3px solid rgba(251,113,133,.18);
+  box-shadow: 0 0 0 4px rgba(251,113,133,.07), var(--shadow);
+}
+
+.liveTag{
   position:absolute;
-  top:12px;
-  right:12px;
-  padding:6px 10px;
+  top:10px;
+  right:10px;
+  padding:4px 8px;
   border-radius:999px;
+  font-size:11px;
   font-weight:1000;
-  font-size:12px;
-  color:rgba(255,255,255,.86);
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.10);
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  background:rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.22);
 }
+.hidden{display:none}
 
-.bigBtn.isActiveCpr{
-  background:linear-gradient(180deg, rgba(49,208,111,.26), rgba(49,208,111,.10));
-  border-color:rgba(49,208,111,.30);
-  box-shadow:0 18px 44px rgba(49,208,111,.14);
-}
-.bigBtn.isActivePause{
-  background:linear-gradient(180deg, rgba(255,91,107,.18), rgba(255,91,107,.08));
-  border-color:rgba(255,91,107,.30);
-  box-shadow:0 18px 44px rgba(255,91,107,.12);
-}
-
-/* --- Metronome row --- */
+/* METRONOME ROW */
 .metroRow{
+  margin-top:14px;
   display:grid;
-  grid-template-columns:1fr auto auto auto;
+  grid-template-columns: 1fr 44px 88px 44px;
   gap:10px;
   align-items:center;
 }
-
-.metroToggle{
-  border-radius:999px;
-  padding:12px 14px;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.07);
-  font-weight:900;
-  color:rgba(255,255,255,.85);
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-
-.metroBtn{
-  width:44px;
-  height:44px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.07);
-  color:rgba(255,255,255,.9);
-  font-weight:1000;
-  font-size:20px;
-}
-.metroBpm{
-  min-width:86px;
-  text-align:center;
-  font-weight:1000;
-  font-size:18px;
-  color:rgba(255,255,255,.85);
-}
-
-/* --- Pause reasons (collapsible; only visible when not hidden) --- */
-.pausePanel{
-  flex:0 0 auto;
-  background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:22px;
-  padding:10px 12px;
-}
-.pauseTitle{
-  font-weight:1000;
-  font-size:14px;
-}
-.pauseSub{
-  margin-top:4px;
-  font-size:12px;
-  color:rgba(255,255,255,.65);
-  font-weight:800;
-}
-.reasonGrid{
-  margin-top:10px;
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-}
-.reasonBtn{
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.14);
+.metroBtn,.bpmBtn{
+  border:none;
+  border-radius:16px;
   background:rgba(255,255,255,.08);
-  color:rgba(255,255,255,.9);
-  padding:8px 12px;
-  font-weight:900;
-  font-size:13px;
+  color:var(--text);
+  cursor:pointer;
+  font-weight:1000;
 }
+.metroBtn{ padding:12px 12px; }
+.bpmBtn{ height:44px; font-size:22px; }
+.metroBtn:disabled,.bpmBtn:disabled{opacity:.45; cursor:not-allowed;}
+.bpmText{ text-align:center; color:var(--muted); font-weight:1000; }
 
-/* --- Modal overlay --- */
+/* Pause overlay card (non-layout shifting) */
 .overlay{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,.55);
-  backdrop-filter: blur(10px);
+  background:rgba(0,0,0,.45);
+  z-index:50;
+}
+.pauseOverlayCard{
+  position:fixed;
+  left:50%;
+  transform:translateX(-50%);
+  bottom:18px;
+  width:min(420px, calc(100% - 24px));
+  background:linear-gradient(180deg, rgba(16,26,46,.98), rgba(15,26,51,.98));
+  border:1px solid rgba(251,113,133,.28);
+  border-radius:20px;
+  padding:14px;
+  box-shadow: 0 22px 60px rgba(0,0,0,.55);
+  z-index:60;
+}
+
+.pauseOverlayHeader{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start;
+}
+.pauseTitle{font-weight:1000; font-size:14px;}
+.pauseSub{color:var(--muted); font-weight:900; font-size:12px; margin-top:3px;}
+.picked{color:var(--muted); font-weight:1000; font-size:12px;}
+.picked span{color:var(--text);}
+
+.reasonGrid{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.reasonGrid button{
+  padding:14px 10px;
+  font-size:14px;
+  font-weight:1000;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.06);
+  color:var(--text);
+  cursor:pointer;
+}
+.reasonGrid button.selected{
+  border-color:rgba(45,212,191,.55);
+  background:rgba(45,212,191,.16);
+}
+
+/* SCORE */
+.scoreOverlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.70);
+  z-index:80;
   display:flex;
   align-items:flex-end;
   justify-content:center;
-  padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)) 14px;
-  z-index:2000;
 }
-
-.modal{
-  width:min(520px, 100%);
-  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));
-  border:1px solid rgba(255,255,255,.16);
-  border-radius:28px;
-  padding:14px;
-  box-shadow:0 30px 90px rgba(0,0,0,.55);
+.scoreCard{
+  width:min(420px, 100%);
+  background:linear-gradient(180deg, rgba(16,26,46,.98), rgba(15,26,51,.98));
+  border-radius:22px 22px 0 0;
+  padding:16px;
+  border-top:1px solid rgba(255,255,255,.08);
+  box-shadow: 0 -18px 46px rgba(0,0,0,.65);
 }
-
-.modalHeader{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  margin-bottom:10px;
-}
-.modalTitle{
-  font-weight:1000;
-  font-size:20px;
-}
-.modalClose{
-  width:44px;
-  height:44px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.14);
-  background:rgba(255,255,255,.08);
-  color:rgba(255,255,255,.9);
-  font-weight:1000;
-  font-size:18px;
-}
-
-/* Coach bar markup used on the main screen */
-.coachRow{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  margin-top:10px;
-}
-.barShell{
-  position:relative;
-  width:100%;
-  height:14px;
-  border-radius:999px;
-  overflow:hidden;
+.scoreTop{display:flex; justify-content:space-between; gap:10px;}
+.scoreTitle{font-weight:1000; font-size:16px;}
+.scoreSub{color:var(--muted); font-weight:900; font-size:12px; margin-top:3px;}
+.closeBtn{
+  border:none;
   background:rgba(255,255,255,.10);
-  border:1px solid rgba(255,255,255,.12);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
+  color:var(--text);
+  border-radius:12px;
+  width:40px;height:40px;
+  cursor:pointer;
+  font-weight:1000;
 }
-.barShell.tiny{height:10px}
-.barFill{
-  height:100%;
-  width:0%;
-  background:linear-gradient(90deg,#00d26a,#ffd65a,#ff4f6d);
+.scoreBigRow{
+  margin-top:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  padding:12px;
+  border-radius:18px;
+}
+.scoreLabel{color:var(--muted); font-weight:1000; font-size:12px; letter-spacing:.05em; text-transform:uppercase;}
+.scoreValue{font-size:44px; font-weight:1000; line-height:1; margin-top:4px;}
+.scoreBadge{
+  padding:8px 10px;
   border-radius:999px;
-  transition:width .25s ease;
+  font-weight:1000;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.06);
 }
-.barFill.blue{background:linear-gradient(90deg,#2ea8ff,#61d7ff)}
-.barGloss{
-  position:absolute;
-  inset:0;
-  background:linear-gradient(180deg,rgba(255,255,255,.20),rgba(255,255,255,0));
-  pointer-events:none;
+.scoreBadge.good{background:rgba(34,197,94,.16); border-color:rgba(34,197,94,.30); color:#bbf7d0;}
+.scoreBadge.bad{background:rgba(251,113,133,.16); border-color:rgba(251,113,133,.30); color:#fecaca;}
+
+.scoreGrid{
+  margin-top:12px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
 }
-.barTick{
-  position:absolute;
-  top:-3px;
-  height:20px;
-  width:2px;
-  left:50%;
-  transform:translateX(-1px);
-  background:rgba(255,255,255,.55);
-  opacity:.85;
+.miniCard{
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:16px;
+  padding:12px;
+}
+.miniLabel{color:var(--muted); font-weight:1000; font-size:12px;}
+.miniValue{font-weight:1000; font-size:18px; margin-top:6px;}
+
+.breakdownBlock{
+  margin-top:12px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:16px;
+  padding:12px;
+}
+.breakTitle{font-weight:1000; margin-bottom:8px;}
+.breakList{display:flex; flex-direction:column; gap:8px;}
+.breakItem{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.06);
+  background:rgba(0,0,0,.12);
+}
+.breakItem .muted{color:var(--muted); font-weight:900; font-size:12px;}
+.breakItem .strong{font-weight:1000;}
+
+.newBtn{
+  margin-top:12px;
+  width:100%;
+  border:none;
+  border-radius:18px;
+  padding:14px 12px;
+  font-weight:1000;
+  background:linear-gradient(rgba(45,212,191,.95), rgba(96,165,250,.90));
+  color:#06152f;
+  cursor:pointer;
 }
 
-/* Ensure the metronome row is always visible (no scroll) */
-.metronomeRow{margin-top:auto}
+/* --- UI tweak: fixed/sticky header + metronome moved under CPR/PAUSE --- */
+.topbar{
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  /* ensure it visually sits above content on iOS */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
 
-/* Overlay must always sit above everything */
-.overlay{z-index:9999}
+/* bring metronome closer to the big buttons */
+.controls .metroRow{
+  margin-top: 10px;
+}
 
-.hidden{display:none !important;}
-
-/* Slight compaction on very short screens */
-@media (max-height: 740px){
-  .app{gap:8px}
-  .statusCard{padding:10px 12px}
-  .coachPanel{padding:10px}
-  .bigBtn{min-height: 106px}
-  .reasonBtn{padding:7px 11px; font-size:12.5px}
+/* prevent bottom controls being clipped on iOS Safari URL bar */
+.app{
+  padding-bottom: calc(max(16px, env(safe-area-inset-bottom)) + 10px);
 }
