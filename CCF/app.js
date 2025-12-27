@@ -62,6 +62,19 @@ const UI = {
 
 };
 
+
+// ----- Safe DOM helpers (prevents hard crashes if markup differs) -----
+function safeText(el, text) { if (el) el.textContent = text; }
+function safeHTML(el, html) { if (el) el.innerHTML = html; }
+function safeClassAdd(el, cls) { if (el) el.classList.add(cls); }
+function safeClassRemove(el, cls) { if (el) el.classList.remove(cls); }
+function safeStyle(el, prop, val) { if (el) el.style[prop] = val; }
+function safeToggleHidden(el, isHidden) {
+  if (!el) return;
+  el.classList.toggle('hidden', !!isHidden);
+}
+
+
 const REASONS = [
   { key: "Rhythm/Analysis", icon: "🫀" },
   { key: "Shock",          icon: "⚡" },
@@ -255,11 +268,11 @@ function playClick(){
 function metronomePulseVisual(){
   UI.pulseDot.style.background = "rgba(34,197,94,.95)";
   UI.pulseDot.style.boxShadow = "0 0 18px rgba(34,197,94,.55)";
-  UI.pulseFill.style.width = "100%";
+  safeStyle(UI.pulseFill, "width", "100%");
   setTimeout(() => {
     UI.pulseDot.style.background = "rgba(255,255,255,.18)";
     UI.pulseDot.style.boxShadow = "none";
-    UI.pulseFill.style.width = "0%";
+    safeStyle(UI.pulseFill, "width", "0%");
   }, 90);
 }
 function metroStop(){
@@ -293,14 +306,13 @@ function updateMetroUI(){
   UI.btnBpmDown.disabled = !enabled;
   UI.btnBpmUp.disabled = !enabled;
 
-  UI.metroHint.textContent = enabled
-    ? (state.metroOn ? "Metronome visual active during CPR" : "Turn on metronome for visual + click")
-    : "Metronome visual runs during CPR (turn on below)";
+  safeText(UI.metroHint, enabled ? (state.metroOn ? "Metronome visual active during CPR" : "Turn on metronome for visual + click") : "Metronome visual runs during CPR (turn on below)");
 }
 
 
 function updateCoachBars(){
-  if(!UI.breathFill || !UI.pulseFill2) return;
+  const pulseFillEl = UI.pulseFill2 || UI.pulseFill;
+  if(!UI.breathFill || !pulseFillEl) return;
 
   const msPerCompression = 60000 / Math.max(60, Math.min(200, state.bpm || 110));
   const breathTargetMs = 30 * msPerCompression;
@@ -309,7 +321,7 @@ function updateCoachBars(){
   // Breath bar
   const breathPct = Math.max(0, Math.min(1, state.breathMs / breathTargetMs));
   const breathRemainingMs = Math.max(0, breathTargetMs - state.breathMs);
-  UI.breathFill.style.width = `${Math.round((1 - breathPct)*100)}%`;
+  safeStyle(UI.breathFill, "width", `${Math.round((1 - breathPct)*100)}%`);
 
   // Dots
   if(UI.breathDots?.length){
@@ -329,7 +341,7 @@ function updateCoachBars(){
 
   // Pulse check bar
   const pulsePct = Math.max(0, Math.min(1, state.pulseMs / pulseTargetMs));
-  UI.pulseFill2.style.width = `${Math.round(pulsePct*100)}%`;
+  safeStyle(pulseFillEl, "width", `${Math.round(pulsePct*100)}%`);
   const pulseRemainingMs = Math.max(0, pulseTargetMs - state.pulseMs);
   UI.pulseMeta.textContent = fmt(pulseRemainingMs);
 
