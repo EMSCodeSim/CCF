@@ -140,6 +140,125 @@ body{
   font-weight:900;
 }
 
+
+/* ---- COACH BARS (30:2 + 2:00 pulse check) ---- */
+.metroVisual.coach{
+  padding:14px 14px;
+}
+.coachBreaths{
+  border-radius:18px;
+  padding:14px 14px 12px 14px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow: 0 10px 26px rgba(0,0,0,.20) inset;
+}
+.coachTopRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.coachDots{
+  display:flex;
+  gap:6px;
+  opacity:.85;
+}
+.coachDots span{
+  width:10px;height:10px;border-radius:3px;
+  background:rgba(255,255,255,.14);
+  box-shadow:0 2px 10px rgba(0,0,0,.25) inset;
+}
+.coachTopText{
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  font-size:13px;
+  color:rgba(255,255,255,.86);
+}
+
+.coachBar{
+  position:relative;
+  height:16px;
+  border-radius:999px;
+  overflow:hidden;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);
+}
+.coachFill{
+  height:100%;
+  border-radius:999px;
+  filter:saturate(1.1);
+}
+.breathFill{
+  background:linear-gradient(90deg, rgba(42,239,142,.95), rgba(255,217,68,.95), rgba(255,120,70,.95));
+  box-shadow: 0 0 18px rgba(255,217,68,.20);
+}
+.pulseBar2{
+  height:14px;
+}
+.pulseFill2{
+  background:linear-gradient(90deg, rgba(80,186,255,.92), rgba(124,236,255,.92));
+  box-shadow: 0 0 18px rgba(80,186,255,.18);
+}
+
+.coachMarker{
+  position:absolute;
+  top:-10px;
+  width:4px;
+  height:36px;
+  border-radius:999px;
+  background:rgba(255,255,255,.55);
+  box-shadow:0 0 16px rgba(120,220,255,.28);
+  left:70%;
+  opacity:.0;
+  transform:translateX(-2px);
+}
+.coachPrompt{
+  margin-top:10px;
+  text-align:center;
+  font-weight:1000;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.breathPrompt{
+  color:rgba(255,222,120,.95);
+  font-size:16px;
+}
+.breathPrompt.due{
+  color:rgba(255,215,80,.98);
+  text-shadow: 0 0 14px rgba(255,215,80,.28);
+}
+.coachPulse{
+  margin-top:12px;
+}
+.coachPulseRow{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.coachPulseRow .coachBar{
+  flex:1;
+}
+.coachTime{
+  min-width:58px;
+  text-align:right;
+  font-weight:1000;
+  font-size:18px;
+  letter-spacing:.04em;
+  color:rgba(190,235,255,.95);
+}
+.pulsePrompt{
+  margin-top:8px;
+  color:rgba(190,235,255,.85);
+  font-size:13px;
+}
+.pulsePrompt.due{
+  color:rgba(190,235,255,.98);
+  text-shadow: 0 0 14px rgba(120,220,255,.22);
+}
+
+
 /* TIMELINE */
 .timelineWrap{ margin:14px 0 6px 0; }
 .timeline{
@@ -220,6 +339,8 @@ body{
   background:rgba(255,255,255,.18);
   border:1px solid rgba(255,255,255,.22);
 }
+.hidden{display:none}
+
 /* METRONOME ROW */
 .metroRow{
   margin-top:14px;
@@ -413,10 +534,4 @@ body{
   border-color: rgba(239,68,68,.20);
 }
 
-
-/* Utility (anti-freeze) */
-.hidden{display:none !important;}
-.scoreOverlay.hidden{display:none !important;}
-.overlay.hidden{display:none !important;}
-.pauseOverlayCard.hidden{display:none !important;}
-
+.coachDots span.on{background:rgba(255,222,120,.70);}
