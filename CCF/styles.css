@@ -215,7 +215,7 @@ html,body{width:100%; overflow-x:hidden;}
 }
 
 /* Breath bar uses gradient and shrinks */
-#breathFill{
+#breathFill, #breathFill2{
   background:linear-gradient(90deg, #2fe06f 0%, #ffd44f 55%, #ff6a7a 100%);
   box-shadow:0 0 14px rgba(255,212,79,.25);
 }
@@ -250,7 +250,7 @@ html,body{width:100%; overflow-x:hidden;}
   text-align:right;
 }
 
-#pulseFill{
+#pulseFill, #pulseFill2{
   background:linear-gradient(90deg, rgba(87,182,255,.95), rgba(87,182,255,.55));
   box-shadow:0 0 14px rgba(87,182,255,.22);
 }
@@ -471,4 +471,61 @@ html,body{width:100%; overflow-x:hidden;}
   .coachPanel{padding:10px}
   .bigBtn{min-height: 106px}
   .reasonBtn{padding:7px 11px; font-size:12.5px}
+}
+
+
+/* =========================
+   Coach bars: match index.html markup
+   ========================= */
+.barShell{
+  height:18px;
+  border-radius:999px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.14);
+  overflow:hidden;
+  position:relative;
+}
+.barFill{
+  height:100%;
+  width:0%;
+  border-radius:999px;
+  transition:width .18s linear;
+}
+#breathFill, #breathFill2{
+  background:linear-gradient(90deg, rgba(52,211,153,.95), rgba(250,204,21,.95), rgba(248,113,113,.95));
+}
+#pulseFill, #pulseFill2{
+  background:linear-gradient(90deg, rgba(56,189,248,.95), rgba(99,102,241,.95));
+}
+.barGloss{
+  position:absolute;
+  inset:0;
+  background:linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0));
+  opacity:.35;
+  pointer-events:none;
+}
+
+/* Keep everything centered; prevent "pushed right" layout on iOS */
+html, body{
+  width:100%;
+  overflow-x:hidden;
+}
+.app{
+  width:min(520px, 100%);
+  margin:0 auto;
+  padding-left: max(14px, env(safe-area-inset-left));
+  padding-right:max(14px, env(safe-area-inset-right));
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  box-sizing:border-box;
+}
+
+/* Metronome row should never be cut off */
+.controlsArea{
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+@media (max-width: 390px){
+  .metroRow{
+    grid-template-columns: 1fr auto auto;
+  }
+  .metroLabel{ display:none; } /* if present */
 }
