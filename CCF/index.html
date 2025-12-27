@@ -36,31 +36,37 @@
     <div class="ccfLine">CCF <span id="ccfLive">—%</span></div>
   </section>
 
-  <!-- COACH BARS (replaces metronome visual area) -->
-  <section class="coachBars" aria-label="Breaths and pulse check timers">
-    <div class="coachGroup" id="breathCoach">
-      <div class="coachHeader">
-        <div class="coachTitle">Breaths (30:2)</div>
-        <div class="coachRight" id="breathRight">30 compressions</div>
-      </div>
-      <div class="coachPrompt" id="breathPrompt">Keep compressions going</div>
-      <div class="coachBar">
-        <div class="coachFill" id="breathFill"></div>
-      </div>
-      <div class="coachSub" id="breathSub">Next breaths in 0:16 (~30 compressions)</div>
-    </div>
 
-    <div class="coachGroup" id="pulseCoach">
-      <div class="coachHeader">
-        <div class="coachTitle">Pulse Check</div>
-        <div class="coachRight" id="pulseRight">02:00</div>
+  <div class="coachBars" aria-label="Breaths and pulse check timers">
+    <div class="coachBarRow">
+      <div class="coachBarTop">
+        <div class="coachBarTitle">Breaths (30:2)</div>
+        <div class="coachBarMeta" id="breathBarMeta">Next breaths in —</div>
       </div>
-      <div class="coachPrompt" id="pulsePrompt">Next pulse check in 2:00</div>
-      <div class="coachBar coachBarBlue">
-        <div class="coachFill" id="pulseFill"></div>
+      <div class="coachBarTrack">
+        <div class="coachBarFill breathFill" id="breathBarFill" style="width: 0%"></div>
       </div>
     </div>
 
+    <div class="coachBarRow">
+      <div class="coachBarTop">
+        <div class="coachBarTitle">Pulse Check</div>
+        <div class="coachBarMeta" id="pulseBarMeta">Next pulse check in —</div>
+      </div>
+      <div class="coachBarTrack pulseTrack">
+        <div class="coachBarFill pulseFill" id="pulseBarFill" style="width: 0%"></div>
+        <div class="coachBarMarker" id="pulseBarMarker"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- METRONOME VISUAL -->
+  <section class="metroVisual" aria-label="Metronome visual">
+    <div class="pulseDot" id="pulseDot" aria-hidden="true"></div>
+    <div class="pulseBar">
+      <div class="pulseFill" id="pulseFill"></div>
+    </div>
     <div class="metroHint" id="metroHint">Metronome visual runs during CPR (turn on below)</div>
   </section>
 
