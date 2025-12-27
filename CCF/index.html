@@ -1,93 +1,106 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CCF CPR Timer – BLS</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>CCF CPR Timer</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
-
-<header class="topbar">
-  <div class="brand">
-    <div class="title">CCF CPR Timer</div>
-    <span class="modePill">BLS</span>
-  </div>
-  <div class="headerBtns">
-    <button id="btnReports" class="ghostBtn">📊 Reports</button>
-    <button id="btnEnd" class="endBtn" disabled>⏹ End</button>
-  </div>
-</header>
-
-<main class="app">
-
-  <section class="stateBar" id="stateBar">
-    <div>
-      <div id="stateLabel">READY</div>
-      <div id="stateSub">Tap CPR to start</div>
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="title">
+      <strong>CCF CPR Timer</strong>
+      <span class="badge">BLS</span>
     </div>
-    <div id="stateMini">CCF —%</div>
-  </section>
-
-  <section class="timer">
-    <div class="time" id="sessionTime">00:00</div>
-    <div class="ccfLine">CCF <span id="ccfLive">—%</span></div>
-  </section>
-
-  <!-- BREATH BAR -->
-  <section class="barBlock">
-    <div class="barLabel">Breaths (30:2)</div>
-    <div class="progressBar">
-      <div class="progressFill breaths" id="breathBar"></div>
+    <div class="header-actions">
+      <button id="btnReports" class="icon-btn">📊 Reports</button>
+      <button id="btnEnd" class="icon-btn danger">⏹ End</button>
     </div>
-    <div class="barHint" id="breathHint">Keep compressions going</div>
-  </section>
+  </header>
 
-  <!-- PULSE CHECK BAR -->
-  <section class="barBlock">
-    <div class="barLabel">Pulse Check</div>
-    <div class="progressBar">
-      <div class="progressFill pulse" id="pulseBar"></div>
+  <!-- MAIN -->
+  <main class="app-main">
+    <div class="status-pill" id="statusText">
+      READY — Tap CPR to start
+      <span id="ccfTop">CCF —%</span>
     </div>
-    <div class="barHint" id="pulseHint">Next pulse check in 2:00</div>
-  </section>
 
-  <div class="timelineWrap">
-    <div class="timeline" id="timelineStrip"></div>
-    <div class="timelineHint">Green = CPR • Red = Hands-Off</div>
+    <div class="timer-display" id="mainTimer">00:00</div>
+    <div class="ccf-display" id="ccfDisplay">CCF —%</div>
+
+    <!-- INFO CARD -->
+    <div class="card">
+      <div><strong>Breaths (30:2)</strong></div>
+      <div id="breathText">30 compressions</div>
+      <div id="pulseText">Next pulse check in 02:00</div>
+      <div class="hint">Green = CPR • Red = Hands-Off</div>
+    </div>
+
+    <!-- TIMELINE BAR -->
+    <div class="timeline">
+      <div id="timelineFill"></div>
+    </div>
+
+    <!-- CPR / PAUSE ROW -->
+    <div class="button-row">
+      <button id="btnCPR" class="action-btn cpr">
+        ❤️ CPR
+        <div class="sub">On: <span id="cprTime">00:00</span></div>
+      </button>
+
+      <button id="btnPause" class="action-btn pause">
+        ⏸ PAUSE
+        <div class="sub">Hands-Off: <span id="pauseTime">00:00</span></div>
+      </button>
+    </div>
+
+    <!-- METRONOME -->
+    <div class="metronome-row">
+      <button id="btnMetronome" class="icon-btn">🎵 Metronome: OFF</button>
+      <button id="bpmDown" class="icon-btn">−</button>
+      <span id="bpmValue">110 BPM</span>
+      <button id="bpmUp" class="icon-btn">+</button>
+    </div>
+  </main>
+
+  <!-- PAUSE REASONS OVERLAY -->
+  <div id="pauseOverlay" class="overlay hidden">
+    <div class="overlay-card">
+      <h3>Select pause reason</h3>
+      <div id="pauseReasons" class="reason-grid">
+        <button data-reason="Rhythm/Analysis">❤️ Rhythm</button>
+        <button data-reason="Shock">⚡ Shock</button>
+        <button data-reason="Airway/Vent">💨 Airway</button>
+        <button data-reason="Pulse Check">🫀 Pulse</button>
+        <button data-reason="IV/IO/Meds">💉 IV/IO</button>
+        <button data-reason="Move/Transport">🚑 Move</button>
+        <button data-reason="Other">❓ Other</button>
+      </div>
+    </div>
   </div>
 
-  <!-- CPR + PAUSE SIDE BY SIDE -->
-  <section class="controls">
-    <button id="btnCPR" class="bigBtn cpr">
-      ❤️ CPR
-      <div class="sub">On: <span id="cprTime">00:00</span></div>
-    </button>
+  <!-- SCORE OVERLAY -->
+  <div id="scoreOverlay" class="overlay hidden">
+    <div class="overlay-card">
+      <button id="btnCloseScore" class="close-btn">✕</button>
+      <h2>Session Score</h2>
+      <div class="score-big"><span id="finalCCF">—</span>%</div>
 
-    <button id="btnPause" class="bigBtn pause" disabled>
-      ⏸ PAUSE
-      <div class="sub">Hands-Off: <span id="handsOff">00:00</span></div>
-    </button>
-  </section>
+      <div class="score-grid">
+        <div>Total Time<br><strong id="totalTime">00:00</strong></div>
+        <div>Hands-Off<br><strong id="totalPause">00:00</strong></div>
+        <div>Longest Pause<br><strong id="longestPause">00:00</strong></div>
+        <div>Pauses<br><strong id="pauseCount">0</strong></div>
+      </div>
 
-</main>
+      <button id="btnNewSession" class="primary-btn">
+        Start New Session
+      </button>
+    </div>
+  </div>
 
-<!-- PAUSE REASONS -->
-<div class="overlay hidden" id="overlay"></div>
-<section class="pauseOverlay hidden" id="pauseOverlay">
-  <h3>Pause Reason</h3>
-  <div id="reasonGrid" class="reasonGrid"></div>
-</section>
-
-<!-- SCORE MODAL -->
-<div class="overlay hidden" id="scoreOverlay">
-  <section class="scoreCard">
-    <h2>Session Score</h2>
-    <div class="scoreBig">Final CCF: <span id="finalCCF">—%</span></div>
-    <button id="btnNewSession">Start New Session</button>
-  </section>
-</div>
-
-<script src="./app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
