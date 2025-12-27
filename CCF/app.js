@@ -177,8 +177,11 @@ function renderTimeline(){
 
 // ---- pause overlay (non-layout shifting) ----
 function openPauseOverlay(open){
+  if (!UI.overlay || !UI.pauseOverlayCard) return;
   UI.overlay.classList.toggle("hidden", !open);
   UI.pauseOverlayCard.classList.toggle("hidden", !open);
+  UI.overlay.style.display = open ? "flex" : "none";
+  UI.pauseOverlayCard.style.display = open ? "block" : "none";
 }
 function clearReasonSelectionUI(){
   UI.reasonGrid.querySelectorAll("button").forEach(b=>b.classList.remove("selected"));
@@ -303,7 +306,21 @@ function renderScore(){
   }
 }
 function openScore(open){
+  if (!UI.scoreOverlay) return;
+  // Hard-toggle display so the overlay can never remain "stuck" on top
   UI.scoreOverlay.classList.toggle("hidden", !open);
+  UI.scoreOverlay.style.display = open ? "flex" : "none";
+  document.body.classList.toggle("modal-open", open);
+}
+
+function hardHideAllOverlays(){
+  // Force overlays closed on startup (helps when Safari caches stale DOM/CSS)
+  [UI.scoreOverlay, UI.pauseOverlay, UI.reportOverlay].forEach(el => {
+    if (!el) return;
+    el.classList.add("hidden");
+    el.style.display = "none";
+  });
+  document.body.classList.remove("modal-open");
 }
 
 // ---- loop ----
@@ -409,7 +426,7 @@ function endSession(){
   openPauseOverlay(false);
 
   renderScore();
-  openScore(false); // keep score sheet hidden on load
+  openScore(true);
 
   setStateBar();
   setActiveButtons();
@@ -417,6 +434,9 @@ function endSession(){
 }
 
 function resetAll(){
+  // Ensure all overlays are truly hidden on app start/reset
+  hardHideAllOverlays();
+
   metroStop();
   state.metroOn = false;
 
