@@ -50,30 +50,7 @@ const UI = {
   finalLongest: $("finalLongest"),
   finalPauses: $("finalPauses"),
   breakdownList: $("breakdownList"),
-
-  // coach bars
-  breathFill: $("breathFill"),
-  breathPrompt: $("breathPrompt"),
-  breathMeta: $("breathMeta"),
-  pulseFill2: $("pulseFill2"),
-  pulseMeta: $("pulseMeta"),
-  pulsePrompt: $("pulsePrompt"),
-  breathDots: Array.from(document.querySelectorAll("#coachBreaths .coachDots span")),
-
 };
-
-
-// ----- Safe DOM helpers (prevents hard crashes if markup differs) -----
-function safeText(el, text) { if (el) el.textContent = text; }
-function safeHTML(el, html) { if (el) el.innerHTML = html; }
-function safeClassAdd(el, cls) { if (el) el.classList.add(cls); }
-function safeClassRemove(el, cls) { if (el) el.classList.remove(cls); }
-function safeStyle(el, prop, val) { if (el) el.style[prop] = val; }
-function safeToggleHidden(el, isHidden) {
-  if (!el) return;
-  el.classList.toggle('hidden', !!isHidden);
-}
-
 
 const REASONS = [
   { key: "Rhythm/Analysis", icon: "🫀" },
@@ -109,40 +86,9 @@ const state = {
 
   metroOn: false,
   bpm: 110,
-
-  // coach timers
-  breathMs: 0,       // time worth of ~30 compressions (estimated using BPM)
-  breathDue: false,
-  pulseMs: 0,        // 2-min cycle timer (counts while session running)
-  pulseDue: false,
   intervalId: null,
   audioCtx: null,
 };
-
-// ---- persistence (Reports page) ----
-const STORAGE_KEY = "ccf_sessions_v1";
-
-function loadSessions(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  }catch(_e){ return []; }
-}
-
-function saveSessions(arr){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch(_e){}
-}
-
-function pushSession(session){
-  const arr = loadSessions();
-  arr.unshift(session); // newest first
-  // keep last 50
-  if (arr.length > 50) arr.length = 50;
-  saveSessions(arr);
-}
-
 
 // ---- helpers ----
 function now(){ return performance.now(); }
@@ -268,11 +214,11 @@ function playClick(){
 function metronomePulseVisual(){
   UI.pulseDot.style.background = "rgba(34,197,94,.95)";
   UI.pulseDot.style.boxShadow = "0 0 18px rgba(34,197,94,.55)";
-  safeStyle(UI.pulseFill, "width", "100%");
+  UI.pulseFill.style.width = "100%";
   setTimeout(() => {
     UI.pulseDot.style.background = "rgba(255,255,255,.18)";
     UI.pulseDot.style.boxShadow = "none";
-    safeStyle(UI.pulseFill, "width", "0%");
+    UI.pulseFill.style.width = "0%";
   }, 90);
 }
 function metroStop(){
@@ -306,52 +252,9 @@ function updateMetroUI(){
   UI.btnBpmDown.disabled = !enabled;
   UI.btnBpmUp.disabled = !enabled;
 
-  safeText(UI.metroHint, enabled ? (state.metroOn ? "Metronome visual active during CPR" : "Turn on metronome for visual + click") : "Metronome visual runs during CPR (turn on below)");
-}
-
-
-function updateCoachBars(){
-  const pulseFillEl = UI.pulseFill2 || UI.pulseFill;
-  if(!UI.breathFill || !pulseFillEl) return;
-
-  const msPerCompression = 60000 / Math.max(60, Math.min(200, state.bpm || 110));
-  const breathTargetMs = 30 * msPerCompression;
-  const pulseTargetMs  = 120000;
-
-  // Breath bar
-  const breathPct = Math.max(0, Math.min(1, state.breathMs / breathTargetMs));
-  const breathRemainingMs = Math.max(0, breathTargetMs - state.breathMs);
-  safeStyle(UI.breathFill, "width", `${Math.round((1 - breathPct)*100)}%`);
-
-  // Dots
-  if(UI.breathDots?.length){
-    const lit = Math.min(UI.breathDots.length, Math.floor(breathPct * UI.breathDots.length));
-    UI.breathDots.forEach((el, i)=> el.classList.toggle("on", i < lit));
-  }
-
-  if(state.breathDue){
-    UI.breathMeta.textContent = "Give 2 Breaths";
-    UI.breathPrompt.textContent = "GIVE 2 BREATHS";
-    UI.breathPrompt.classList.add("due");
-  } else {
-    UI.breathMeta.textContent = "Next breaths";
-    UI.breathPrompt.textContent = `Next breaths in ${Math.max(1, Math.round(breathRemainingMs/1000))}s (~30 compressions)`;
-    UI.breathPrompt.classList.remove("due");
-  }
-
-  // Pulse check bar
-  const pulsePct = Math.max(0, Math.min(1, state.pulseMs / pulseTargetMs));
-  safeStyle(pulseFillEl, "width", `${Math.round(pulsePct*100)}%`);
-  const pulseRemainingMs = Math.max(0, pulseTargetMs - state.pulseMs);
-  UI.pulseMeta.textContent = fmt(pulseRemainingMs);
-
-  if(state.pulseDue){
-    UI.pulsePrompt.textContent = "PULSE CHECK";
-    UI.pulsePrompt.classList.add("due");
-  } else {
-    UI.pulsePrompt.textContent = "Pulse Check";
-    UI.pulsePrompt.classList.remove("due");
-  }
+  UI.metroHint.textContent = enabled
+    ? (state.metroOn ? "Metronome visual active during CPR" : "Turn on metronome for visual + click")
+    : "Metronome visual runs during CPR (turn on below)";
 }
 
 // ---- scoring ----
@@ -421,30 +324,6 @@ function tick(){
     }
   }
 
-  // coach timers (estimated using BPM)
-  if (state.mode === "cpr"){
-    const msPerCompression = 60000 / Math.max(60, Math.min(200, state.bpm || 110));
-    const breathTargetMs = 30 * msPerCompression;
-    if (!state.breathDue){
-      state.breathMs += dt;
-      if (state.breathMs >= breathTargetMs){
-        state.breathMs = breathTargetMs;
-        state.breathDue = true;
-      }
-    }
-  }
-
-  // 2-min pulse check timer (counts while session is running)
-  if (state.mode === "cpr" || state.mode === "paused"){
-    if (!state.pulseDue){
-      state.pulseMs += dt;
-      if (state.pulseMs >= 120000){
-        state.pulseMs = 120000;
-        state.pulseDue = true;
-      }
-    }
-  }
-
   UI.sessionTime.textContent = fmt(state.compMs + state.offMs);
   UI.cprTime.textContent = fmt(state.compMs);
   UI.handsOff.textContent = fmt(state.offMs);
@@ -452,7 +331,6 @@ function tick(){
   setStateBar();
   setActiveButtons();
   renderTimeline();
-  updateCoachBars();
 
   requestAnimationFrame(tick);
 }
@@ -478,17 +356,6 @@ function startCPR(){
     const dur = t - state.pauseStartMs;
     state.pauses.push({ reason: state.currentReason || "Other", ms: dur });
     state.pauseStartMs = null;
-  }
-
-
-  // If a coaching cycle was due, treat this resume as "we completed the check/breaths"
-  if (state.breathDue){
-    state.breathDue = false;
-    state.breathMs = 0;
-  }
-  if (state.pulseDue){
-    state.pulseDue = false;
-    state.pulseMs = 0;
   }
 
   state.mode = "cpr";
@@ -542,24 +409,8 @@ function endSession(){
   openPauseOverlay(false);
 
   renderScore();
-  // Save session for Reports page
-  const finalCCF = calcCCF(state.compMs, state.offMs) ?? 0;
-  const total = state.compMs + state.offMs;
-  const endedAt = new Date().toISOString();
+  openScore(false); // keep score sheet hidden on load
 
-  pushSession({
-    endedAt,
-    totalMs: total,
-    compMs: state.compMs,
-    offMs: state.offMs,
-    finalCCF,
-    pauseCount: state.pauseCount,
-    longestPauseMs: state.longestPauseMs,
-    pauses: state.pauses,
-  });
-
-  // Go to Reports page (ads can live there)
-  window.location.href = "./reports.html";
   setStateBar();
   setActiveButtons();
   renderTimeline();
@@ -588,12 +439,6 @@ function resetAll(){
   state.segments = [];
   state.currentSeg = null;
 
-  // coach timers
-  state.breathMs = 0;
-  state.breathDue = false;
-  state.pulseMs = 0;
-  state.pulseDue = false;
-
   UI.btnPause.disabled = true;
   UI.btnEnd.disabled = true;
 
@@ -615,8 +460,6 @@ function resetAll(){
 
 // ---- build reasons (auto-hide after selection) ----
 function buildReasons(){
-  if (!UI.reasonGrid) return;
-
   UI.reasonGrid.innerHTML = "";
   for (const r of REASONS){
     const b = document.createElement("button");
@@ -636,14 +479,14 @@ function buildReasons(){
 }
 
 // ---- events ----
-if (UI.btnCPR) UI.btnCPR.addEventListener("click", startCPR);
-if (UI.btnPause) UI.btnPause.addEventListener("click", startPause);
+UI.btnCPR.addEventListener("click", startCPR);
+UI.btnPause.addEventListener("click", startPause);
 
-if (UI.btnEnd) UI.btnEnd.addEventListener("click", () => {
+UI.btnEnd.addEventListener("click", () => {
   if (confirm("End session and view score?")) endSession();
 });
 
-if (UI.btnMetro) UI.btnMetro.addEventListener("click", () => {
+UI.btnMetro.addEventListener("click", () => {
   if (!state.running) return;
   ensureAudio();
   state.metroOn = !state.metroOn;
@@ -652,31 +495,24 @@ if (UI.btnMetro) UI.btnMetro.addEventListener("click", () => {
   updateMetroUI();
 });
 
-if (UI.btnBpmDown) UI.btnBpmDown.addEventListener("click", () => {
+UI.btnBpmDown.addEventListener("click", () => {
   state.bpm = Math.max(60, state.bpm - 5);
   updateMetroUI();
   if (state.metroOn) metroStart();
 });
 
-if (UI.btnBpmUp) UI.btnBpmUp.addEventListener("click", () => {
+UI.btnBpmUp.addEventListener("click", () => {
   state.bpm = Math.min(200, state.bpm + 5);
   updateMetroUI();
   if (state.metroOn) metroStart();
 });
 
-if (UI.btnScoreClose) UI.btnScoreClose.addEventListener("click", () => openScore(false));
-if (UI.btnNewSession) UI.btnNewSession.addEventListener("click", () => resetAll());
+UI.btnScoreClose.addEventListener("click", () => openScore(false));
+UI.btnNewSession.addEventListener("click", () => resetAll());
 
 // Optional: tap outside to close pause overlay
-if (UI.overlay) UI.overlay.addEventListener("click", () => openPauseOverlay(false));
+UI.overlay.addEventListener("click", () => openPauseOverlay(false));
 
 // ---- init ----
-window.addEventListener("DOMContentLoaded", () => {
-  try {
-    buildReasons();
-    resetAll();
-  } catch (e) {
-    console.error("Init error:", e);
-    alert("App failed to start. Check console for details.");
-  }
-});
+buildReasons();
+resetAll();
