@@ -215,7 +215,7 @@ html,body{width:100%; overflow-x:hidden;}
 }
 
 /* Breath bar uses gradient and shrinks */
-#breathFill, #breathFill2{
+#breathFill{
   background:linear-gradient(90deg, #2fe06f 0%, #ffd44f 55%, #ff6a7a 100%);
   box-shadow:0 0 14px rgba(255,212,79,.25);
 }
@@ -250,7 +250,7 @@ html,body{width:100%; overflow-x:hidden;}
   text-align:right;
 }
 
-#pulseFill, #pulseFill2{
+#pulseFill{
   background:linear-gradient(90deg, rgba(87,182,255,.95), rgba(87,182,255,.55));
   box-shadow:0 0 14px rgba(87,182,255,.22);
 }
@@ -474,58 +474,81 @@ html,body{width:100%; overflow-x:hidden;}
 }
 
 
+
 /* =========================
-   Coach bars: match index.html markup
+   Fixes (Dec 26): iOS bottom cut-off + Pause Reason sheet
    ========================= */
-.barShell{
-  height:18px;
-  border-radius:999px;
-  background:rgba(255,255,255,.08);
-  border:1px solid rgba(255,255,255,.14);
-  overflow:hidden;
-  position:relative;
-}
-.barFill{
-  height:100%;
-  width:0%;
-  border-radius:999px;
-  transition:width .18s linear;
-}
-#breathFill, #breathFill2{
-  background:linear-gradient(90deg, rgba(52,211,153,.95), rgba(250,204,21,.95), rgba(248,113,113,.95));
-}
-#pulseFill, #pulseFill2{
-  background:linear-gradient(90deg, rgba(56,189,248,.95), rgba(99,102,241,.95));
-}
-.barGloss{
-  position:absolute;
-  inset:0;
-  background:linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0));
-  opacity:.35;
-  pointer-events:none;
+:root{
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
 }
 
-/* Keep everything centered; prevent "pushed right" layout on iOS */
-html, body{
-  width:100%;
-  overflow-x:hidden;
-}
+/* Ensure bottom controls don't get hidden behind Safari/phone UI */
 .app{
-  width:min(520px, 100%);
-  margin:0 auto;
-  padding-left: max(14px, env(safe-area-inset-left));
-  padding-right:max(14px, env(safe-area-inset-right));
-  padding-bottom: max(14px, env(safe-area-inset-bottom));
-  box-sizing:border-box;
+  padding-bottom: calc(12px + var(--safe-b)) !important;
 }
 
-/* Metronome row should never be cut off */
-.controlsArea{
-  padding-bottom: max(10px, env(safe-area-inset-bottom));
+/* Compact mode for short screens so everything fits without scrolling */
+@media (max-height: 760px){
+  .app{ padding-top: calc(8px + var(--safe-t)) !important; }
+  .main{ gap: 10px !important; }
+  .topbar{ margin-bottom: 6px !important; }
+  .timer{ margin: 6px 0 2px !important; }
+  .timeBig{ font-size: clamp(44px, 10vw, 66px) !important; }
+  .timeSub{ margin-top: 2px !important; }
+  .coachPanel{ padding: 12px !important; }
+  .bigBtn{ min-height: 18vh !important; padding: 14px !important; }
+  .mainBtns{ gap: 12px !important; }
+  .metroRow{ margin-top: 6px !important; }
 }
-@media (max-width: 390px){
-  .metroRow{
-    grid-template-columns: 1fr auto auto;
-  }
-  .metroLabel{ display:none; } /* if present */
+
+/* Backdrop overlay (shared) */
+.overlay{
+  z-index: 1090 !important;
+}
+
+/* Pause Reason sheet (was missing styles, so it looked like it vanished) */
+.pauseOverlayCard{
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(12px + var(--safe-b));
+  width: min(720px, calc(100vw - 24px));
+  max-height: calc(100svh - 120px);
+  overflow: auto;
+
+  background: rgba(12, 22, 34, 0.94);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.50);
+  z-index: 1100;
+  -webkit-overflow-scrolling: touch;
+}
+.pauseOverlayCard.hidden{ display:none !important; }
+
+/* Reason buttons grid */
+.reasonGrid{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+.reasonBtn{
+  flex: 1 1 auto;
+  min-width: 140px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+}
+.reasonBtn:active{ transform: scale(0.98); }
+
+/* If the sheet content is tall, keep the action row visible */
+.pauseOverlayCard .rowActions{
+  position: sticky;
+  bottom: 0;
+  padding-top: 10px;
+  background: linear-gradient(to bottom, rgba(12,22,34,0), rgba(12,22,34,0.94) 35%);
 }
