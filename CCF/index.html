@@ -14,10 +14,7 @@
     <div class="modePill">BLS</div>
   </div>
 
-  <div class="topActions">
-    <a id="btnReports" class="endBtn ghost" href="reports.html">📊 Reports</a>
-    <button id="btnEnd" class="endBtn danger" disabled>⏹ End</button>
-  </div>
+  <button id="btnEnd" class="endBtn" disabled>⏹ End</button>
 </header>
 
 <main class="app">
@@ -39,53 +36,13 @@
     <div class="ccfLine">CCF <span id="ccfLive">—%</span></div>
   </section>
 
-  <!-- COACH BARS AREA (breaths + pulse check) -->
-  <section class="coachPanel" id="coachPanel" aria-label="CPR Coach Prompts">
-    <!-- Breaths (30:2) -->
-    <div class="coachRow">
-      <div class="coachHead">
-        <div class="coachTitle">
-          <span class="coachDot breath"></span>
-          <span id="breathLabel">Breaths (30:2)</span>
-        </div>
-        <div class="coachMeta"><span id="breathMeta">30 compressions</span></div>
-      </div>
-
-      <div class="barShell" role="progressbar" aria-label="Breath cycle progress"
-           aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
-        <div id="breathFill" class="barFill breathFill" style="width:100%"></div>
-        <div class="barGloss"></div>
-      </div>
-
-      <div id="breathPrompt" class="coachPrompt">
-        <span class="promptIcon">🫁</span>
-        <span class="promptText">Keep compressions going</span>
-      </div>
+  <!-- METRONOME VISUAL -->
+  <section class="metroVisual" aria-label="Metronome visual">
+    <div class="pulseDot" id="pulseDot" aria-hidden="true"></div>
+    <div class="pulseBar">
+      <div class="pulseFill" id="pulseFill"></div>
     </div>
-
-    <!-- Pulse Check (2:00) -->
-    <div class="coachRow">
-      <div class="coachHead">
-        <div class="coachTitle">
-          <span class="coachDot pulse"></span>
-          <span id="pulseLabel">Pulse Check</span>
-        </div>
-        <div class="coachMeta"><span id="pulseMeta">02:00</span></div>
-      </div>
-
-      <div class="barShell" role="progressbar" aria-label="Pulse check countdown"
-           aria-valuemin="0" aria-valuemax="120" aria-valuenow="120">
-        <div id="pulseFill2" class="barFill pulseFill" style="width:100%"></div>
-        <div class="barGloss"></div>
-      </div>
-
-      <div id="pulsePrompt" class="coachPrompt subtle">
-        <span class="promptIcon">⏱️</span>
-        <span class="promptText">Next pulse check in 2:00</span>
-      </div>
-    </div>
-
-    <div class="coachFooter" id="metroHint">Metronome visual runs during CPR (turn on below)</div>
+    <div class="metroHint" id="metroHint">Metronome visual runs during CPR (turn on below)</div>
   </section>
 
   <!-- TIMELINE -->
@@ -96,7 +53,6 @@
 
   <!-- BUTTONS (NEVER MOVE) -->
   <section class="controls" aria-label="Controls">
-    <div class="mainBtns">
     <button id="btnCPR" class="bigBtn neutral" aria-label="CPR">
       <div class="icon">❤️</div>
       <div class="label">CPR</div>
@@ -110,20 +66,17 @@
       <div class="sub"><span class="mini">Hands-Off:</span> <span id="handsOff">00:00</span></div>
       <div class="liveTag hidden" id="tagPause">LIVE</div>
     </button>
-    </div>
-  </section>
-
-  <!-- METRONOME CONTROL -->
+  
   <section class="metroRow">
     <button id="btnMetro" class="metroBtn" disabled>🔊 Metronome: OFF</button>
     <button id="btnBpmDown" class="bpmBtn" disabled>–</button>
     <div id="metroBpm" class="bpmText">110 BPM</div>
     <button id="btnBpmUp" class="bpmBtn" disabled>+</button>
   </section>
-
+</section>
 </main>
 
-<!-- PAUSE REASONS OVERLAY -->
+<!-- PAUSE REASONS OVERLAY (DOES NOT MOVE BUTTONS) -->
 <div class="overlay hidden" id="overlay" aria-hidden="true"></div>
 
 <section class="pauseOverlayCard hidden" id="pauseOverlayCard" role="dialog" aria-modal="true" aria-label="Pause reasons">
