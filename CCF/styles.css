@@ -421,3 +421,61 @@ body{
   .actionBtn{ min-height: 108px; }
   .resumeBig{ font-size: 26px; }
 }
+
+
+/* ---------- NEW: Top control buttons row ---------- */
+.topControls{
+  margin-top: 10px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ctlBtn{
+  appearance:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 18px;
+  padding: 14px 14px;
+  box-shadow: var(--shadow);
+  min-height: 74px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+  gap: 6px;
+  text-align:left;
+}
+
+.ctlBtn .ctlLabel{
+  font-weight: 1000;
+  font-size: 18px;
+  letter-spacing:.2px;
+}
+
+.ctlBtn .ctlSub{
+  font-weight: 950;
+  opacity:.85;
+}
+
+.ctlBtn.score{
+  align-items:center;
+  text-align:center;
+}
+
+.ctlBtn .ctlScore{
+  font-weight: 1100;
+  font-size: 28px;
+  letter-spacing:.4px;
+}
+
+.ctlBtn.danger{
+  background: linear-gradient(180deg, rgba(255,107,107,.25), rgba(255,59,59,.18));
+  border-color: rgba(255,107,107,.45);
+}
+
+@media (min-width: 520px){
+  .topControls{ grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .ctlBtn{ min-height: 80px; }
+}
