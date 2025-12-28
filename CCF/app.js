@@ -1,5 +1,9 @@
 /* ===========================
    CCF CPR TIMER – app.js
+   Fix: CPR button starts timer reliably
+   + Breath bar toggles Advanced Airway
+   + Both CPR buttons reset breath bar
+   + Pause reasons modal w/ big RESUME CPR
    =========================== */
 
 const $ = (id) => document.getElementById(id);
@@ -12,42 +16,7 @@ function fmt(ms) {
   return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
 
-const UI = {
-  mainTimer: $("mainTimer"),
-  ccfLine: $("ccfLine"),
-  statusTitle: $("statusTitle"),
-  statusSub: $("statusSub"),
-  statusRight: $("statusRight"),
-
-  breathBar: $("breathBarFill"),
-  pulseBar: $("pulseBarFill"),
-  breathMeta: $("breathMetaLeft"),
-  breathBarBox: $("breathBarBox"),
-  pulseMeta: $("pulseMetaLeft"),
-
-  btnCpr: $("btnCpr"),
-  btnPause: $("btnPause"),
-  btnEnd: $("btnEnd"),
-
-  cprOnTime: $("cprOnTime"),
-  handsOffTime: $("handsOffTime"),
-
-  btnMet: $("btnMetronome"),
-  metState: $("metState"),
-  bpmValue: $("bpmValue"),
-  bpmDown: $("btnBpmDown"),
-  bpmUp: $("btnBpmUp"),
-
-  // Advanced Airway toggle
-  btnAdvAirway: $("btnAdvAirway"),
-  advAirwayState: $("advAirwayState"),
-
-  // Pause modal
-  pauseOverlay: $("pauseOverlay"),
-  btnResumePause: $("btnResumeFromPause"),
-  btnClearPauseReasons: $("btnClearPauseReasons"),
-  reasonChips: document.querySelectorAll(".reasonChip"),
-};
+let UI = null;
 
 const state = {
   running: false,
@@ -72,10 +41,10 @@ const state = {
 
   // Breathing prompts
   breathsDue: false,
-  breathCprMs: 0,        // used for 30:2 mode (training cue)
-  breathAdvMs: 0,        // used for advanced airway mode (1 breath q6s + grace)
+  breathCprMs: 0,        // 30:2 training cue timer
+  breathAdvMs: 0,        // advanced airway timer (q6s + grace)
 
-  // Advanced airway toggle (BLS: once placed, asynchronous breaths)
+  // Advanced airway toggle
   advancedAirway: false,
 
   bpm: 110,
@@ -102,7 +71,52 @@ function startSession() {
   }
 }
 
+function resetBreathBox() {
+  // Resets the breath prompt UI/timers (used when starting/resuming CPR)
+  state.breathsDue = false;
+  state.breathCprMs = 0;
+  state.breathAdvMs = 0;
+
+  if (UI?.breathBar) UI.breathBar.style.width = "0%";
+  if (UI?.breathBarBox) UI.breathBarBox.classList.toggle("airwayOn", state.advancedAirway);
+
+  if (UI?.breathMeta) {
+    UI.breathMeta.textContent = state.advancedAirway
+      ? "Advanced airway • Next breath in 00:06"
+      : "No airway • Breaths in 00:17";
+  }
+}
+
+function finalizePauseEvent() {
+  if (state.mode !== "paused" || !state.pauseStartMs) return;
+
+  const endMs = now();
+  const durMs = Math.max(0, endMs - state.pauseStartMs);
+
+  state.pauseEvents.push({
+    startMs: state.pauseStartMs,
+    endMs,
+    durMs,
+    reasons: [...state.currentReasons],
+  });
+
+  state.pauseStartMs = null;
+}
+
+function showPauseModal() {
+  if (!UI?.pauseOverlay) return;
+  UI.pauseOverlay.classList.add("show");
+  UI.pauseOverlay.setAttribute("aria-hidden", "false");
+}
+
+function hidePauseModal() {
+  if (!UI?.pauseOverlay) return;
+  UI.pauseOverlay.classList.remove("show");
+  UI.pauseOverlay.setAttribute("aria-hidden", "true");
+}
+
 function startCPR() {
+  // CPR start/resume must always start the session + animation loop
   startSession();
 
   // Always reset breath prompt when CPR is started/resumed (both CPR buttons)
@@ -115,8 +129,8 @@ function startCPR() {
   state.mode = "cpr";
   state.pauseStartMs = null;
 
-  UI.statusTitle.textContent = "CPR ON";
-  UI.statusSub.textContent = "Compressions ON";
+  if (UI?.statusTitle) UI.statusTitle.textContent = "CPR ON";
+  if (UI?.statusSub) UI.statusSub.textContent = "Compressions ON";
 
   startMetronome();
 }
@@ -130,14 +144,12 @@ function startPause() {
 
   // reset current pause selections
   state.currentReasons = [];
-  UI.reasonChips.forEach((chip) => chip.setAttribute("aria-pressed", "false"));
+  UI?.reasonChips?.forEach((chip) => chip.setAttribute("aria-pressed", "false"));
 
-  UI.statusTitle.textContent = "HANDS-OFF";
-  UI.statusSub.textContent = state.pauseReasonPromptEnabled ? "Select pause reasons" : "Paused";
+  if (UI?.statusTitle) UI.statusTitle.textContent = "HANDS-OFF";
+  if (UI?.statusSub) UI.statusSub.textContent = state.pauseReasonPromptEnabled ? "Select pause reasons" : "Paused";
 
-  if (state.pauseReasonPromptEnabled) {
-    showPauseModal();
-  }
+  if (state.pauseReasonPromptEnabled) showPauseModal();
 
   stopMetronome();
 }
@@ -149,18 +161,16 @@ function endSession() {
 
 /* ---------- BREATH / PULSE BARS ---------- */
 function updateBreathBar(dt) {
+  if (!UI?.breathBar || !UI?.breathMeta) return;
+
   if (state.advancedAirway) {
-    // Advanced airway: 1 breath every 6 seconds, plus a brief grace window to allow time to deliver the breath.
+    // Advanced airway: 1 breath every 6 seconds + grace window to give breath
     const intervalMs = 6000;
-    const graceMs = 2000;          // "allowing time to give breath"
+    const graceMs = 2000;
     const totalMs = intervalMs + graceMs;
 
     state.breathAdvMs += dt;
-
-    // Wrap in [0,total)
-    if (state.breathAdvMs >= totalMs) {
-      state.breathAdvMs = state.breathAdvMs % totalMs;
-    }
+    if (state.breathAdvMs >= totalMs) state.breathAdvMs = state.breathAdvMs % totalMs;
 
     const inGrace = state.breathAdvMs >= intervalMs;
     const pct = Math.min(100, Math.round((Math.min(state.breathAdvMs, intervalMs) / intervalMs) * 100));
@@ -176,7 +186,7 @@ function updateBreathBar(dt) {
     return;
   }
 
-  // Standard BLS training cue: prompt breaths every ~17s (approx 30 compressions at ~110 bpm)
+  // No airway (BLS cue): breaths every ~17s (approx 30 compressions @ ~110 bpm)
   const cycleMs = 17000;
   state.breathCprMs += dt;
 
@@ -187,33 +197,20 @@ function updateBreathBar(dt) {
 
   const pct = Math.min(100, Math.round((state.breathCprMs / cycleMs) * 100));
   UI.breathBar.style.width = `${pct}%`;
-
-  UI.breathMeta.textContent = state.breathsDue ? "No airway • Breaths due" : `No airway • Breaths in ${fmt(cycleMs - state.breathCprMs)}`;
+  UI.breathMeta.textContent = state.breathsDue
+    ? "No airway • Breaths due"
+    : `No airway • Breaths in ${fmt(cycleMs - state.breathCprMs)}`;
 }
 
 function updatePulseBar() {
-  // Pulse check every 2 minutes (typical training cue).
+  if (!UI?.pulseBar || !UI?.pulseMeta) return;
+
   const pulseCycle = 120000;
   const t = state.compMs + state.offMs;
   const remain = pulseCycle - (t % pulseCycle);
   const pct = Math.min(100, Math.round(((pulseCycle - remain) / pulseCycle) * 100));
   UI.pulseBar.style.width = `${pct}%`;
   UI.pulseMeta.textContent = `Next pulse check in ${fmt(remain)}`;
-
-function resetBreathBox() {
-  // Resets the breath prompt UI/timers (used when resuming from pause)
-  state.breathsDue = false;
-  state.breathCprMs = 0;
-  state.breathAdvMs = 0;
-
-  UI.breathBar.style.width = "0%";
-  if (UI.breathBarBox) UI.breathBarBox.classList.toggle("airwayOn", state.advancedAirway);
-  if (state.advancedAirway) {
-    UI.breathMeta.textContent = "Advanced airway • Next breath in 00:06";
-  } else {
-    UI.breathMeta.textContent = "No airway • Breaths in 00:17";
-  }
-}
 }
 
 /* ---------- LOOP ---------- */
@@ -233,11 +230,13 @@ function tick() {
 
   updatePulseBar();
 
-  UI.mainTimer.textContent = fmt(state.compMs + state.offMs);
-  UI.cprOnTime.textContent = fmt(state.compMs);
-  UI.handsOffTime.textContent = fmt(state.offMs);
-  UI.ccfLine.textContent = `CCF ${calcCCF()}`;
-  UI.statusRight.textContent = `CCF ${calcCCF()}`;
+  if (UI?.mainTimer) UI.mainTimer.textContent = fmt(state.compMs + state.offMs);
+  if (UI?.cprOnTime) UI.cprOnTime.textContent = fmt(state.compMs);
+  if (UI?.handsOffTime) UI.handsOffTime.textContent = fmt(state.offMs);
+
+  const ccf = `CCF ${calcCCF()}`;
+  if (UI?.ccfLine) UI.ccfLine.textContent = ccf;
+  if (UI?.statusRight) UI.statusRight.textContent = ccf;
 
   requestAnimationFrame(tick);
 }
@@ -259,7 +258,6 @@ function beep() {
 function startMetronome() {
   stopMetronome();
   if (!state.metronomeOn || !state.running) return;
-
   const interval = Math.round(60000 / state.bpm);
   metInterval = setInterval(() => beep(), interval);
 }
@@ -269,80 +267,24 @@ function stopMetronome() {
   metInterval = null;
 }
 
-/* ---------- PAUSE REASONS (BLS multi-select) ---------- */
-function showPauseModal() {
-  UI.pauseOverlay.classList.add("show");
-  UI.pauseOverlay.setAttribute("aria-hidden", "false");
-}
-
-function hidePauseModal() {
-  UI.pauseOverlay.classList.remove("show");
-  UI.pauseOverlay.setAttribute("aria-hidden", "true");
-}
-
-// Finalize a pause event (called on resume).
-function finalizePauseEvent() {
-  if (state.mode !== "paused" || !state.pauseStartMs) return;
-
-  const endMs = now();
-  const durMs = Math.max(0, endMs - state.pauseStartMs);
-
-  state.pauseEvents.push({
-    startMs: state.pauseStartMs,
-    endMs,
-    durMs,
-    reasons: [...state.currentReasons],
-  });
-
-  state.pauseStartMs = null;
-}
-
+/* ---------- PAUSE REASONS (multi-select) ---------- */
 function toggleReason(reason, pressed) {
   const idx = state.currentReasons.indexOf(reason);
   if (pressed && idx === -1) state.currentReasons.push(reason);
   if (!pressed && idx !== -1) state.currentReasons.splice(idx, 1);
 }
 
-UI.reasonChips.forEach((chip) => {
-  chip.addEventListener("click", () => {
-    const reason = chip.dataset.reason;
-    const isPressed = chip.getAttribute("aria-pressed") === "true";
-    const next = !isPressed;
-    chip.setAttribute("aria-pressed", next ? "true" : "false");
-    toggleReason(reason, next);
-  });
-});
-
-if (UI.btnClearPauseReasons) UI.btnClearPauseReasons.addEventListener("click", () => {
-  state.currentReasons = [];
-  UI.reasonChips.forEach((chip) => chip.setAttribute("aria-pressed", "false"));
-});
-
-if (UI.btnResumePause) UI.btnResumePause.addEventListener("click", () => {
-  // No reason is required—resume immediately.
-  // Start CPR first (prevents getting stuck if the overlay fails to hide for any reason)
-  startCPR();
-  hidePauseModal();
-});
-
-/* ---------- ADVANCED AIRWAY TOGGLE ---------- */
 function setAdvancedAirway(enabled) {
   state.advancedAirway = !!enabled;
-  UI.advAirwayState.textContent = state.advancedAirway ? "ON" : "OFF";
-  UI.btnAdvAirway.classList.toggle("on", state.advancedAirway);
-  if (UI.breathBarBox) UI.breathBarBox.classList.toggle("airwayOn", state.advancedAirway);
+  if (UI?.advAirwayState) UI.advAirwayState.textContent = state.advancedAirway ? "ON" : "OFF";
+  if (UI?.btnAdvAirway) UI.btnAdvAirway.classList.toggle("on", state.advancedAirway);
+  if (UI?.breathBarBox) UI.breathBarBox.classList.toggle("airwayOn", state.advancedAirway);
 
-  // Reset breath prompt UI/timers so the bar immediately reflects the new mode cleanly.
+  // Reset UI/timers so it switches cleanly
   resetBreathBox();
 }
 
-if (UI.btnAdvAirway) UI.btnAdvAirway.addEventListener("click", () => {
-  setAdvancedAirway(!state.advancedAirway);
-});
-
-// Tap the breath bar area to toggle Advanced Airway (primary control)
 function handleBreathBoxToggle(e) {
-  // Allow click / Enter / Space
   if (e.type === "keydown") {
     const k = e.key;
     if (k !== "Enter" && k !== " " && k !== "Spacebar") return;
@@ -351,39 +293,107 @@ function handleBreathBoxToggle(e) {
   setAdvancedAirway(!state.advancedAirway);
 }
 
-if (UI.breathBarBox) {
-  UI.breathBarBox.addEventListener("click", handleBreathBoxToggle);
-  UI.breathBarBox.addEventListener("keydown", handleBreathBoxToggle);
+/* ---------- INIT / BINDINGS ---------- */
+function init() {
+  UI = {
+    mainTimer: $("mainTimer"),
+    ccfLine: $("ccfLine"),
+    statusTitle: $("statusTitle"),
+    statusSub: $("statusSub"),
+    statusRight: $("statusRight"),
+
+    breathBar: $("breathBarFill"),
+    pulseBar: $("pulseBarFill"),
+    breathMeta: $("breathMetaLeft"),
+    pulseMeta: $("pulseMetaLeft"),
+    breathBarBox: $("breathBarBox"),
+
+    btnCpr: $("btnCpr"),
+    btnPause: $("btnPause"),
+    btnEnd: $("btnEnd"),
+
+    cprOnTime: $("cprOnTime"),
+    handsOffTime: $("handsOffTime"),
+
+    btnMet: $("btnMetronome"),
+    metState: $("metState"),
+    bpmValue: $("bpmValue"),
+    bpmDown: $("btnBpmDown"),
+    bpmUp: $("btnBpmUp"),
+
+    btnAdvAirway: $("btnAdvAirway"),
+    advAirwayState: $("advAirwayState"),
+
+    pauseOverlay: $("pauseOverlay"),
+    btnResumePause: $("btnResumeFromPause"),
+    btnClearPauseReasons: $("btnClearPauseReasons"),
+    reasonChips: document.querySelectorAll(".reasonChip"),
+  };
+
+  // Buttons
+  UI.btnCpr?.addEventListener("click", startCPR);
+  UI.btnPause?.addEventListener("click", startPause);
+  UI.btnEnd?.addEventListener("click", endSession);
+
+  // Metronome
+  UI.btnMet?.addEventListener("click", () => {
+    if (!state.running) return;
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    state.metronomeOn = !state.metronomeOn;
+    if (UI.metState) UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
+    startMetronome();
+  });
+
+  UI.bpmDown?.addEventListener("click", () => {
+    state.bpm = Math.max(60, state.bpm - 5);
+    if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
+    startMetronome();
+  });
+
+  UI.bpmUp?.addEventListener("click", () => {
+    state.bpm = Math.min(200, state.bpm + 5);
+    if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
+    startMetronome();
+  });
+
+  // Advanced airway (optional button still present)
+  UI.btnAdvAirway?.addEventListener("click", () => setAdvancedAirway(!state.advancedAirway));
+
+  // Breath bar box is primary toggle
+  if (UI.breathBarBox) {
+    UI.breathBarBox.addEventListener("click", handleBreathBoxToggle);
+    UI.breathBarBox.addEventListener("keydown", handleBreathBoxToggle);
+  }
+
+  // Pause reasons chips
+  UI.reasonChips?.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const reason = chip.dataset.reason;
+      const isPressed = chip.getAttribute("aria-pressed") === "true";
+      const next = !isPressed;
+      chip.setAttribute("aria-pressed", next ? "true" : "false");
+      toggleReason(reason, next);
+    });
+  });
+
+  UI.btnClearPauseReasons?.addEventListener("click", () => {
+    state.currentReasons = [];
+    UI.reasonChips?.forEach((chip) => chip.setAttribute("aria-pressed", "false"));
+  });
+
+  UI.btnResumePause?.addEventListener("click", () => {
+    // Start CPR first (prevents getting stuck if overlay fails to hide)
+    startCPR();
+    hidePauseModal();
+  });
+
+  // Initial UI
+  hidePauseModal();
+  if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
+  if (UI.metState) UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
+  setAdvancedAirway(false);
+  resetBreathBox();
 }
 
-/* ---------- EVENTS ---------- */
-if (UI.btnCpr) UI.btnCpr.addEventListener("click", startCPR);
-if (UI.btnPause) UI.btnPause.addEventListener("click", startPause);
-if (UI.btnEnd) UI.btnEnd.addEventListener("click", endSession);
-
-if (UI.btnMet) UI.btnMet.addEventListener("click", () => {
-  if (!state.running) return;
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  state.metronomeOn = !state.metronomeOn;
-  UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
-  startMetronome();
-});
-
-if (UI.bpmDown) UI.bpmDown.addEventListener("click", () => {
-  state.bpm = Math.max(60, state.bpm - 5);
-  UI.bpmValue.textContent = state.bpm;
-  startMetronome();
-});
-
-if (UI.bpmUp) UI.bpmUp.addEventListener("click", () => {
-  state.bpm = Math.min(200, state.bpm + 5);
-  UI.bpmValue.textContent = state.bpm;
-  startMetronome();
-});
-
-/* ---------- INIT ---------- */
-hidePauseModal();
-UI.bpmValue.textContent = state.bpm;
-UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
-setAdvancedAirway(false);
-resetBreathBox();
+// Make sure DOM is ready so buttons always wire up
+window.addEventListener("DOMContentLoaded", init);
