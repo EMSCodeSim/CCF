@@ -1,787 +1,407 @@
-/* styles.css — UPDATED (brighter, more user‑friendly UI; JS behavior unchanged)
-   - Light + clean palette
-   - Strong contrast on action buttons
-   - Better spacing/typography + focus states
-   - Adds missing styling for reports.html components
-*/
+/* ===========================
+   CCF CPR TIMER – styles.css
+   Bright, user-friendly UI + Visual Bars + Pause Reasons Modal
+   =========================== */
 
-/* ---------- Base ---------- */
 :root{
-  /* Light, bright base */
-  --bg1:#f4fbff;
-  --bg2:#dff3ff;
-  --card: rgba(255,255,255,.82);
-  --cardSolid: #ffffff;
-  --card2: rgba(255,255,255,.64);
+  --bg0:#0b1220;
+  --bg1:#111b2e;
+  --card:rgba(255,255,255,.06);
+  --card2:rgba(255,255,255,.08);
+  --stroke:rgba(255,255,255,.12);
+  --text:rgba(255,255,255,.92);
+  --muted:rgba(255,255,255,.72);
+  --muted2:rgba(255,255,255,.58);
 
-  --text:#0b2230;
-  --muted:rgba(11,34,48,.65);
+  --green1:#4ec261;
+  --green2:#269b42;
 
-  /* Accents */
-  --green:#16a34a;
-  --red:#dc2626;
-  --blue:#2563eb;
+  --yellow1:#ffd66b;
+  --yellow2:#ffb703;
 
-  --radius:22px;
-  --shadow: 0 12px 26px rgba(2,20,35,.14);
-  --shadowStrong: 0 16px 34px rgba(2,20,35,.18);
+  --blue1:#52a6ff;
+  --blue2:#1d77ff;
+
+  --danger1:#ff6b6b;
+  --danger2:#ff3b3b;
 }
 
 *{ box-sizing:border-box; }
-html, body{
-  height:100%;
+html,body{ height:100%; }
+body{
   margin:0;
-  padding:0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:var(--text);
-  background:
-    radial-gradient(1200px 800px at 10% -20%, rgba(37,99,235,.14), transparent 55%),
-    radial-gradient(900px 700px at 110% 20%, rgba(22,163,74,.10), transparent 55%),
-    linear-gradient(180deg, var(--bg2), var(--bg1) 60%);
-  overflow-x:hidden;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--text);
+  background: radial-gradient(1200px 800px at 20% -10%, rgba(82,166,255,.22), transparent 55%),
+              radial-gradient(900px 700px at 90% 10%, rgba(78,194,97,.18), transparent 55%),
+              linear-gradient(180deg, var(--bg0), var(--bg1));
 }
 
-/* If your HTML uses a main wrapper, these cover most variants */
-.container, .wrap, main{
-  width:100%;
-  max-width: 720px;
-  margin:0 auto;
-  padding: 16px 14px 18px;
-}
-
-/* ---------- Fixed header (if present) ---------- */
-.header, .topbar{
+/* ---------- Header ---------- */
+.topHeader{
   position: sticky;
-  top: 0;
-  z-index: 50;
-  padding: 10px 12px;
-  margin: -16px -14px 12px; /* counter container padding */
-  background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.70));
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(11,34,48,.10);
-}
-
-.header .row, .topbar .row{
+  top:0;
+  z-index: 10;
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:10px;
+  padding: 12px 14px;
+  background: rgba(10,16,28,.82);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
-.header .left, .topbar .left{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  min-width: 0;
-}
-
-.header h1, .topbar h1{
-  font-size: 22px;
-  margin: 0;
+.brand{
+  font-weight: 950;
   letter-spacing:.2px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
 }
 
-.badge{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(37,99,235,.10);
-  border: 1px solid rgba(37,99,235,.16);
-  color: rgba(11,34,48,.92);
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.header .actions, .topbar .actions{
+.topRight{
   display:flex;
   gap:10px;
+  align-items:center;
 }
 
-.btn, button{
-  border:0;
-  outline:0;
-  color:var(--text);
-  cursor:pointer;
-}
-
-button{-webkit-tap-highlight-color: transparent;}
-
-button:focus-visible, a:focus-visible{
-  outline: 3px solid rgba(37,99,235,.35);
-  outline-offset: 2px;
-}
-
-.btnPill{
+.topBtn{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 900;
+  text-decoration:none;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:8px;
-  padding: 12px 16px;
+  min-width: 84px;
+}
+
+.topBtn.danger{
+  background: linear-gradient(180deg, rgba(255,107,107,.25), rgba(255,59,59,.18));
+  border-color: rgba(255,107,107,.42);
+}
+
+/* ---------- Layout ---------- */
+.wrap{
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 14px;
+  padding-bottom: 26px;
+}
+
+.statusCard,
+.timerCard{
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,.10);
   border-radius: 18px;
-  background: rgba(255,255,255,.78);
-  border: 1px solid rgba(11,34,48,.12);
-  box-shadow: var(--shadow);
-  font-weight: 700;
-  min-width: 112px;
+  padding: 14px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.30);
 }
 
-.btnPill:hover{ filter: brightness(1.02); }
-.btnPill:active{ transform: translateY(1px); }
+.statusCard{ margin-top: 10px; }
 
-.btnPill.end{
-  background: rgba(220,38,38,.10);
-  border-color: rgba(220,38,38,.18);
-}
-
-/* ---------- Status pill / timer ---------- */
-.statusPill, .status{
-  border-radius: 22px;
-  background: rgba(22,163,74,.08);
-  border: 1px solid rgba(22,163,74,.14);
-  padding: 14px 16px;
+.statusTop{
   display:flex;
+  align-items:baseline;
   justify-content:space-between;
-  align-items:center;
-  gap:12px;
+  gap: 10px;
 }
 
-.statusPill .leftText, .status .leftText{
-  min-width:0;
+.statusTitle{
+  font-size: 20px;
+  font-weight: 950;
 }
-.statusPill .title, .status .title{
+
+.statusRight{
+  font-weight: 950;
+  color: rgba(255,255,255,.86);
+}
+
+.statusSub{
+  margin-top: 6px;
   font-weight: 800;
-  letter-spacing: .6px;
-  opacity: .92;
+  opacity: .85;
 }
-.statusPill .sub, .status .sub{
-  font-size: 22px;
-  font-weight: 900;
-  margin-top: 2px;
+
+.ccfLine{
+  margin-top: 10px;
+  font-weight: 950;
+  letter-spacing:.2px;
+  opacity: .9;
 }
-.statusPill .rightText, .status .rightText{
-  font-weight: 800;
-  opacity: .92;
-  white-space:nowrap;
+
+.timerCard{
+  margin-top: 12px;
 }
 
 .bigTime{
   text-align:center;
-  font-size: 86px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: 1px;
-  margin: 14px 0 8px;
+  font-size: 64px;
+  font-weight: 1000;
+  letter-spacing: .8px;
+  margin: 6px 0 10px;
 }
 
-.ccfLine{
-  text-align:center;
-  font-size: 26px;
-  font-weight: 800;
-  opacity:.75;
-  margin-bottom: 14px;
-}
-
-/* ---------- Coach / bars card ---------- */
-.coachCard{
-  border-radius: var(--radius);
-  background: var(--card);
-  border: 1px solid rgba(11,34,48,.10);
-  box-shadow: var(--shadow);
-  padding: 14px;
-  margin: 10px 0 10px;
-}
-
-.coachCard h3{
-  margin:0 0 8px;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing:.3px;
-}
-
-.coachRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  margin: 8px 0 6px;
-}
-
-.coachLabel{
-  font-weight: 800;
-  opacity:.9;
-}
-.coachValue{
-  font-weight: 900;
-  opacity:.95;
-}
-
-/* Breath bar */
-.barWrap{
-  width:100%;
-  height: 18px;
-  border-radius: 999px;
-  background: rgba(11,34,48,.06);
-  border: 1px solid rgba(11,34,48,.10);
-  overflow:hidden;
-  position:relative;
-}
-
-.barFill{
-  height:100%;
-  width: 0%;
-  border-radius: 999px;
-  transition: width .15s linear;
-}
-
-.barFill.breath{
-  background: linear-gradient(90deg, #16a34a 0%, #f59e0b 58%, #dc2626 100%);
-  box-shadow: 0 0 18px rgba(245,158,11,.20);
-}
-
-/* Pulse bar */
-.barFill.pulse{
-  background: linear-gradient(90deg, #38bdf8 0%, #60a5fa 60%, #a78bfa 100%);
-  box-shadow: 0 0 18px rgba(59,130,246,.14);
+/* ---------- Visual bars (Breaths & Pulse Check) ---------- */
+.barBlock{
+  margin-top: 12px;
+  padding: 10px 10px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
 }
 
 .barMeta{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  margin-top: 6px;
-  font-size: 14px;
-  color: var(--muted);
-  font-weight: 700;
+  font-weight: 900;
+  color: rgba(255,255,255,.86);
+  margin-bottom: 8px;
 }
 
-/* keep bars always visible */
-#breathBarWrap, #pulseBarWrap,
-.breathBarWrap, .pulseBarWrap{
-  display:block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-/* ---------- CCF green/red strip ---------- */
-.ccfStrip{
+.barTrack{
   height: 18px;
   border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
   overflow:hidden;
-  background: rgba(11,34,48,.06);
-  border: 1px solid rgba(11,34,48,.10);
-  margin: 8px 0 8px;
-  display:flex;
+  position:relative;
 }
 
-.ccfStrip .on{
-  background: var(--green);
-  flex: 1 1 auto;
-}
-.ccfStrip .off{
-  background: #f87171;
-  flex: 0 0 0%;
-}
-
-.stripLegend{
-  text-align:center;
-  margin: 6px 0 10px;
-  opacity:.78;
-  font-weight: 800;
+.barFill{
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(82,166,255,1), rgba(29,119,255,1));
+  box-shadow: 0 10px 22px rgba(0,0,0,.22);
+  transition: width .08s linear;
 }
 
-/* ---------- BIG CPR/PAUSE buttons row ---------- */
-/* This is the critical part: always a 2-column grid that fits the screen. */
-.actionRow{
+/* Breath bar gets green; pulse bar gets blue (we set via ids below) */
+#breathBarFill{
+  background: linear-gradient(90deg, rgba(78,194,97,1), rgba(38,155,66,1));
+}
+#pulseBarFill{
+  background: linear-gradient(90deg, rgba(82,166,255,1), rgba(29,119,255,1));
+}
+
+/* ---------- Main actions ---------- */
+.actionsRow{
+  margin-top: 12px;
   display:grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
-  width: 100%;
-  align-items: stretch;
-  margin: 8px 0 12px;
 }
 
 .actionBtn{
-  border-radius: 26px;
-  padding: 18px 16px;
-  min-height: 112px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap: 8px;
-  text-align:center;
-  box-shadow: var(--shadowStrong);
-  border: 1px solid rgba(255,255,255,.55);
-  width: 100%;
-  min-width: 0;
-}
-
-.actionBtn:hover{ filter: brightness(1.02); }
-.actionBtn:active{ transform: translateY(1px); }
-
-.actionBtn .emoji{
-  font-size: 34px;
-  line-height: 1;
-}
-.actionBtn .label{
-  font-size: 30px;
-  font-weight: 950;
-  letter-spacing:.3px;
-}
-.actionBtn .sub{
-  font-size: 18px;
-  font-weight: 800;
-  opacity:.85;
-}
-
-.actionBtn.cpr{
-  background: radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.34), transparent 55%),
-              linear-gradient(180deg, rgba(22,163,74,.92), rgba(21,128,61,.92));
-  color: #fff;
-}
-
-.actionBtn.pause{
-  background: radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.34), transparent 55%),
-              linear-gradient(180deg, rgba(248,113,113,.92), rgba(220,38,38,.92));
-  color: #fff;
-}
-
-/* ---------- Metronome row under action buttons ---------- */
-.metRow{
-  display:grid;
-  grid-template-columns: 1.35fr .9fr 1fr .9fr;
-  gap: 10px;
-  align-items:center;
-  width:100%;
-  margin: 4px 0 6px;
-}
-
-.metToggle{
+  appearance:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
   border-radius: 18px;
-  padding: 12px 12px;
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(11,34,48,.12);
-  box-shadow: var(--shadow);
-  font-weight: 900;
+  padding: 14px 12px;
   text-align:left;
+  box-shadow: 0 18px 40px rgba(0,0,0,.26);
+  min-height: 96px;
 }
 
-.metBtn{
-  border-radius: 18px;
-  padding: 12px 10px;
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(11,34,48,.12);
-  box-shadow: var(--shadow);
-  font-weight: 950;
-  font-size: 20px;
-}
-
-.metValue{
-  text-align:center;
-  font-weight: 950;
+.actionBtn .label{
+  font-weight: 1000;
   font-size: 22px;
-  opacity:.92;
+  letter-spacing:.2px;
 }
 
-/* ---------- Pause reasons ---------- */
-.pausePanel{
+.actionBtn .sub{
+  margin-top: 6px;
+  font-weight: 850;
+  color: var(--muted);
+}
+
+.actionBtn .mini{
+  margin-top: 10px;
+  font-weight: 950;
+  opacity: .92;
+}
+
+.actionBtn.primary{
+  background: linear-gradient(180deg, rgba(78,194,97,.20), rgba(38,155,66,.12));
+  border-color: rgba(78,194,97,.32);
+}
+
+.actionBtn.warn{
+  background: linear-gradient(180deg, rgba(255,214,107,.18), rgba(255,183,3,.12));
+  border-color: rgba(255,214,107,.28);
+}
+
+/* ---------- Metronome + Advanced Airway rows ---------- */
+.metRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
   margin-top: 12px;
 }
 
-.pausePanel h4{
-  margin: 0 0 4px;
-  font-size: 18px;
+.metToggle{
+  flex: 1;
+  appearance:none;
+  border-radius: 16px;
+  padding: 12px 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
   font-weight: 950;
+  text-align:left;
+  box-shadow: 0 16px 34px rgba(0,0,0,.22);
 }
 
-.pausePanel .hint{
-  margin: 0 0 10px;
-  opacity:.75;
-  font-weight: 700;
+.metBtn{
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  font-weight: 1000;
+  font-size: 22px;
 }
 
-.reasonGrid{
-  display:flex;
-  flex-wrap:wrap;
-  gap: 10px;
+.metValue{
+  min-width: 92px;
+  text-align:center;
+  font-weight: 1000;
+  color: rgba(255,255,255,.88);
 }
 
-.reasonBtn{
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(11,34,48,.12);
-  font-weight: 900;
-  color: rgba(11,34,48,.92);
-  white-space:nowrap;
+.metHint{
+  flex: 1;
+  text-align:right;
+  opacity: .78;
+  font-weight: 800;
+  font-size: 13px;
 }
 
-.reasonBtn:active{ transform: translateY(1px); }
+/* Advanced airway toggle highlight when ON */
+.metToggle.advAirway.on{
+  outline: 2px solid rgba(78,194,97,.60);
+}
 
-/* ---------- Overlays (reports/session score) ---------- */
-.overlay, .modalOverlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(2,20,35,.42);
-  z-index: 200;
+/* ---------- Overlay modal (pause reasons) ---------- */
+.overlay{
+  position:fixed;
+  inset:0;
   display:none;
-  align-items:flex-end;
+  align-items:center;
   justify-content:center;
-  padding: 16px 12px;
+  padding: 16px;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(6px);
+  z-index: 50;
 }
 
-.overlay.show, .modalOverlay.show{
+.overlay.show{
   display:flex;
 }
 
 .modal{
-  width: 100%;
-  max-width: 720px;
-  border-radius: 26px;
-  background: rgba(255,255,255,.92);
-  border: 1px solid rgba(11,34,48,.12);
-  box-shadow: var(--shadowStrong);
+  width: min(520px, 100%);
+  border-radius: 22px;
+  background: rgba(14,22,38,.92);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
   overflow:hidden;
 }
 
-.modalHeader{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(11,34,48,.10);
-}
-
-.modalTitle{
-  font-weight: 950;
-  font-size: 22px;
-}
-
-.modalClose{
-  border-radius: 16px;
-  width: 44px;
-  height: 44px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background: rgba(11,34,48,.06);
-  border: 1px solid rgba(11,34,48,.12);
-  font-size: 20px;
-}
-
 .modalBody{
-  padding: 14px 16px 16px;
+  padding: 16px 16px 18px;
 }
 
-/* ---------- Small screens adjustments ---------- */
-@media (max-width: 420px){
-  .bigTime{ font-size: 72px; }
-  .actionBtn .label{ font-size: 26px; }
-  .actionBtn{ min-height: 104px; }
-  .metRow{
-    grid-template-columns: 1.2fr .8fr .9fr .8fr;
+/* Big resume button */
+.resumeBig{
+  width: 100%;
+  border-radius: 18px;
+  padding: 18px 16px;
+  font-weight: 1000;
+  font-size: 30px;
+  letter-spacing: .6px;
+  background: linear-gradient(180deg, rgba(78,194,97,1), rgba(38,155,66,1));
+  border: 1px solid rgba(255,255,255,.18);
+  box-shadow: 0 14px 30px rgba(0,0,0,.28);
+  color: white;
+}
+
+/* Modal title + hint */
+.pauseTitle{
+  margin-top: 14px;
+  font-weight: 1000;
+  font-size: 22px;
+  text-align:center;
+}
+
+.pauseHint{
+  margin-top: 6px;
+  margin-bottom: 12px;
+  text-align:center;
+  opacity: .85;
+  font-weight: 850;
+}
+
+/* Reason grid */
+.reasonGrid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 420px){
+  .reasonGrid{
+    grid-template-columns: 1fr 1fr;
   }
 }
 
-/* Make sure nothing forces horizontal shift */
-body, .container, .wrap, main{
-  max-width: 100vw;
+.reasonChip{
+  width: 100%;
+  border-radius: 16px;
+  padding: 14px 14px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  font-weight: 950;
+  color: rgba(255,255,255,.95);
+  text-align:left;
+  box-shadow: 0 10px 22px rgba(0,0,0,.18);
 }
 
-/* =========================================================
-   Reports page (reports.html) — styling that was missing
-   ========================================================= */
+.reasonChip[aria-pressed="true"]{
+  background: rgba(78,194,97,.24);
+  border-color: rgba(78,194,97,.55);
+}
 
-.topbar .brand{
+.pauseFooterRow{
   display:flex;
   align-items:center;
-  gap:10px;
+  gap: 10px;
+  margin-top: 14px;
 }
 
-.topbar .title{
-  font-size: 22px;
+.secondaryBtn{
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.14);
+  color: rgba(255,255,255,.92);
   font-weight: 950;
-  letter-spacing: .2px;
 }
 
-.topbar .modePill{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(37,99,235,.10);
-  border: 1px solid rgba(37,99,235,.16);
+.pauseFooterHint{
+  opacity: .75;
   font-weight: 800;
-  font-size: 13px;
 }
 
-.topbar .topActions{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-
-.app{
-  width:100%;
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 14px 14px 18px;
-}
-
-.endBtn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(11,34,48,.12);
-  box-shadow: var(--shadow);
-  font-weight: 900;
-  color: rgba(11,34,48,.92);
-  text-decoration:none;
-}
-
-.endBtn.ghost{
-  background: rgba(11,34,48,.06);
-}
-
-.stateBar{
-  border-radius: var(--radius);
-  background: rgba(37,99,235,.08);
-  border: 1px solid rgba(37,99,235,.14);
-  padding: 14px 16px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:12px;
-}
-
-.stateLabel{
-  font-weight: 950;
-  letter-spacing: .6px;
-  opacity:.9;
-}
-
-.stateSub{
-  margin-top: 2px;
-  font-size: 18px;
-  font-weight: 950;
-}
-
-.stateMini{
-  font-weight: 950;
-  opacity:.88;
-}
-
-.adZone{
-  margin-top: 12px;
-  border-radius: var(--radius);
-  background: rgba(11,34,48,.04);
-  border: 1px dashed rgba(11,34,48,.18);
-  padding: 12px;
-}
-
-.adLabel{
-  font-weight: 950;
-  opacity:.78;
-  margin-bottom: 8px;
-}
-
-.adBox{
-  border-radius: 16px;
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(11,34,48,.10);
-  padding: 18px 12px;
-  text-align:center;
-  font-weight: 900;
-  color: rgba(11,34,48,.70);
-}
-
-.reportCard, #latestCard{
-  margin-top: 12px;
-  border-radius: var(--radius);
-  background: var(--card);
-  border: 1px solid rgba(11,34,48,.10);
-  box-shadow: var(--shadow);
-  padding: 14px;
-}
-
-.emptyCard{
-  padding: 10px;
-}
-
-.emptyTitle{ font-weight: 950; font-size: 22px; }
-.emptySub{ margin-top: 6px; color: var(--muted); font-weight: 800; }
-
-.newBtn{
-  margin-top: 12px;
-  border-radius: 18px;
-  padding: 12px 14px;
-  background: rgba(37,99,235,.12);
-  border: 1px solid rgba(37,99,235,.18);
-  font-weight: 950;
-  color: rgba(11,34,48,.92);
-}
-
-.scoreTop{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
-}
-
-.scoreTitle{ font-weight: 950; font-size: 18px; }
-.scoreSub{ color: var(--muted); font-weight: 800; margin-top: 2px; }
-
-.scoreBadge{
-  padding: 8px 12px;
-  border-radius: 999px;
-  font-weight: 950;
-  border: 1px solid rgba(11,34,48,.10);
-  background: rgba(11,34,48,.06);
-}
-
-.scoreBadge.good{
-  background: rgba(22,163,74,.10);
-  border-color: rgba(22,163,74,.18);
-}
-
-.scoreBadge.bad{
-  background: rgba(220,38,38,.10);
-  border-color: rgba(220,38,38,.18);
-}
-
-.scoreBigRow{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-end;
-  gap:12px;
-}
-
-.scoreLabel{ color: var(--muted); font-weight: 900; letter-spacing:.3px; }
-.scoreValue{ font-size: 44px; font-weight: 1000; margin-top: 2px; }
-
-.scoreGrid{
-  margin-top: 12px;
-  display:grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.miniCard{
-  border-radius: 18px;
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(11,34,48,.10);
-  padding: 12px;
-}
-
-.miniLabel{ color: var(--muted); font-weight: 900; }
-.miniValue{ font-size: 22px; font-weight: 1000; margin-top: 6px; }
-
-.breakdownBlock{
-  margin-top: 12px;
-  border-radius: 18px;
-  background: rgba(11,34,48,.04);
-  border: 1px solid rgba(11,34,48,.10);
-  padding: 12px;
-}
-
-.breakTitle{ font-weight: 950; margin-bottom: 8px; }
-.breakList{ display:flex; flex-direction:column; gap:8px; }
-
-.breakItem{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
-  border-radius: 16px;
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(11,34,48,.10);
-  padding: 10px 12px;
-}
-
-.strong{ font-weight: 950; }
-.muted{ color: var(--muted); font-weight: 800; }
-
-.historyBlock{
-  margin-top: 12px;
-  border-radius: var(--radius);
-  background: var(--card);
-  border: 1px solid rgba(11,34,48,.10);
-  box-shadow: var(--shadow);
-  padding: 14px;
-}
-
-.historyTop{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.historyTitle{ font-weight: 1000; font-size: 20px; }
-.historyBtns{ display:flex; gap:10px; flex-wrap:wrap; }
-
-.historyList{ margin-top: 12px; display:flex; flex-direction:column; gap:10px; }
-
-.histRow{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:12px;
-  border-radius: 18px;
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(11,34,48,.10);
-  padding: 12px;
-}
-
-.histTopLine{ display:flex; align-items:center; gap:10px; }
-.histCCF{ font-size: 22px; font-weight: 1000; }
-.histBadge{ padding: 6px 10px; border-radius: 999px; font-weight: 950; background: rgba(11,34,48,.06); border: 1px solid rgba(11,34,48,.10);} 
-.histBadge.good{ background: rgba(22,163,74,.10); border-color: rgba(22,163,74,.18);} 
-.histBadge.bad{ background: rgba(220,38,38,.10); border-color: rgba(220,38,38,.18);} 
-.histMeta{ color: var(--muted); font-weight: 800; margin-top: 4px; }
-
-.histBtn{
-  width: 44px;
-  height: 44px;
-  border-radius: 16px;
-  background: rgba(220,38,38,.10);
-  border: 1px solid rgba(220,38,38,.16);
-  font-weight: 950;
-}
-
-.historyEmpty{ color: var(--muted); font-weight: 900; padding: 8px 2px; }
-
-@media (max-width: 420px){
-  .scoreValue{ font-size: 40px; }
-  .scoreGrid{ grid-template-columns: 1fr; }
-}
-
-/* --- Advanced airway button styling (adds to your existing styles.css) --- */
-.metRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.metHint{
-  opacity: .8;
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.metToggle.advAirway.on{
-  outline: 2px solid rgba(78,194,97,.65);
+/* ---------- Small screens ---------- */
+@media (max-width: 360px){
+  .bigTime{ font-size: 56px; }
+  .actionBtn{ min-height: 92px; }
+  .resumeBig{ font-size: 26px; }
 }
