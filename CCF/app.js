@@ -347,6 +347,7 @@ function setSettingsTab(which) {
     { id: "about", tab: UI?.tabAbout, panel: UI?.panelAbout },
     { id: "met", tab: UI?.tabMet, panel: UI?.panelMet },
     { id: "class", tab: UI?.tabClass, panel: UI?.panelClass },
+    { id: "setup", tab: UI?.tabSetup, panel: UI?.panelSetup },
   ];
 
   tabs.forEach(t => {
@@ -413,9 +414,11 @@ function init() {
     tabAbout: $("tabAbout"),
     tabMet: $("tabMet"),
     tabClass: $("tabClass"),
+    tabSetup: $("tabSetup"),
     panelAbout: $("panelAbout"),
     panelMet: $("panelMet"),
     panelClass: $("panelClass"),
+    panelSetup: $("panelSetup"),
     bpmSlider: $("bpmSlider"),
     className: $("className"),
     classInstructor: $("classInstructor"),
@@ -519,6 +522,7 @@ function init() {
   UI.tabAbout?.addEventListener("click", () => setSettingsTab("about"));
   UI.tabMet?.addEventListener("click", () => setSettingsTab("met"));
   UI.tabClass?.addEventListener("click", () => setSettingsTab("class"));
+  UI.tabSetup?.addEventListener("click", () => setSettingsTab("setup"));
 
   // Pause reason prompt toggle
   UI.pauseReasonToggle?.addEventListener("change", () => {
