@@ -747,3 +747,36 @@ body{
 .switch input:checked + .slider:before{
   transform: translateX(22px);
 }
+
+
+
+/* ===========================
+   BRIGHTER FRIENDLY THEME
+   =========================== */
+body{
+  background:
+    radial-gradient(900px 650px at 15% -10%, rgba(120,210,255,.38), transparent 55%),
+    radial-gradient(900px 650px at 95% 5%, rgba(120,255,190,.28), transparent 55%),
+    radial-gradient(700px 550px at 40% 110%, rgba(255,230,160,.18), transparent 60%),
+    linear-gradient(180deg, #072244, #0b335f 55%, #092545);
+}
+
+/* Slightly brighter cards */
+.statusCard, .timerCard, .sectionCard, .ctlBtn{
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.18);
+}
+
+/* Make bar blocks pop */
+.barBlock{
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.14);
+}
+
+/* Friendlier button glow */
+.actionBtn.primary{
+  box-shadow: 0 18px 44px rgba(0,0,0,.26), 0 0 0 1px rgba(78,194,97,.22) inset;
+}
+.actionBtn.warn{
+  box-shadow: 0 18px 44px rgba(0,0,0,.26), 0 0 0 1px rgba(255,183,3,.18) inset;
+}
