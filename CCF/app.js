@@ -234,9 +234,11 @@ function tick() {
   if (UI?.cprOnTime) UI.cprOnTime.textContent = fmt(state.compMs);
   if (UI?.handsOffTime) UI.handsOffTime.textContent = fmt(state.offMs);
 
-  const ccf = `CCF ${calcCCF()}`;
+  const ccfPct = calcCCF();
+  const ccf = `CCF ${ccfPct}`;
   if (UI?.ccfLine) UI.ccfLine.textContent = ccf;
   if (UI?.statusRight) UI.statusRight.textContent = ccf;
+  if (UI?.ccfScoreText) UI.ccfScoreText.textContent = ccfPct;
 
   requestAnimationFrame(tick);
 }
@@ -311,6 +313,9 @@ function init() {
     btnCpr: $("btnCpr"),
     btnPause: $("btnPause"),
     btnEnd: $("btnEnd"),
+
+    btnCCFScore: $("btnCCFScore"),
+    ccfScoreText: $("ccfScoreText"),
 
     cprOnTime: $("cprOnTime"),
     handsOffTime: $("handsOffTime"),
