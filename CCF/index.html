@@ -119,6 +119,7 @@
           <button class="segBtn active" id="tabAbout" type="button" role="tab" aria-selected="true">About</button>
           <button class="segBtn" id="tabMet" type="button" role="tab" aria-selected="false">Metronome</button>
           <button class="segBtn" id="tabClass" type="button" role="tab" aria-selected="false">Class Setup</button>
+          <button class="segBtn" id="tabSetup" type="button" role="tab" aria-selected="false">Setup</button>
         </div>
 
         <div class="modalBody settingsBody">
@@ -156,22 +157,7 @@
               <div class="sectionP muted">
                 Your BPM setting is saved on this device and used whenever the metronome is ON.
               </div>
-
-              <div class="divider"></div>
-
-              <div class="sectionH">Pause Reasons</div>
-              <div class="toggleRow">
-                <div class="toggleText">
-                  <div class="toggleTitle">Pause reason prompt</div>
-                  <div class="toggleSub">When ON: Pause opens the reasons popup. When OFF: Pause just pauses.</div>
-                </div>
-                <label class="switch" aria-label="Pause reason prompt">
-                  <input id="pauseReasonToggle" type="checkbox" checked />
-                  <span class="slider"></span>
-                </label>
-              </div>
-
-            </div>
+</div>
           </section>
 
           <!-- CLASS SETUP -->
@@ -206,6 +192,29 @@
 
               <div class="sectionP muted">
                 Later, Reports can assign each CPR session to a student and generate a CPR report card per student.
+              </div>
+            </div>
+          </section>
+
+
+          <!-- SETUP -->
+          <section class="settingsSection" id="panelSetup" role="tabpanel" aria-labelledby="tabSetup">
+            <div class="sectionCard">
+              <div class="sectionH">Setup</div>
+
+              <div class="toggleRow">
+                <div class="toggleText">
+                  <div class="toggleTitle">Pause reason prompt</div>
+                  <div class="toggleSub">When ON: Pause opens the reasons popup. When OFF: Pause just pauses.</div>
+                </div>
+                <label class="switch" aria-label="Pause reason prompt">
+                  <input id="pauseReasonToggle" type="checkbox" checked />
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="sectionP muted">
+                More setup options can be added here later (theme, class defaults, report card settings).
               </div>
             </div>
           </section>
