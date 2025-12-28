@@ -1,4 +1,4 @@
-<!-- index.html (UPDATED) -->
+<!-- index.html (UPDATED - Top Control Buttons) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -10,20 +10,31 @@
 <body>
   <header class="topHeader">
     <div class="brand">CCF CPR Timer</div>
-    <div class="topRight">
-      <a class="topBtn" href="reports.html">Reports</a>
-      <button class="topBtn danger" id="btnEnd" type="button">End</button>
-    </div>
+    <a class="topBtn" href="reports.html">Reports</a>
   </header>
 
   <main class="wrap">
-    <section class="statusCard">
-      <div class="statusTop">
-        <div class="statusTitle" id="statusTitle">Ready</div>
-        <div class="statusRight" id="statusRight">CCF 0%</div>
-      </div>
-      <div class="statusSub" id="statusSub">Press CPR to start</div>
-      <div class="ccfLine" id="ccfLine">CCF 0%</div>
+
+    <!-- NEW: Top control buttons (replaces old status box) -->
+    <section class="topControls" aria-label="Top controls">
+      <button class="ctlBtn danger" id="btnEnd" type="button">
+        <div class="ctlLabel">END</div>
+      </button>
+
+      <button class="ctlBtn" id="btnMetronome" type="button">
+        <div class="ctlLabel">Metronome</div>
+        <div class="ctlSub"><span id="metState">OFF</span></div>
+      </button>
+
+      <button class="ctlBtn" id="btnAdvAirway" type="button">
+        <div class="ctlLabel">Advanced Airway</div>
+        <div class="ctlSub"><span id="advAirwayState">OFF</span></div>
+      </button>
+
+      <button class="ctlBtn score" id="btnCCFScore" type="button" aria-label="Live CCF score">
+        <div class="ctlLabel">CCF</div>
+        <div class="ctlScore" id="ccfScoreText">0%</div>
+      </button>
     </section>
 
     <section class="timerCard">
@@ -62,20 +73,6 @@
         <div class="sub">Hands-off</div>
         <div class="mini"><span id="handsOffTime">00:00</span></div>
       </button>
-    </section>
-
-    <!-- Metronome row -->
-    <section class="metRow">
-      <button class="metToggle" id="btnMetronome" type="button">🎵 Metronome: <span id="metState">OFF</span></button>
-      <button class="metBtn" id="btnBpmDown" type="button" aria-label="Decrease BPM">−</button>
-      <div class="metValue"><span id="bpmValue">110</span> BPM</div>
-      <button class="metBtn" id="btnBpmUp" type="button" aria-label="Increase BPM">+</button>
-    </section>
-
-    <!-- Optional advanced airway button (kept for now, but breath bar is primary toggle) -->
-    <section class="metRow">
-      <button class="metToggle advAirway" id="btnAdvAirway" type="button">🫁 Advanced Airway: <span id="advAirwayState">OFF</span></button>
-      <div class="metHint">Tap breath bar to toggle</div>
     </section>
 
     <!-- Pause reasons modal -->
