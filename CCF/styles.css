@@ -405,3 +405,10 @@ body{
   .actionBtn{ min-height: 92px; }
   .resumeBig{ font-size: 26px; }
 }
+
+
+/* Breath bar acts as Advanced Airway toggle */
+#breathBarBox{ cursor: pointer; }
+#breathBarBox:active{ transform: translateY(1px); }
+#breathBarBox.airwayOn{ outline: 2px solid rgba(78,194,97,.55); }
+#breathBarBox:focus{ outline: 2px solid rgba(82,166,255,.55); }
