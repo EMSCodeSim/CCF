@@ -1,373 +1,352 @@
-/* styles.css — UPDATED (brings back Breath + Pulse bars, keeps CPR/PAUSE side-by-side, prevents PAUSE from being pushed off-screen) */
+/* ===========================
+   CCF CPR TIMER – styles.css
+   FIXED: matches current HTML class names
+   - Restores visible Breath & Pulse bars (.barTrack/.barFill)
+   - Restores CPR/PAUSE button styling (.actionBtn.primary/.actionBtn.warn)
+   - Large pause reason modal + big RESUME CPR button
+   - Breath bar box acts as Advanced Airway toggle
+   =========================== */
 
-/* ---------- Base ---------- */
 :root{
-  --bg1:#0b2230;
-  --bg2:#12384a;
-  --card:#1a2f3d;
-  --card2:#162a36;
-  --text:#e9f2f7;
-  --muted:rgba(233,242,247,.72);
+  --bg0:#0b1220;
+  --bg1:#0e1a2e;
 
-  --green:#22c55e;
-  --red:#ef4444;
+  --card:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.12);
 
-  --radius:22px;
-  --shadow: 0 14px 40px rgba(0,0,0,.35);
+  --text:rgba(255,255,255,.94);
+  --muted:rgba(255,255,255,.74);
+
+  --green1:#4ec261;
+  --green2:#269b42;
+  --yellow1:#ffd66b;
+  --yellow2:#ffb703;
+  --blue1:#52a6ff;
+  --blue2:#1d77ff;
+  --danger1:#ff6b6b;
+  --danger2:#ff3b3b;
+
+  --shadow: 0 18px 44px rgba(0,0,0,.34);
 }
 
 *{ box-sizing:border-box; }
-html, body{
-  height:100%;
+html,body{ height:100%; }
+
+body{
   margin:0;
-  padding:0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color:var(--text);
-  background: radial-gradient(1200px 800px at 20% -10%, rgba(64,200,255,.22), transparent 55%),
-              radial-gradient(900px 700px at 110% 30%, rgba(0,255,170,.14), transparent 55%),
-              linear-gradient(180deg, var(--bg2), var(--bg1) 60%);
-  overflow-x:hidden;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(1100px 800px at 20% -10%, rgba(82,166,255,.22), transparent 55%),
+    radial-gradient(900px 700px at 90% 10%, rgba(78,194,97,.18), transparent 55%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
 }
 
-/* If your HTML uses a main wrapper, these cover most variants */
-.container, .wrap, main{
-  width:100%;
-  max-width: 720px;
-  margin:0 auto;
-  padding: 16px 14px 18px;
-}
-
-/* ---------- Fixed header (if present) ---------- */
-.header, .topbar{
+/* ---------- Header ---------- */
+.topHeader{
   position: sticky;
-  top: 0;
-  z-index: 50;
-  padding: 10px 12px;
-  margin: -16px -14px 12px; /* counter container padding */
-  background: linear-gradient(180deg, rgba(9,27,38,.92), rgba(9,27,38,.62));
+  top:0;
+  z-index: 20;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 12px 14px;
+  background: rgba(10,16,28,.84);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
-.header .row, .topbar .row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-}
-
-.header .left, .topbar .left{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  min-width: 0;
-}
-
-.header h1, .topbar h1{
-  font-size: 22px;
-  margin: 0;
+.brand{
+  font-weight: 950;
   letter-spacing:.2px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
 }
 
-.badge{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(110,180,255,.22);
-  border: 1px solid rgba(110,180,255,.24);
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.header .actions, .topbar .actions{
+.topRight{
   display:flex;
   gap:10px;
+  align-items:center;
 }
 
-.btn, button{
-  border:0;
-  outline:0;
-  color:var(--text);
-  cursor:pointer;
-}
-
-.btnPill{
+.topBtn{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 900;
+  text-decoration:none;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:8px;
-  padding: 12px 16px;
-  border-radius: 18px;
-  background: rgba(255,255,255,.08);
+  min-width: 88px;
+}
+
+.topBtn.danger{
+  background: linear-gradient(180deg, rgba(255,107,107,.26), rgba(255,59,59,.18));
+  border-color: rgba(255,107,107,.45);
+}
+
+/* ---------- Layout ---------- */
+.wrap{
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 14px;
+  padding-bottom: 26px;
+}
+
+.statusCard,
+.timerCard{
+  background: var(--card);
   border: 1px solid rgba(255,255,255,.10);
-  box-shadow: 0 8px 24px rgba(0,0,0,.22);
-  font-weight: 700;
-  min-width: 112px;
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--shadow);
 }
 
-.btnPill.end{
-  background: rgba(239,68,68,.18);
-  border-color: rgba(239,68,68,.28);
-}
+.statusCard{ margin-top: 10px; }
+.timerCard{ margin-top: 12px; }
 
-/* ---------- Status pill / timer ---------- */
-.statusPill, .status{
-  border-radius: 22px;
-  background: rgba(30,110,90,.22);
-  border: 1px solid rgba(80,255,190,.18);
-  padding: 14px 16px;
+.statusTop{
   display:flex;
+  align-items:baseline;
   justify-content:space-between;
-  align-items:center;
-  gap:12px;
+  gap: 10px;
 }
 
-.statusPill .leftText, .status .leftText{
-  min-width:0;
+.statusTitle{
+  font-size: 20px;
+  font-weight: 950;
 }
-.statusPill .title, .status .title{
-  font-weight: 800;
-  letter-spacing: .6px;
+
+.statusRight{
+  font-weight: 950;
   opacity: .92;
 }
-.statusPill .sub, .status .sub{
-  font-size: 22px;
-  font-weight: 900;
-  margin-top: 2px;
-}
-.statusPill .rightText, .status .rightText{
+
+.statusSub{
+  margin-top: 6px;
   font-weight: 800;
+  color: var(--muted);
+}
+
+.ccfLine{
+  margin-top: 10px;
+  font-weight: 950;
   opacity: .92;
-  white-space:nowrap;
 }
 
 .bigTime{
   text-align:center;
-  font-size: 86px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: 1px;
-  margin: 14px 0 8px;
+  font-size: 64px;
+  font-weight: 1000;
+  letter-spacing: .8px;
+  margin: 6px 0 10px;
 }
 
-.ccfLine{
-  text-align:center;
-  font-size: 26px;
-  font-weight: 800;
-  opacity:.75;
-  margin-bottom: 14px;
-}
-
-/* ---------- Coach / bars card ---------- */
-.coachCard{
-  border-radius: var(--radius);
-  background: rgba(255,255,255,.07);
-  border: 1px solid rgba(255,255,255,.10);
-  box-shadow: var(--shadow);
-  padding: 14px;
-  margin: 10px 0 10px;
-}
-
-.coachCard h3{
-  margin:0 0 8px;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing:.3px;
-}
-
-.coachRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  margin: 8px 0 6px;
-}
-
-.coachLabel{
-  font-weight: 800;
-  opacity:.9;
-}
-.coachValue{
-  font-weight: 900;
-  opacity:.95;
-}
-
-/* Breath bar */
-.barWrap{
-  width:100%;
-  height: 18px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.10);
-  border: 1px solid rgba(255,255,255,.12);
-  overflow:hidden;
-  position:relative;
-}
-
-.barFill{
-  height:100%;
-  width: 0%;
-  border-radius: 999px;
-  transition: width .15s linear;
-}
-
-.barFill.breath{
-  background: linear-gradient(90deg, #22c55e 0%, #fbbf24 55%, #ef4444 100%);
-  box-shadow: 0 0 18px rgba(255,180,0,.22);
-}
-
-/* Pulse bar */
-.barFill.pulse{
-  background: linear-gradient(90deg, #38bdf8 0%, #60a5fa 60%, #a78bfa 100%);
-  box-shadow: 0 0 18px rgba(80,160,255,.18);
+/* ---------- Breath & Pulse visual bars ---------- */
+.barBlock{
+  margin-top: 12px;
+  padding: 10px 10px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
 }
 
 .barMeta{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  margin-top: 6px;
-  font-size: 14px;
-  color: var(--muted);
-  font-weight: 700;
+  font-weight: 900;
+  color: rgba(255,255,255,.86);
+  margin-bottom: 8px;
 }
 
-/* keep bars always visible */
-#breathBarWrap, #pulseBarWrap,
-.breathBarWrap, .pulseBarWrap{
-  display:block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-/* ---------- CCF green/red strip ---------- */
-.ccfStrip{
+.barTrack{
   height: 18px;
   border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
   overflow:hidden;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.10);
-  margin: 8px 0 8px;
-  display:flex;
 }
 
-.ccfStrip .on{
-  background: var(--green);
-  flex: 1 1 auto;
-}
-.ccfStrip .off{
-  background: #f87171;
-  flex: 0 0 0%;
-}
-
-.stripLegend{
-  text-align:center;
-  margin: 6px 0 10px;
-  opacity:.78;
-  font-weight: 800;
+.barFill{
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  box-shadow: 0 10px 22px rgba(0,0,0,.22);
+  transition: width .08s linear;
 }
 
-/* ---------- BIG CPR/PAUSE buttons row ---------- */
-/* This is the critical part: always a 2-column grid that fits the screen. */
-.actionRow{
+#breathBarFill{
+  background: linear-gradient(90deg, rgba(78,194,97,1), rgba(38,155,66,1));
+}
+#pulseBarFill{
+  background: linear-gradient(90deg, rgba(82,166,255,1), rgba(29,119,255,1));
+}
+
+/* Breath bar box acts as Advanced Airway toggle */
+#breathBarBox{ cursor:pointer; }
+#breathBarBox:active{ transform: translateY(1px); }
+#breathBarBox.airwayOn{
+  outline: 2px solid rgba(78,194,97,.60);
+}
+#breathBarBox:focus{
+  outline: 2px solid rgba(82,166,255,.65);
+}
+
+/* ---------- CPR / PAUSE buttons ---------- */
+.actionsRow{
+  margin-top: 12px;
   display:grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
-  width: 100%;
-  align-items: stretch;
-  margin: 8px 0 12px;
 }
 
 .actionBtn{
-  border-radius: 26px;
-  padding: 18px 16px;
+  appearance:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 22px;
+  padding: 16px 14px;
+  text-align:center;
+  box-shadow: var(--shadow);
   min-height: 112px;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   gap: 8px;
-  text-align:center;
-  box-shadow: var(--shadow);
-  border: 1px solid rgba(255,255,255,.10);
-  width: 100%;
-  min-width: 0;
 }
 
-.actionBtn .emoji{
-  font-size: 34px;
-  line-height: 1;
-}
 .actionBtn .label{
+  font-weight: 1000;
   font-size: 30px;
-  font-weight: 950;
-  letter-spacing:.3px;
+  letter-spacing:.4px;
+  line-height: 1.0;
 }
+
 .actionBtn .sub{
+  font-weight: 900;
+  color: rgba(255,255,255,.85);
   font-size: 18px;
-  font-weight: 800;
-  opacity:.85;
 }
 
-.actionBtn.cpr{
-  background: radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.34), transparent 55%),
-              linear-gradient(180deg, rgba(34,197,94,.92), rgba(16,140,74,.92));
+.actionBtn .mini{
+  font-weight: 950;
+  opacity: .92;
 }
 
-.actionBtn.pause{
-  background: radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.34), transparent 55%),
-              linear-gradient(180deg, rgba(248,113,113,.92), rgba(220,38,38,.92));
+.actionBtn.primary{
+  background:
+    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.34), transparent 55%),
+    linear-gradient(180deg, rgba(78,194,97,.92), rgba(38,155,66,.92));
+  border-color: rgba(78,194,97,.30);
 }
 
-/* ---------- Metronome row under action buttons ---------- */
+.actionBtn.warn{
+  background:
+    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.34), transparent 55%),
+    linear-gradient(180deg, rgba(255,214,107,.92), rgba(255,183,3,.92));
+  border-color: rgba(255,214,107,.30);
+  color: rgba(0,0,0,.88);
+}
+
+.actionBtn.warn .sub,
+.actionBtn.warn .mini{
+  color: rgba(0,0,0,.78);
+}
+
+/* ---------- Metronome / Advanced airway rows ---------- */
 .metRow{
-  display:grid;
-  grid-template-columns: 1.35fr .9fr 1fr .9fr;
-  gap: 10px;
+  display:flex;
   align-items:center;
-  width:100%;
-  margin: 4px 0 6px;
+  justify-content:space-between;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .metToggle{
+  flex: 1;
+  appearance:none;
   border-radius: 18px;
-  padding: 12px 12px;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.10);
-  box-shadow: 0 10px 26px rgba(0,0,0,.22);
-  font-weight: 900;
+  padding: 14px 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  font-weight: 950;
   text-align:left;
+  box-shadow: 0 16px 34px rgba(0,0,0,.22);
+}
+
+.metToggle.advAirway.on{
+  outline: 2px solid rgba(78,194,97,.60);
 }
 
 .metBtn{
+  width: 54px;
+  height: 54px;
   border-radius: 18px;
-  padding: 12px 10px;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.10);
-  box-shadow: 0 10px 26px rgba(0,0,0,.22);
-  font-weight: 950;
-  font-size: 20px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  font-weight: 1000;
+  font-size: 26px;
+  box-shadow: 0 16px 34px rgba(0,0,0,.18);
 }
 
 .metValue{
+  min-width: 110px;
   text-align:center;
-  font-weight: 950;
-  font-size: 22px;
-  opacity:.92;
+  font-weight: 1000;
+  font-size: 26px;
+  color: rgba(255,255,255,.92);
 }
 
-/* ---------- Pause reasons (BLS multi-select modal) ---------- */
+.metHint{
+  flex: 1;
+  text-align:right;
+  opacity: .80;
+  font-weight: 850;
+  font-size: 13px;
+}
+
+/* ---------- Pause reasons modal ---------- */
+.overlay{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding: 16px;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(6px);
+  z-index: 60;
+}
+
+.overlay.show{ display:flex; }
+
+.modal{
+  width: min(520px, 100%);
+  border-radius: 22px;
+  background: rgba(14,22,38,.94);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
+  overflow:hidden;
+}
+
+.modalBody{
+  padding: 16px 16px 18px;
+}
+
 .resumeBig{
   width: 100%;
   border-radius: 18px;
   padding: 18px 16px;
   font-weight: 1000;
   font-size: 30px;
-  letter-spacing: .5px;
+  letter-spacing: .6px;
   background: linear-gradient(180deg, rgba(78,194,97,1), rgba(38,155,66,1));
   border: 1px solid rgba(255,255,255,.18);
   box-shadow: 0 14px 30px rgba(0,0,0,.28);
@@ -376,7 +355,7 @@ html, body{
 
 .pauseTitle{
   margin-top: 14px;
-  font-weight: 950;
+  font-weight: 1000;
   font-size: 22px;
   text-align:center;
 }
@@ -386,27 +365,33 @@ html, body{
   margin-bottom: 12px;
   text-align:center;
   opacity: .85;
-  font-weight: 700;
+  font-weight: 850;
 }
 
-.pauseReasonGrid{
-  margin-top: 6px;
+.reasonGrid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 420px){
+  .reasonGrid{ grid-template-columns: 1fr 1fr; }
 }
 
 .reasonChip{
   width: 100%;
   border-radius: 16px;
   padding: 14px 14px;
-  background: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.07);
   border: 1px solid rgba(255,255,255,.12);
-  font-weight: 900;
+  font-weight: 950;
   color: rgba(255,255,255,.95);
   text-align:left;
   box-shadow: 0 10px 22px rgba(0,0,0,.18);
 }
 
 .reasonChip[aria-pressed="true"]{
-  background: rgba(78,194,97,.22);
+  background: rgba(78,194,97,.24);
   border-color: rgba(78,194,97,.55);
 }
 
@@ -423,83 +408,16 @@ html, body{
   background: rgba(255,255,255,.10);
   border: 1px solid rgba(255,255,255,.14);
   color: rgba(255,255,255,.92);
-  font-weight: 900;
+  font-weight: 950;
 }
 
 .pauseFooterHint{
   opacity: .75;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-/* ---------- Overlays (reports/session score) ---------- */
-.overlay, .modalOverlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.55);
-  z-index: 200;
-  display:none;
-  align-items:flex-end;
-  justify-content:center;
-  padding: 16px 12px;
+@media (max-width: 360px){
+  .bigTime{ font-size: 56px; }
+  .actionBtn{ min-height: 108px; }
+  .resumeBig{ font-size: 26px; }
 }
-
-.overlay.show, .modalOverlay.show{
-  display:flex;
-}
-
-.modal{
-  width: 100%;
-  max-width: 720px;
-  border-radius: 26px;
-  background: rgba(15,28,38,.92);
-  border: 1px solid rgba(255,255,255,.10);
-  box-shadow: var(--shadow);
-  overflow:hidden;
-}
-
-.modalHeader{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(255,255,255,.10);
-}
-
-.modalTitle{
-  font-weight: 950;
-  font-size: 22px;
-}
-
-.modalClose{
-  border-radius: 16px;
-  width: 44px;
-  height: 44px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.10);
-  font-size: 20px;
-}
-
-.modalBody{
-  padding: 14px 16px 16px;
-}
-
-/* ---------- Small screens adjustments ---------- */
-@media (max-width: 420px){
-  .bigTime{ font-size: 72px; }
-  .actionBtn .label{ font-size: 26px; }
-  .actionBtn{ min-height: 104px; }
-  .metRow{
-    grid-template-columns: 1.2fr .8fr .9fr .8fr;
-  }
-}
-
-/* Make sure nothing forces horizontal shift */
-body, .container, .wrap, main{
-  max-width: 100vw;
-}
-
-#breathBarBox{cursor:pointer;}
-#breathBarBox.airwayOn{outline:2px solid rgba(78,194,97,.55);} 
