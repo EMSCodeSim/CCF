@@ -107,25 +107,35 @@
       <button class="metBtn" id="btnBpmUp" type="button" aria-label="Increase BPM">+</button>
     </section>
 
-    <!-- Pause reasons -->
-    <section class="pausePanel" id="pausePanel">
-      <h4>Pause Reason</h4>
-      <p class="hint">Tap one reason (auto-hides)</p>
+    <!-- Pause reasons (BLS multi-select modal) -->
+  <div class="overlay" id="pauseOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+      <div class="modalBody">
+        <button class="resumeBig" id="btnResumeFromPause" type="button">RESUME CPR</button>
 
-      <div class="reasonGrid" id="reasonGrid">
-        <button class="reasonBtn" data-reason="Rhythm/Analysis" type="button">🫀 Rhythm/Analysis</button>
-        <button class="reasonBtn" data-reason="Shock" type="button">⚡ Shock</button>
-        <button class="reasonBtn" data-reason="Airway/Vent" type="button">💨 Airway/Vent</button>
-        <button class="reasonBtn" data-reason="Pulse Check" type="button">✋ Pulse Check</button>
-        <button class="reasonBtn" data-reason="IV/IO/Meds" type="button">💉 IV/IO/Meds</button>
-        <button class="reasonBtn" data-reason="Move/Transport" type="button">🚑 Move/Transport</button>
-        <button class="reasonBtn" data-reason="Other" type="button">❓ Other</button>
+        <div class="pauseTitle" id="pauseTitle">Select Pause Reasons</div>
+        <div class="pauseHint">Select all that apply (optional)</div>
+
+        <div class="reasonGrid pauseReasonGrid" id="pauseReasonGrid">
+          <button class="reasonChip" type="button" data-reason="Breaths" aria-pressed="false">💨 Breaths</button>
+          <button class="reasonChip" type="button" data-reason="Airway" aria-pressed="false">🫁 Airway</button>
+          <button class="reasonChip" type="button" data-reason="Rhythm analysis (AED)" aria-pressed="false">🫀 Rhythm analysis (AED)</button>
+          <button class="reasonChip" type="button" data-reason="Shock (AED)" aria-pressed="false">⚡ Shock (AED)</button>
+          <button class="reasonChip" type="button" data-reason="Pulse check" aria-pressed="false">✋ Pulse check</button>
+          <button class="reasonChip" type="button" data-reason="Automated CPR" aria-pressed="false">🤖 Automated CPR</button>
+          <button class="reasonChip" type="button" data-reason="Move / reposition" aria-pressed="false">🚑 Move / reposition</button>
+          <button class="reasonChip" type="button" data-reason="Instructor coaching" aria-pressed="false">🧑‍🏫 Instructor coaching</button>
+          <button class="reasonChip" type="button" data-reason="Other" aria-pressed="false">❓ Other</button>
+        </div>
+
+        <div class="pauseFooterRow">
+          <button class="secondaryBtn" id="btnClearPauseReasons" type="button">Clear</button>
+          <div class="pauseFooterHint">No reason required.</div>
+        </div>
       </div>
-
-      <div style="height:18px"></div>
-    </section>
-
-  </main>
+    </div>
+  </div>
+</main>
 
   <!-- Reports / Score overlay -->
   <div class="overlay" id="reportsOverlay" aria-hidden="true">
