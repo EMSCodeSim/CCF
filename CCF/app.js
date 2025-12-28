@@ -296,6 +296,91 @@ function handleBreathBoxToggle(e) {
 }
 
 /* ---------- INIT / BINDINGS ---------- */
+
+/* ---------- SETTINGS (About / Metronome / Class Setup) ---------- */
+const LS_KEYS = {
+  bpm: "ccf.bpm",
+  classSetup: "ccf.classSetup",
+};
+
+function safeParseJSON(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
+function loadSettingsFromStorage() {
+  const bpmStr = localStorage.getItem(LS_KEYS.bpm);
+  const bpm = bpmStr ? parseInt(bpmStr, 10) : null;
+  if (Number.isFinite(bpm)) state.bpm = Math.min(200, Math.max(60, bpm));
+
+  const cls = safeParseJSON(localStorage.getItem(LS_KEYS.classSetup) || "", null);
+  if (cls && UI?.className) {
+    UI.className.value = cls.name || "";
+    UI.classInstructor.value = cls.instructor || "";
+    UI.classLocation.value = cls.location || "";
+    UI.classStudents.value = (cls.students || []).join("\n");
+  }
+}
+
+function saveBpmToStorage() {
+  localStorage.setItem(LS_KEYS.bpm, String(state.bpm));
+}
+
+function showSettings() {
+  if (!UI?.settingsOverlay) return;
+  UI.settingsOverlay.classList.add("show");
+  UI.settingsOverlay.setAttribute("aria-hidden", "false");
+}
+
+function hideSettings() {
+  if (!UI?.settingsOverlay) return;
+  UI.settingsOverlay.classList.remove("show");
+  UI.settingsOverlay.setAttribute("aria-hidden", "true");
+}
+
+function setSettingsTab(which) {
+  const tabs = [
+    { id: "about", tab: UI?.tabAbout, panel: UI?.panelAbout },
+    { id: "met", tab: UI?.tabMet, panel: UI?.panelMet },
+    { id: "class", tab: UI?.tabClass, panel: UI?.panelClass },
+  ];
+
+  tabs.forEach(t => {
+    const active = t.id === which;
+    if (t.tab) {
+      t.tab.classList.toggle("active", active);
+      t.tab.setAttribute("aria-selected", active ? "true" : "false");
+    }
+    if (t.panel) t.panel.classList.toggle("show", active);
+  });
+}
+
+function syncBpmUI() {
+  if (UI?.bpmValue) UI.bpmValue.textContent = state.bpm;
+  if (UI?.bpmSlider) UI.bpmSlider.value = String(state.bpm);
+}
+
+function saveClassSetup() {
+  const payload = {
+    name: UI?.className?.value?.trim() || "",
+    instructor: UI?.classInstructor?.value?.trim() || "",
+    location: UI?.classLocation?.value?.trim() || "",
+    students: (UI?.classStudents?.value || "")
+      .split("\n")
+      .map(s => s.trim())
+      .filter(Boolean),
+    updatedAt: Date.now(),
+  };
+  localStorage.setItem(LS_KEYS.classSetup, JSON.stringify(payload));
+}
+
+function clearClassSetup() {
+  if (UI?.className) UI.className.value = "";
+  if (UI?.classInstructor) UI.classInstructor.value = "";
+  if (UI?.classLocation) UI.classLocation.value = "";
+  if (UI?.classStudents) UI.classStudents.value = "";
+  localStorage.removeItem(LS_KEYS.classSetup);
+}
+
 function init() {
   UI = {
     mainTimer: $("mainTimer"),
@@ -316,6 +401,23 @@ function init() {
 
     btnCCFScore: $("btnCCFScore"),
     ccfScoreText: $("ccfScoreText"),
+
+    btnSettings: $("btnSettings"),
+    settingsOverlay: $("settingsOverlay"),
+    btnSettingsClose: $("btnSettingsClose"),
+    tabAbout: $("tabAbout"),
+    tabMet: $("tabMet"),
+    tabClass: $("tabClass"),
+    panelAbout: $("panelAbout"),
+    panelMet: $("panelMet"),
+    panelClass: $("panelClass"),
+    bpmSlider: $("bpmSlider"),
+    className: $("className"),
+    classInstructor: $("classInstructor"),
+    classLocation: $("classLocation"),
+    classStudents: $("classStudents"),
+    btnSaveClass: $("btnSaveClass"),
+    btnClearClass: $("btnClearClass"),
 
     cprOnTime: $("cprOnTime"),
     handsOffTime: $("handsOffTime"),
@@ -351,13 +453,15 @@ function init() {
 
   UI.bpmDown?.addEventListener("click", () => {
     state.bpm = Math.max(60, state.bpm - 5);
-    if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
+    syncBpmUI();
+    saveBpmToStorage();
     startMetronome();
   });
 
   UI.bpmUp?.addEventListener("click", () => {
     state.bpm = Math.min(200, state.bpm + 5);
-    if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
+    syncBpmUI();
+    saveBpmToStorage();
     startMetronome();
   });
 
@@ -392,8 +496,51 @@ function init() {
     hidePauseModal();
   });
 
+
+  // Settings open/close
+  UI.btnSettings?.addEventListener("click", () => {
+    showSettings();
+    setSettingsTab("about");
+  });
+  UI.btnSettingsClose?.addEventListener("click", hideSettings);
+
+  // Close settings by tapping backdrop
+  UI.settingsOverlay?.addEventListener("click", (e) => {
+    if (e.target === UI.settingsOverlay) hideSettings();
+  });
+
+  // Tabs
+  UI.tabAbout?.addEventListener("click", () => setSettingsTab("about"));
+  UI.tabMet?.addEventListener("click", () => setSettingsTab("met"));
+  UI.tabClass?.addEventListener("click", () => setSettingsTab("class"));
+
+  // BPM slider
+  UI.bpmSlider?.addEventListener("input", () => {
+    const v = parseInt(UI.bpmSlider.value, 10);
+    if (Number.isFinite(v)) {
+      state.bpm = Math.min(200, Math.max(60, v));
+      syncBpmUI();
+      saveBpmToStorage();
+      startMetronome();
+    }
+  });
+
+  // Class setup save/clear
+  UI.btnSaveClass?.addEventListener("click", () => {
+    saveClassSetup();
+    // quick feedback by momentarily changing button text
+    const btn = UI.btnSaveClass;
+    const old = btn.textContent;
+    btn.textContent = "Saved ✓";
+    setTimeout(() => (btn.textContent = old), 900);
+  });
+  UI.btnClearClass?.addEventListener("click", clearClassSetup);
+
   // Initial UI
   hidePauseModal();
+  hideSettings();
+  loadSettingsFromStorage();
+  syncBpmUI();
   if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
   if (UI.metState) UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
   setAdvancedAirway(false);
