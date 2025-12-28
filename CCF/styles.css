@@ -423,59 +423,165 @@ body{
 }
 
 
-/* ---------- NEW: Top control buttons row ---------- */
-.topControls{
-  margin-top: 10px;
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+
+/* Header right group */
+.headerRight{
+  display:flex;
+  align-items:center;
+  gap:10px;
 }
 
-.ctlBtn{
+/* Settings modal layout */
+.settingsModal .modalHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+.modalTitle{
+  font-weight: 1000;
+  font-size: 18px;
+}
+
+.iconBtn{
   appearance:none;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.06);
   color: var(--text);
-  border-radius: 18px;
-  padding: 14px 14px;
-  box-shadow: var(--shadow);
-  min-height: 74px;
-  display:flex;
-  flex-direction:column;
-  align-items:flex-start;
-  justify-content:center;
-  gap: 6px;
-  text-align:left;
-}
-
-.ctlBtn .ctlLabel{
+  border-radius: 14px;
+  width: 44px;
+  height: 44px;
   font-weight: 1000;
   font-size: 18px;
-  letter-spacing:.2px;
 }
 
-.ctlBtn .ctlSub{
+.settingsNav{
+  display:flex;
+  gap: 8px;
+  padding: 10px 16px 0;
+}
+
+.segBtn{
+  flex: 1;
+  appearance:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.90);
+  border-radius: 14px;
+  padding: 10px 10px;
   font-weight: 950;
-  opacity:.85;
 }
 
-.ctlBtn.score{
+.segBtn.active{
+  background: rgba(82,166,255,.18);
+  border-color: rgba(82,166,255,.40);
+}
+
+.settingsBody{
+  padding-top: 12px;
+}
+
+.settingsSection{
+  display:none;
+}
+.settingsSection.show{
+  display:block;
+}
+
+.sectionCard{
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.22);
+}
+
+.sectionH{
+  font-weight: 1000;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.sectionP{
+  color: rgba(255,255,255,.86);
+  font-weight: 800;
+  line-height: 1.35;
+  margin-top: 8px;
+}
+
+.sectionP.muted{ color: rgba(255,255,255,.70); }
+
+.row{
+  display:flex;
   align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.smallBtn{
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  font-weight: 1000;
+  font-size: 26px;
+  box-shadow: 0 16px 34px rgba(0,0,0,.18);
+}
+
+.bpmBig{
+  flex: 1;
   text-align:center;
-}
-
-.ctlBtn .ctlScore{
   font-weight: 1100;
-  font-size: 28px;
-  letter-spacing:.4px;
+  font-size: 24px;
 }
 
-.ctlBtn.danger{
-  background: linear-gradient(180deg, rgba(255,107,107,.25), rgba(255,59,59,.18));
-  border-color: rgba(255,107,107,.45);
+.rangeRow{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  margin-top: 12px;
 }
 
-@media (min-width: 520px){
-  .topControls{ grid-template-columns: 1fr 1fr 1fr 1fr; }
-  .ctlBtn{ min-height: 80px; }
+.rangeRow input[type="range"]{
+  flex: 1;
 }
+
+.field{
+  display:block;
+  margin-top: 12px;
+}
+
+.fieldLabel{
+  display:block;
+  font-weight: 950;
+  margin-bottom: 6px;
+  color: rgba(255,255,255,.82);
+}
+
+.field input, .field textarea{
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  padding: 12px 12px;
+  font-weight: 850;
+  outline: none;
+}
+
+.primaryBtn{
+  flex: 1;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-weight: 1000;
+  border: 1px solid rgba(78,194,97,.30);
+  background: linear-gradient(180deg, rgba(78,194,97,.92), rgba(38,155,66,.92));
+  color: white;
+}
+
+.muted{ color: rgba(255,255,255,.72); }
