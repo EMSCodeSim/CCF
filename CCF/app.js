@@ -22,6 +22,7 @@ const UI = {
   breathBar: $("breathBarFill"),
   pulseBar: $("pulseBarFill"),
   breathMeta: $("breathMetaLeft"),
+  breathBarBox: $("breathBarBox"),
   pulseMeta: $("pulseMetaLeft"),
 
   btnCpr: $("btnCpr"),
@@ -103,6 +104,9 @@ function startSession() {
 
 function startCPR() {
   startSession();
+
+  // Always reset breath prompt when CPR is started/resumed (both CPR buttons)
+  resetBreathBox();
 
   // If we are resuming from a pause, finalize that pause event first.
   finalizePauseEvent();
@@ -203,6 +207,7 @@ function resetBreathBox() {
   state.breathAdvMs = 0;
 
   UI.breathBar.style.width = "0%";
+  if (UI.breathBarBox) UI.breathBarBox.classList.toggle("airwayOn", state.advancedAirway);
   if (state.advancedAirway) {
     UI.breathMeta.textContent = "Advanced airway • Next breath in 00:06";
   } else {
@@ -308,17 +313,16 @@ UI.reasonChips.forEach((chip) => {
   });
 });
 
-UI.btnClearPauseReasons.addEventListener("click", () => {
+if (UI.btnClearPauseReasons) UI.btnClearPauseReasons.addEventListener("click", () => {
   state.currentReasons = [];
   UI.reasonChips.forEach((chip) => chip.setAttribute("aria-pressed", "false"));
 });
 
-UI.btnResumePause.addEventListener("click", () => {
+if (UI.btnResumePause) UI.btnResumePause.addEventListener("click", () => {
   // No reason is required—resume immediately.
-  // Reset breath prompt so the next breath cycle starts clean on resume.
-  resetBreathBox();
-  hidePauseModal();
+  // Start CPR first (prevents getting stuck if the overlay fails to hide for any reason)
   startCPR();
+  hidePauseModal();
 });
 
 /* ---------- ADVANCED AIRWAY TOGGLE ---------- */
@@ -326,21 +330,38 @@ function setAdvancedAirway(enabled) {
   state.advancedAirway = !!enabled;
   UI.advAirwayState.textContent = state.advancedAirway ? "ON" : "OFF";
   UI.btnAdvAirway.classList.toggle("on", state.advancedAirway);
+  if (UI.breathBarBox) UI.breathBarBox.classList.toggle("airwayOn", state.advancedAirway);
 
   // Reset breath prompt UI/timers so the bar immediately reflects the new mode cleanly.
   resetBreathBox();
 }
 
-UI.btnAdvAirway.addEventListener("click", () => {
+if (UI.btnAdvAirway) UI.btnAdvAirway.addEventListener("click", () => {
   setAdvancedAirway(!state.advancedAirway);
 });
 
-/* ---------- EVENTS ---------- */
-UI.btnCpr.addEventListener("click", startCPR);
-UI.btnPause.addEventListener("click", startPause);
-UI.btnEnd.addEventListener("click", endSession);
+// Tap the breath bar area to toggle Advanced Airway (primary control)
+function handleBreathBoxToggle(e) {
+  // Allow click / Enter / Space
+  if (e.type === "keydown") {
+    const k = e.key;
+    if (k !== "Enter" && k !== " " && k !== "Spacebar") return;
+    e.preventDefault();
+  }
+  setAdvancedAirway(!state.advancedAirway);
+}
 
-UI.btnMet.addEventListener("click", () => {
+if (UI.breathBarBox) {
+  UI.breathBarBox.addEventListener("click", handleBreathBoxToggle);
+  UI.breathBarBox.addEventListener("keydown", handleBreathBoxToggle);
+}
+
+/* ---------- EVENTS ---------- */
+if (UI.btnCpr) UI.btnCpr.addEventListener("click", startCPR);
+if (UI.btnPause) UI.btnPause.addEventListener("click", startPause);
+if (UI.btnEnd) UI.btnEnd.addEventListener("click", endSession);
+
+if (UI.btnMet) UI.btnMet.addEventListener("click", () => {
   if (!state.running) return;
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   state.metronomeOn = !state.metronomeOn;
@@ -348,13 +369,13 @@ UI.btnMet.addEventListener("click", () => {
   startMetronome();
 });
 
-UI.bpmDown.addEventListener("click", () => {
+if (UI.bpmDown) UI.bpmDown.addEventListener("click", () => {
   state.bpm = Math.max(60, state.bpm - 5);
   UI.bpmValue.textContent = state.bpm;
   startMetronome();
 });
 
-UI.bpmUp.addEventListener("click", () => {
+if (UI.bpmUp) UI.bpmUp.addEventListener("click", () => {
   state.bpm = Math.min(200, state.bpm + 5);
   UI.bpmValue.textContent = state.bpm;
   startMetronome();
