@@ -301,6 +301,7 @@ function handleBreathBoxToggle(e) {
 const LS_KEYS = {
   bpm: "ccf.bpm",
   classSetup: "ccf.classSetup",
+  pauseReason: "ccf.pauseReasonPrompt",
 };
 
 function safeParseJSON(str, fallback) {
@@ -311,6 +312,10 @@ function loadSettingsFromStorage() {
   const bpmStr = localStorage.getItem(LS_KEYS.bpm);
   const bpm = bpmStr ? parseInt(bpmStr, 10) : null;
   if (Number.isFinite(bpm)) state.bpm = Math.min(200, Math.max(60, bpm));
+
+  const pr = localStorage.getItem(LS_KEYS.pauseReason);
+  if (pr === "0") state.pauseReasonPromptEnabled = false;
+  if (pr === "1") state.pauseReasonPromptEnabled = true;
 
   const cls = safeParseJSON(localStorage.getItem(LS_KEYS.classSetup) || "", null);
   if (cls && UI?.className) {
@@ -418,6 +423,7 @@ function init() {
     classStudents: $("classStudents"),
     btnSaveClass: $("btnSaveClass"),
     btnClearClass: $("btnClearClass"),
+    pauseReasonToggle: $("pauseReasonToggle"),
 
     cprOnTime: $("cprOnTime"),
     handsOffTime: $("handsOffTime"),
@@ -514,6 +520,12 @@ function init() {
   UI.tabMet?.addEventListener("click", () => setSettingsTab("met"));
   UI.tabClass?.addEventListener("click", () => setSettingsTab("class"));
 
+  // Pause reason prompt toggle
+  UI.pauseReasonToggle?.addEventListener("change", () => {
+    state.pauseReasonPromptEnabled = !!UI.pauseReasonToggle.checked;
+    localStorage.setItem(LS_KEYS.pauseReason, state.pauseReasonPromptEnabled ? "1" : "0");
+  });
+
   // BPM slider
   UI.bpmSlider?.addEventListener("input", () => {
     const v = parseInt(UI.bpmSlider.value, 10);
@@ -541,6 +553,7 @@ function init() {
   hideSettings();
   loadSettingsFromStorage();
   syncBpmUI();
+  if (UI?.pauseReasonToggle) UI.pauseReasonToggle.checked = !!state.pauseReasonPromptEnabled;
   if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
   if (UI.metState) UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
   setAdvancedAirway(false);
