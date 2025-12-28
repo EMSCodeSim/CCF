@@ -37,6 +37,10 @@ const UI = {
   bpmDown: $("btnBpmDown"),
   bpmUp: $("btnBpmUp"),
 
+  // Advanced Airway toggle
+  btnAdvAirway: $("btnAdvAirway"),
+  advAirwayState: $("advAirwayState"),
+
   // Pause modal
   pauseOverlay: $("pauseOverlay"),
   btnResumePause: $("btnResumeFromPause"),
@@ -65,8 +69,13 @@ const state = {
   // Future setting: turn this off to skip the reason modal
   pauseReasonPromptEnabled: true,
 
-  breathCprMs: 0,
+  // Breathing prompts
   breathsDue: false,
+  breathCprMs: 0,        // used for 30:2 mode (training cue)
+  breathAdvMs: 0,        // used for advanced airway mode (1 breath q6s + grace)
+
+  // Advanced airway toggle (BLS: once placed, asynchronous breaths)
+  advancedAirway: false,
 
   bpm: 110,
   metronomeOn: false,
@@ -101,8 +110,6 @@ function startCPR() {
 
   state.mode = "cpr";
   state.pauseStartMs = null;
-  state.breathsDue = false;
-  state.breathCprMs = 0;
 
   UI.statusTitle.textContent = "CPR ON";
   UI.statusSub.textContent = "Compressions ON";
@@ -138,8 +145,34 @@ function endSession() {
 
 /* ---------- BREATH / PULSE BARS ---------- */
 function updateBreathBar(dt) {
-  // Simple BLS-style: prompt breaths every 30 compressions ≈ ~16–18s at 110 bpm.
-  // This is your existing behavior; leaving it intact.
+  if (state.advancedAirway) {
+    // Advanced airway: 1 breath every 6 seconds, plus a brief grace window to allow time to deliver the breath.
+    const intervalMs = 6000;
+    const graceMs = 2000;          // "allowing time to give breath"
+    const totalMs = intervalMs + graceMs;
+
+    state.breathAdvMs += dt;
+
+    // Wrap in [0,total)
+    if (state.breathAdvMs >= totalMs) {
+      state.breathAdvMs = state.breathAdvMs % totalMs;
+    }
+
+    const inGrace = state.breathAdvMs >= intervalMs;
+    const pct = Math.min(100, Math.round((Math.min(state.breathAdvMs, intervalMs) / intervalMs) * 100));
+    UI.breathBar.style.width = `${inGrace ? 100 : pct}%`;
+
+    if (inGrace) {
+      const remain = totalMs - state.breathAdvMs;
+      UI.breathMeta.textContent = `Breath due (give now) • ${fmt(remain)} remaining`;
+    } else {
+      const remain = intervalMs - state.breathAdvMs;
+      UI.breathMeta.textContent = `Next breath in ${fmt(remain)}`;
+    }
+    return;
+  }
+
+  // Standard BLS training cue: prompt breaths every ~17s (approx 30 compressions at ~110 bpm)
   const cycleMs = 17000;
   state.breathCprMs += dt;
 
@@ -272,6 +305,31 @@ UI.btnResumePause.addEventListener("click", () => {
   startCPR();
 });
 
+/* ---------- ADVANCED AIRWAY TOGGLE ---------- */
+function setAdvancedAirway(enabled) {
+  state.advancedAirway = !!enabled;
+  UI.advAirwayState.textContent = state.advancedAirway ? "ON" : "OFF";
+  UI.btnAdvAirway.classList.toggle("on", state.advancedAirway);
+
+  // Reset breathing timers so the bar immediately reflects the new mode cleanly.
+  state.breathsDue = false;
+  state.breathCprMs = 0;
+  state.breathAdvMs = 0;
+
+  // Update label immediately (without waiting for tick)
+  if (state.advancedAirway) {
+    UI.breathMeta.textContent = "Next breath in 00:06";
+    UI.breathBar.style.width = "0%";
+  } else {
+    UI.breathMeta.textContent = "Breaths in 00:17";
+    UI.breathBar.style.width = "0%";
+  }
+}
+
+UI.btnAdvAirway.addEventListener("click", () => {
+  setAdvancedAirway(!state.advancedAirway);
+});
+
 /* ---------- EVENTS ---------- */
 UI.btnCpr.addEventListener("click", startCPR);
 UI.btnPause.addEventListener("click", startPause);
@@ -300,3 +358,5 @@ UI.bpmUp.addEventListener("click", () => {
 /* ---------- INIT ---------- */
 hidePauseModal();
 UI.bpmValue.textContent = state.bpm;
+UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
+setAdvancedAirway(false);
