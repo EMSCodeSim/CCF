@@ -1,4 +1,4 @@
-<!-- index.html (UPDATED - Advanced Airway) -->
+<!-- index.html (UPDATED) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -29,15 +29,17 @@
     <section class="timerCard">
       <div class="bigTime" id="mainTimer">00:00</div>
 
+      <!-- Breaths bar (tap to toggle advanced airway) -->
       <div class="barBlock breathBox" id="breathBarBox" role="button" tabindex="0" aria-label="Toggle advanced airway">
         <div class="barMeta">
-          <span id="breathMetaLeft">Breaths in 00:17</span>
+          <span id="breathMetaLeft">No airway • Breaths in 00:17</span>
         </div>
         <div class="barTrack">
           <div class="barFill" id="breathBarFill" style="width:0%"></div>
         </div>
       </div>
 
+      <!-- Pulse check bar -->
       <div class="barBlock">
         <div class="barMeta">
           <span id="pulseMetaLeft">Next pulse check in 00:00</span>
@@ -62,7 +64,7 @@
       </button>
     </section>
 
-    <!-- Metronome + Advanced Airway row -->
+    <!-- Metronome row -->
     <section class="metRow">
       <button class="metToggle" id="btnMetronome" type="button">🎵 Metronome: <span id="metState">OFF</span></button>
       <button class="metBtn" id="btnBpmDown" type="button" aria-label="Decrease BPM">−</button>
@@ -70,12 +72,13 @@
       <button class="metBtn" id="btnBpmUp" type="button" aria-label="Increase BPM">+</button>
     </section>
 
+    <!-- Optional advanced airway button (kept for now, but breath bar is primary toggle) -->
     <section class="metRow">
       <button class="metToggle advAirway" id="btnAdvAirway" type="button">🫁 Advanced Airway: <span id="advAirwayState">OFF</span></button>
       <div class="metHint">Tap breath bar to toggle</div>
     </section>
 
-    <!-- Pause reasons (BLS multi-select modal) -->
+    <!-- Pause reasons modal -->
     <div class="overlay" id="pauseOverlay" aria-hidden="true">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
         <div class="modalBody">
@@ -84,7 +87,7 @@
           <div class="pauseTitle" id="pauseTitle">Select Pause Reasons</div>
           <div class="pauseHint">Select all that apply (optional)</div>
 
-          <div class="reasonGrid pauseReasonGrid" id="pauseReasonGrid">
+          <div class="reasonGrid" id="pauseReasonGrid">
             <button class="reasonChip" type="button" data-reason="Breaths" aria-pressed="false">💨 Breaths</button>
             <button class="reasonChip" type="button" data-reason="Airway" aria-pressed="false">🫁 Airway</button>
             <button class="reasonChip" type="button" data-reason="Rhythm analysis (AED)" aria-pressed="false">🫀 Rhythm analysis (AED)</button>
