@@ -164,10 +164,10 @@ function updateBreathBar(dt) {
 
     if (inGrace) {
       const remain = totalMs - state.breathAdvMs;
-      UI.breathMeta.textContent = `Breath due (give now) • ${fmt(remain)} remaining`;
+      UI.breathMeta.textContent = `Advanced airway • Breath due (give now) • ${fmt(remain)} remaining`;
     } else {
       const remain = intervalMs - state.breathAdvMs;
-      UI.breathMeta.textContent = `Next breath in ${fmt(remain)}`;
+      UI.breathMeta.textContent = `Advanced airway • Next breath in ${fmt(remain)}`;
     }
     return;
   }
@@ -184,7 +184,7 @@ function updateBreathBar(dt) {
   const pct = Math.min(100, Math.round((state.breathCprMs / cycleMs) * 100));
   UI.breathBar.style.width = `${pct}%`;
 
-  UI.breathMeta.textContent = state.breathsDue ? "Breaths due" : `Breaths in ${fmt(cycleMs - state.breathCprMs)}`;
+  UI.breathMeta.textContent = state.breathsDue ? "No airway • Breaths due" : `No airway • Breaths in ${fmt(cycleMs - state.breathCprMs)}`;
 }
 
 function updatePulseBar() {
@@ -195,6 +195,20 @@ function updatePulseBar() {
   const pct = Math.min(100, Math.round(((pulseCycle - remain) / pulseCycle) * 100));
   UI.pulseBar.style.width = `${pct}%`;
   UI.pulseMeta.textContent = `Next pulse check in ${fmt(remain)}`;
+
+function resetBreathBox() {
+  // Resets the breath prompt UI/timers (used when resuming from pause)
+  state.breathsDue = false;
+  state.breathCprMs = 0;
+  state.breathAdvMs = 0;
+
+  UI.breathBar.style.width = "0%";
+  if (state.advancedAirway) {
+    UI.breathMeta.textContent = "Advanced airway • Next breath in 00:06";
+  } else {
+    UI.breathMeta.textContent = "No airway • Breaths in 00:17";
+  }
+}
 }
 
 /* ---------- LOOP ---------- */
@@ -301,6 +315,8 @@ UI.btnClearPauseReasons.addEventListener("click", () => {
 
 UI.btnResumePause.addEventListener("click", () => {
   // No reason is required—resume immediately.
+  // Reset breath prompt so the next breath cycle starts clean on resume.
+  resetBreathBox();
   hidePauseModal();
   startCPR();
 });
@@ -311,19 +327,8 @@ function setAdvancedAirway(enabled) {
   UI.advAirwayState.textContent = state.advancedAirway ? "ON" : "OFF";
   UI.btnAdvAirway.classList.toggle("on", state.advancedAirway);
 
-  // Reset breathing timers so the bar immediately reflects the new mode cleanly.
-  state.breathsDue = false;
-  state.breathCprMs = 0;
-  state.breathAdvMs = 0;
-
-  // Update label immediately (without waiting for tick)
-  if (state.advancedAirway) {
-    UI.breathMeta.textContent = "Next breath in 00:06";
-    UI.breathBar.style.width = "0%";
-  } else {
-    UI.breathMeta.textContent = "Breaths in 00:17";
-    UI.breathBar.style.width = "0%";
-  }
+  // Reset breath prompt UI/timers so the bar immediately reflects the new mode cleanly.
+  resetBreathBox();
 }
 
 UI.btnAdvAirway.addEventListener("click", () => {
@@ -360,3 +365,4 @@ hidePauseModal();
 UI.bpmValue.textContent = state.bpm;
 UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
 setAdvancedAirway(false);
+resetBreathBox();
