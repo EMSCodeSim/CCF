@@ -1,4 +1,4 @@
-<!-- index.html (UPDATED - Top Control Buttons) -->
+<!-- index.html (UPDATED - Settings Menu) -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -10,12 +10,15 @@
 <body>
   <header class="topHeader">
     <div class="brand">CCF CPR Timer</div>
-    <a class="topBtn" href="reports.html">Reports</a>
+    <div class="headerRight">
+      <a class="topBtn" href="reports.html">Reports</a>
+      <button class="topBtn" id="btnSettings" type="button" aria-label="Settings">⚙️</button>
+    </div>
   </header>
 
   <main class="wrap">
 
-    <!-- NEW: Top control buttons (replaces old status box) -->
+    <!-- Top control buttons -->
     <section class="topControls" aria-label="Top controls">
       <button class="ctlBtn danger" id="btnEnd" type="button">
         <div class="ctlLabel">END</div>
@@ -100,6 +103,98 @@
             <button class="secondaryBtn" id="btnClearPauseReasons" type="button">Clear</button>
             <div class="pauseFooterHint">No reason required.</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings modal -->
+    <div class="overlay" id="settingsOverlay" aria-hidden="true">
+      <div class="modal settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="modalHeader">
+          <div class="modalTitle" id="settingsTitle">Settings</div>
+          <button class="iconBtn" id="btnSettingsClose" type="button" aria-label="Close settings">✕</button>
+        </div>
+
+        <div class="settingsNav" role="tablist" aria-label="Settings sections">
+          <button class="segBtn active" id="tabAbout" type="button" role="tab" aria-selected="true">About</button>
+          <button class="segBtn" id="tabMet" type="button" role="tab" aria-selected="false">Metronome</button>
+          <button class="segBtn" id="tabClass" type="button" role="tab" aria-selected="false">Class Setup</button>
+        </div>
+
+        <div class="modalBody settingsBody">
+
+          <!-- ABOUT -->
+          <section class="settingsSection show" id="panelAbout" role="tabpanel" aria-labelledby="tabAbout">
+            <div class="sectionCard">
+              <div class="sectionH">CCF CPR Timer</div>
+              <div class="sectionP">
+                A simple timer that helps instructors and students track Chest Compression Fraction (CCF),
+                hands-off time, and training cues.
+              </div>
+              <div class="sectionP muted">
+                Tip: Tap the Breaths bar to toggle Advanced Airway mode.
+              </div>
+            </div>
+          </section>
+
+          <!-- METRONOME SETUP -->
+          <section class="settingsSection" id="panelMet" role="tabpanel" aria-labelledby="tabMet">
+            <div class="sectionCard">
+              <div class="sectionH">Metronome Speed</div>
+              <div class="row">
+                <button class="smallBtn" id="btnBpmDown" type="button" aria-label="Decrease BPM">−</button>
+                <div class="bpmBig"><span id="bpmValue">110</span> BPM</div>
+                <button class="smallBtn" id="btnBpmUp" type="button" aria-label="Increase BPM">+</button>
+              </div>
+
+              <label class="rangeRow" for="bpmSlider">
+                <span class="muted">60</span>
+                <input id="bpmSlider" type="range" min="60" max="200" step="1" value="110" />
+                <span class="muted">200</span>
+              </label>
+
+              <div class="sectionP muted">
+                Your BPM setting is saved on this device and used whenever the metronome is ON.
+              </div>
+            </div>
+          </section>
+
+          <!-- CLASS SETUP -->
+          <section class="settingsSection" id="panelClass" role="tabpanel" aria-labelledby="tabClass">
+            <div class="sectionCard">
+              <div class="sectionH">Class Setup</div>
+
+              <label class="field">
+                <span class="fieldLabel">Class name</span>
+                <input id="className" type="text" placeholder="RC Health EMT - Skills Day" />
+              </label>
+
+              <label class="field">
+                <span class="fieldLabel">Instructor</span>
+                <input id="classInstructor" type="text" placeholder="Instructor name" />
+              </label>
+
+              <label class="field">
+                <span class="fieldLabel">Location / Notes</span>
+                <input id="classLocation" type="text" placeholder="Room / station / notes" />
+              </label>
+
+              <label class="field">
+                <span class="fieldLabel">Student list (one per line)</span>
+                <textarea id="classStudents" rows="6" placeholder="Student One&#10;Student Two&#10;Student Three"></textarea>
+              </label>
+
+              <div class="row">
+                <button class="primaryBtn" id="btnSaveClass" type="button">Save Class</button>
+                <button class="secondaryBtn" id="btnClearClass" type="button">Clear</button>
+              </div>
+
+              <div class="sectionP muted">
+                Later, Reports can assign each CPR session to a student and generate a CPR report card per student.
+              </div>
+            </div>
+          </section>
+
         </div>
       </div>
     </div>
