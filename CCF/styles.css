@@ -782,132 +782,159 @@ body{
 }
 
 
-/* ===========================
-   MODERN CLINICAL DARK THEME
-   + ACTIVE BUTTON HIGHLIGHTS
-   (Overrides)
-   =========================== */
+/* ======================================================
+   DARK BLUE "POP" THEME (High contrast, vibrant accents)
+   - Dark navy background
+   - Bright white text
+   - Punchy bars
+   - True red END button
+   ====================================================== */
 
 :root{
   /* Backgrounds */
-  --bg0:#0B2A4A;  /* deep medical blue */
-  --bg1:#123A63;  /* secondary blue */
-  --surface: rgba(255,255,255,.10);
-  --surface2: rgba(255,255,255,.14);
-  --stroke: rgba(255,255,255,.18);
+  --bg0:#06182E;           /* deep navy */
+  --bg1:#082C4A;           /* navy teal */
+  --panel:#0C3557;         /* card tint */
+  --panel2:#0E3C62;        /* slightly brighter */
+  --stroke:rgba(255,255,255,.18);
 
   /* Text */
-  --text: rgba(255,255,255,.95);
-  --muted: rgba(255,255,255,.75);
-  --muted2: rgba(255,255,255,.55);
+  --text:rgba(255,255,255,.96);
+  --muted:rgba(255,255,255,.78);
+  --muted2:rgba(255,255,255,.62);
 
   /* Accents */
-  --primary:#3CCF91;     /* green: CPR / Resume / ON states */
-  --primary2:#2FB67E;
-  --caution:#FFC857;     /* amber: Pause */
-  --caution2:#F4B942;
-  --danger:#FF6B6B;      /* soft red: End */
-  --danger2:#E05252;
-  --info:#5DA9FF;        /* info blue: metrics */
+  --primary:#39D98A;       /* vivid green */
+  --primary2:#20B972;
+  --caution:#FFC857;       /* amber */
+  --caution2:#F3B73F;
+  --danger:#FF3B4D;        /* true red */
+  --danger2:#D91F34;
+  --info:#4DA3FF;          /* vivid blue */
+  --info2:#1D77FF;
 
   /* Shadows / glows */
-  --shadow: 0 18px 44px rgba(0,0,0,.30);
-  --glow-primary: 0 0 0 2px rgba(60,207,145,.30), 0 14px 30px rgba(0,0,0,.25);
-  --glow-info:    0 0 0 2px rgba(93,169,255,.28), 0 14px 30px rgba(0,0,0,.25);
+  --shadow: 0 18px 44px rgba(0,0,0,.38);
+  --glow-primary: 0 0 0 2px rgba(57,217,138,.28), 0 18px 44px rgba(0,0,0,.28);
+  --glow-danger:  0 0 0 2px rgba(255,59,77,.28), 0 18px 44px rgba(0,0,0,.28);
+  --glow-info:    0 0 0 2px rgba(77,163,255,.26), 0 18px 44px rgba(0,0,0,.28);
 }
 
 body{
   background:
-    radial-gradient(900px 650px at 15% -10%, rgba(93,169,255,.38), transparent 55%),
-    radial-gradient(900px 650px at 95% 5%, rgba(60,207,145,.22), transparent 55%),
-    radial-gradient(700px 550px at 40% 110%, rgba(255,200,87,.10), transparent 60%),
+    radial-gradient(1000px 700px at 15% -10%, rgba(77,163,255,.26), transparent 55%),
+    radial-gradient(1000px 700px at 95% 10%, rgba(57,217,138,.16), transparent 55%),
+    radial-gradient(900px 650px at 50% 115%, rgba(255,200,87,.10), transparent 60%),
     linear-gradient(180deg, var(--bg0), var(--bg1) 55%, var(--bg0));
   color: var(--text);
 }
 
-/* Make surfaces consistent */
+/* Header */
+.topHeader{
+  background: rgba(6,16,30,.72);
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+.brand{ color: rgba(255,255,255,.95); }
+
+/* Top right buttons */
+.topBtn{
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.18);
+  color: rgba(255,255,255,.92);
+}
+.topBtn:hover{ filter: brightness(1.05); }
+
+/* Surfaces */
 .statusCard, .timerCard, .sectionCard, .ctlBtn, .actionBtn{
-  background: var(--surface);
-  border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, rgba(14,60,98,.55), rgba(10,42,72,.45));
+  border-color: rgba(255,255,255,.16);
   box-shadow: var(--shadow);
 }
 
 /* Top control buttons */
 .ctlBtn{
   background:
-    radial-gradient(700px 200px at 50% -20%, rgba(255,255,255,.28), transparent 55%),
-    rgba(255,255,255,.08);
+    radial-gradient(700px 220px at 50% -25%, rgba(255,255,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(12,53,87,.70), rgba(8,33,56,.55));
+  border-color: rgba(255,255,255,.14);
 }
+.ctlBtn .ctlLabel{ color: rgba(255,255,255,.95); }
+.ctlBtn .ctlSub{ color: rgba(255,255,255,.78); }
 
-/* Live CCF button */
+/* Live CCF */
 .ctlBtn.score{
+  border-color: rgba(77,163,255,.40);
   background:
-    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.22), transparent 55%),
-    linear-gradient(180deg, rgba(93,169,255,.25), rgba(93,169,255,.10));
-  border-color: rgba(93,169,255,.42);
+    radial-gradient(700px 220px at 50% -25%, rgba(255,255,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(77,163,255,.20), rgba(10,42,72,.55));
 }
+.ctlBtn.score .ctlScore{ color: rgba(255,255,255,.96); text-shadow: 0 10px 26px rgba(0,0,0,.22); }
 
-/* End */
-.ctlBtn.danger, .topBtn.danger{
+/* END button (true red + white text) */
+.ctlBtn.danger{
+  border-color: rgba(255,59,77,.55);
   background:
-    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.22), transparent 55%),
-    linear-gradient(180deg, rgba(255,107,107,.34), rgba(224,82,82,.20));
-  border-color: rgba(255,107,107,.50);
+    radial-gradient(700px 220px at 50% -25%, rgba(255,255,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(255,59,77,.42), rgba(217,31,52,.22));
 }
+.ctlBtn.danger .ctlLabel{ color: #fff; }
+.ctlBtn.danger:active{ transform: translateY(1px); }
 
-/* CPR / Resume / Save */
-.actionBtn.primary, .resumeBig, .primaryBtn{
-  background:
-    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.30), transparent 55%),
-    linear-gradient(180deg, rgba(60,207,145,.95), rgba(47,182,126,.92));
-  border-color: rgba(60,207,145,.40);
-  color: #fff;
-}
-
-/* Pause */
-.actionBtn.warn{
-  background:
-    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.28), transparent 55%),
-    linear-gradient(180deg, rgba(255,200,87,.95), rgba(244,185,66,.92));
-  border-color: rgba(255,200,87,.45);
-  color: rgba(0,0,0,.88);
-}
-.actionBtn.warn .sub,
-.actionBtn.warn .mini{
-  color: rgba(0,0,0,.75);
-}
-
-/* Bars */
-#breathBarFill{
-  background: linear-gradient(90deg, rgba(60,207,145,1), rgba(47,182,126,1));
-}
-#pulseBarFill{
-  background: linear-gradient(90deg, rgba(93,169,255,1), rgba(29,119,255,1));
-}
-
-/* Active/ON state highlight (apply .isOn via JS) */
+/* ON state glow */
 .ctlBtn.isOn{
   box-shadow: var(--glow-primary);
-  border-color: rgba(60,207,145,.65);
+  border-color: rgba(57,217,138,.60);
   background:
-    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.22), transparent 55%),
-    linear-gradient(180deg, rgba(60,207,145,.22), rgba(255,255,255,.06));
+    radial-gradient(700px 220px at 50% -25%, rgba(255,255,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(57,217,138,.20), rgba(10,42,72,.55));
 }
 
-/* Breath bar box highlight when Advanced Airway is ON */
+/* Bars: darker tracks + vivid fills */
+.barBlock{
+  background: linear-gradient(180deg, rgba(12,53,87,.50), rgba(8,33,56,.35));
+  border-color: rgba(255,255,255,.14);
+}
+.barMeta{ color: rgba(255,255,255,.86); }
+
+.barTrack{
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.12);
+}
+#breathBarFill{
+  background: linear-gradient(90deg, rgba(57,217,138,1), rgba(32,185,114,1));
+  box-shadow: 0 10px 26px rgba(57,217,138,.22);
+}
+#pulseBarFill{
+  background: linear-gradient(90deg, rgba(77,163,255,1), rgba(29,119,255,1));
+  box-shadow: 0 10px 26px rgba(77,163,255,.22);
+}
+
+/* Breath bar highlight when Advanced Airway ON */
 #breathBarBox.airwayOn{
   box-shadow: var(--glow-primary);
-  border-color: rgba(60,207,145,.65);
+  border-color: rgba(57,217,138,.55);
 }
 
-/* Pause reason chips active */
-.reasonChip[aria-pressed="true"]{
-  border-color: rgba(60,207,145,.65);
-  background: rgba(60,207,145,.18);
-  box-shadow: 0 0 0 2px rgba(60,207,145,.18);
+/* CPR / PAUSE big buttons: more contrast */
+.actionBtn.primary{
+  border-color: rgba(57,217,138,.42);
+  background:
+    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.22), transparent 55%),
+    linear-gradient(180deg, rgba(57,217,138,.92), rgba(32,185,114,.90));
+}
+.actionBtn.warn{
+  border-color: rgba(255,200,87,.50);
+  background:
+    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.22), transparent 55%),
+    linear-gradient(180deg, rgba(255,200,87,.92), rgba(243,183,63,.90));
 }
 
-/* Press feel */
-.ctlBtn:active, .actionBtn:active, .topBtn:active, .reasonChip:active{
-  transform: translateY(1px);
+/* Make labels pop */
+.actionBtn .label{ text-shadow: 0 10px 26px rgba(0,0,0,.22); }
+.bigTime{ text-shadow: 0 16px 44px rgba(0,0,0,.26); }
+
+/* Settings modal: slightly brighter */
+.modal{
+  background: rgba(6,16,30,.92);
+  border-color: rgba(255,255,255,.14);
 }
