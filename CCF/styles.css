@@ -761,6 +761,245 @@ body{
     linear-gradient(180deg, #072244, #0b335f 55%, #092545);
 }
 
+/* =====================================================================
+   REPORTS PAGE (Professional layout)
+   Targets: reports.html + reports.js generated markup
+   ===================================================================== */
+
+/* Keep reports content centered and readable on mobile */
+main.app{
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 14px;
+  padding-bottom: 28px;
+}
+
+/* Reports top bar */
+.topbar{
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(8,20,34,.86);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+.topbar .brand{ display:flex; align-items:center; gap:10px; }
+.topbar .title{ font-weight: 1000; font-size: 18px; letter-spacing:.2px; }
+.modePill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  font-weight: 950;
+  font-size: 12px;
+  color: rgba(255,255,255,.90);
+}
+
+.topActions{ display:flex; align-items:center; gap:10px; }
+
+/* Reuse your existing button look, tuned for reports */
+.endBtn{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.94);
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 950;
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.endBtn.ghost{ background: rgba(255,255,255,.04); }
+.endBtn:active{ transform: translateY(1px); }
+
+/* Header status strip */
+.stateBar{
+  margin-top: 12px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}
+.stateLabel{ font-weight: 1000; letter-spacing:.18px; font-size: 12px; opacity:.9; }
+.stateSub{ margin-top: 2px; font-weight: 900; color: rgba(255,255,255,.76); }
+.stateMini{ font-weight: 1000; opacity:.92; }
+
+/* Cards */
+.upgradeCard,
+.reportCard,
+.proBlock,
+.historyBlock{
+  margin-top: 12px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+
+/* Upgrade card */
+.upgradeTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+.upgradeTitle{ font-weight: 1100; font-size: 16px; }
+.upgradeSub{ margin-top: 4px; color: rgba(255,255,255,.78); font-weight: 850; line-height: 1.3; }
+.proPill{
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255,214,107,.18);
+  border: 1px solid rgba(255,214,107,.36);
+  font-weight: 1100;
+  font-size: 12px;
+  color: rgba(255,214,107,.96);
+}
+.upgradeBtns{ display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.upgradeBtns .primaryBtn,
+.upgradeBtns .secondaryBtn{ flex: 1 1 180px; }
+.upgradeNote{ margin-top: 10px; color: rgba(255,255,255,.72); font-weight: 850; font-size: 12px; }
+
+/* Ad zone */
+.adZone{ margin-top: 12px; }
+.adLabel{ font-weight: 950; opacity:.85; margin-bottom: 8px; }
+.adBox{
+  background: rgba(0,0,0,.18);
+  border: 1px dashed rgba(255,255,255,.20);
+  border-radius: 18px;
+  padding: 16px;
+  text-align:center;
+  color: rgba(255,255,255,.75);
+  font-weight: 850;
+}
+
+/* Latest report summary */
+.scoreTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+.scoreTitle{ font-weight: 1100; font-size: 18px; }
+.scoreSub{ margin-top: 4px; color: rgba(255,255,255,.76); font-weight: 850; }
+
+.scoreBadge{
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 1100;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+}
+.scoreBadge.good{ border-color: rgba(78,194,97,.40); background: rgba(78,194,97,.18); }
+.scoreBadge.bad{ border-color: rgba(255,107,107,.44); background: rgba(255,107,107,.18); }
+
+.scoreBigRow{ display:flex; align-items:flex-end; justify-content:space-between; gap: 10px; }
+.scoreLabel{ color: rgba(255,255,255,.72); font-weight: 900; font-size: 12px; }
+.scoreValue{ font-size: 44px; line-height: 1.0; font-weight: 1200; letter-spacing: .4px; margin-top: 4px; }
+
+.scoreGrid{
+  margin-top: 12px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.miniCard{
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  padding: 12px;
+}
+.miniLabel{ color: rgba(255,255,255,.72); font-weight: 900; font-size: 12px; }
+.miniValue{ margin-top: 6px; font-weight: 1100; font-size: 18px; }
+
+.reasonsBlock{ margin-top: 12px; }
+.reasonsTitle{ font-weight: 1100; font-size: 14px; margin-bottom: 8px; }
+.reasonsList{ display:flex; flex-direction:column; gap: 8px; }
+.reasonLine{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+}
+.reasonName{ font-weight: 1000; }
+.reasonMeta{ color: rgba(255,255,255,.78); font-weight: 900; font-size: 12px; }
+
+/* Pro block */
+.historyTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+.historyTitle{ font-weight: 1100; font-size: 16px; }
+.historySub{ color: rgba(255,255,255,.76); font-weight: 850; margin-top: 4px; }
+.historyBtns{ display:flex; gap: 10px; flex-wrap: wrap; }
+
+.studentRow{
+  margin-top: 12px;
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.studentRow select{
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  padding: 12px 12px;
+  font-weight: 900;
+  outline: none;
+}
+@media (min-width: 520px){
+  .studentRow{ grid-template-columns: 1fr auto auto; align-items:end; }
+}
+
+/* History list */
+.historyList{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
+.histItem{
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  padding: 12px;
+}
+.histTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+.histName{ font-weight: 1100; }
+.histMeta{ color: rgba(255,255,255,.76); font-weight: 850; margin-top: 4px; }
+.histActions{ margin-top: 10px; display:flex; gap: 8px; flex-wrap: wrap; }
+.histActions .endBtn{ padding: 9px 10px; border-radius: 12px; }
+
+/* Empty state */
+.emptyCard{ text-align:center; padding: 18px 14px; }
+.emptyTitle{ font-weight: 1200; font-size: 18px; }
+.emptySub{ margin-top: 6px; color: rgba(255,255,255,.76); font-weight: 850; }
+.newBtn{
+  margin-top: 12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-weight: 1100;
+  border: 1px solid rgba(82,166,255,.34);
+  background: rgba(82,166,255,.18);
+  color: rgba(255,255,255,.95);
+}
+
 /* Slightly brighter cards */
 .statusCard, .timerCard, .sectionCard, .ctlBtn{
   background: rgba(255,255,255,.12);
