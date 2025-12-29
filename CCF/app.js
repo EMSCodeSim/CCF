@@ -9,6 +9,31 @@
 const $ = (id) => document.getElementById(id);
 const now = () => Date.now();
 
+// Reports storage
+const SESSIONS_KEY = "ccf_sessions_v1";
+const PRO_KEY = "ccf.proUnlocked"; // set to "1" by the native app after a successful one-time purchase
+
+function isPro() {
+  return localStorage.getItem(PRO_KEY) === "1";
+}
+
+function loadSessions() {
+  try {
+    const raw = localStorage.getItem(SESSIONS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSessions(arr) {
+  try {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(arr));
+  } catch {}
+}
+
 function fmt(ms) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
@@ -155,8 +180,89 @@ function startPause() {
 }
 
 function endSession() {
+  if (!state.running) return;
+
+  if (!confirm("End this session and save a report?")) return;
   stopMetronome();
+
+  // If we end while paused, capture the last pause segment.
+  finalizePauseEvent();
+
+  // Build and save a session record for Reports.
+  const totalMs = state.compMs + state.offMs;
+  const finalCCF = totalMs > 0 ? Math.round((state.compMs / totalMs) * 100) : 0;
+  const longestPauseMs = state.pauseEvents.reduce((m, p) => Math.max(m, p?.durMs || 0), 0);
+
+  const classSetup = safeParseJSON(localStorage.getItem(LS_KEYS.classSetup) || "", null);
+
+  const session = {
+    endedAt: now(),
+    totalMs,
+    compMs: state.compMs,
+    offMs: state.offMs,
+    finalCCF,
+    pauseCount: state.pauseEvents.length,
+    longestPauseMs,
+    advancedAirwayUsed: !!state.advancedAirway,
+    bpm: state.bpm,
+    metronomeOn: !!state.metronomeOn,
+
+    // Keep a simple list for quick display (backward compatible with older reports.js)
+    pauses: state.pauseEvents.map(p => ({
+      reason: (p.reasons && p.reasons.length) ? p.reasons.join(", ") : "Unspecified",
+      ms: p.durMs || 0,
+      reasons: (p.reasons && p.reasons.length) ? [...p.reasons] : [],
+      startMs: p.startMs,
+      endMs: p.endMs,
+    })),
+
+    // Optional class context (editable in Settings)
+    classContext: classSetup ? {
+      name: classSetup.name || "",
+      instructor: classSetup.instructor || "",
+      location: classSetup.location || "",
+      updatedAt: classSetup.updatedAt || null,
+    } : null,
+
+    // Assigned later in Pro reports (or by the native app)
+    assignedTo: null,
+  };
+
+  const arr = loadSessions();
+  arr.unshift(session);
+  // Keep the newest 200 sessions to avoid unbounded storage growth.
+  if (arr.length > 200) arr.length = 200;
+  saveSessions(arr);
+
+  // Optional: in Pro, you may later replace this with a nicer modal.
+  const msg = isPro()
+    ? `Session saved.\n\nYou can assign this report to a student in Reports.`
+    : `Session saved.\n\nUpgrade in the app to unlock student assignment and downloadable report cards.`;
+  alert(msg);
+
+  // Stop the loop and reset for the next run.
   state.running = false;
+  state.mode = "idle";
+  state.startMs = 0;
+  state.lastMs = 0;
+  state.compMs = 0;
+  state.offMs = 0;
+  state.pauseStartMs = null;
+  state.pauseCount = 0;
+  state.currentReasons = [];
+  state.pauseEvents = [];
+  state.breathsDue = false;
+  state.breathCprMs = 0;
+  state.breathAdvMs = 0;
+
+  // UI reset
+  if (UI?.mainTimer) UI.mainTimer.textContent = "00:00";
+  if (UI?.cprOnTime) UI.cprOnTime.textContent = "00:00";
+  if (UI?.handsOffTime) UI.handsOffTime.textContent = "00:00";
+  if (UI?.ccfScoreText) UI.ccfScoreText.textContent = "0%";
+  if (UI?.statusTitle) UI.statusTitle.textContent = "READY";
+  if (UI?.statusSub) UI.statusSub.textContent = "Press CPR to start";
+  resetBreathBox();
 }
 
 /* ---------- BREATH / PULSE BARS ---------- */
