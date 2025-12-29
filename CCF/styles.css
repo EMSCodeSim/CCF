@@ -938,3 +938,88 @@ body{
   background: rgba(6,16,30,.92);
   border-color: rgba(255,255,255,.14);
 }
+
+/* ===========================
+   REPORTS – Pro / Upgrade UI
+   =========================== */
+.upgradeCard{
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(10, 28, 56, .55);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 16px 44px rgba(0,0,0,.24);
+}
+.upgradeTop{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+.upgradeTitle{
+  font-weight:1000;
+  letter-spacing:.2px;
+}
+.upgradeSub{
+  margin-top:6px;
+  opacity:.9;
+  font-size:13px;
+}
+.proPill{
+  align-self:flex-start;
+  padding:6px 10px;
+  border-radius:999px;
+  font-weight:1000;
+  font-size:12px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(57,217,138,.14);
+}
+.upgradeBtns{
+  display:flex;
+  gap:10px;
+  margin-top:12px;
+  flex-wrap:wrap;
+}
+.upgradeNote{
+  margin-top:10px;
+  opacity:.75;
+  font-size:12px;
+}
+
+.proBlock{
+  display:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  border-radius: 18px;
+  padding: 14px;
+}
+.historySub{
+  margin-top:4px;
+  opacity:.8;
+  font-size:12px;
+}
+.studentRow{
+  display:flex;
+  gap:10px;
+  align-items:flex-end;
+  margin-top:12px;
+}
+.studentRow select{
+  width:100%;
+}
+.pillBtn{
+  margin-top:8px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-weight:900;
+  font-size:12px;
+  cursor:pointer;
+}
+.pillBtn:hover{ filter: brightness(1.08); }
+.histActions{ display:flex; gap:8px; }
+
+@media (max-width: 520px){
+  .studentRow{ flex-direction:column; align-items:stretch; }
+  .histActions{ flex-wrap:wrap; }
+}
