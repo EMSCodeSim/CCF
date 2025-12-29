@@ -1,52 +1,165 @@
-const STORAGE_KEY = "ccf_sessions_v1";
+/* ===========================
+   CCF CPR TIMER – reports.js
+   - Free: simple CCF + basic pause summary (with ads)
+   - Pro: class roster + student assignment + downloadable report cards (no ads)
+   =========================== */
 
-function fmt(ms){
-  ms = Math.max(0, ms|0);
-  const s = Math.floor(ms/1000);
-  return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+const SESSIONS_KEY = "ccf_sessions_v1";
+const CLASS_KEY = "ccf.classSetup";
+const PRO_KEY = "ccf.proUnlocked";
+
+function isPro() {
+  return localStorage.getItem(PRO_KEY) === "1";
 }
 
-function loadSessions(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  }catch(_e){ return []; }
+// Debug helper: allow ?pro=1 or the Debug button to toggle Pro locally
+function applyDebugPro() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("pro") === "1") {
+    localStorage.setItem(PRO_KEY, "1");
+  }
 }
 
-function saveSessions(arr){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch(_e){}
+function fmt(ms) {
+  ms = Math.max(0, ms | 0);
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function downloadText(filename, text){
-  const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
+function safeParseJSON(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
+function loadSessions() {
+  const raw = localStorage.getItem(SESSIONS_KEY);
+  if (!raw) return [];
+  const arr = safeParseJSON(raw, []);
+  return Array.isArray(arr) ? arr : [];
+}
+
+function saveSessions(arr) {
+  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(arr)); } catch {}
+}
+
+function loadClassSetup() {
+  return safeParseJSON(localStorage.getItem(CLASS_KEY) || "", null);
+}
+
+function toLocal(ts) {
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString();
+  } catch {
+    return String(ts || "");
+  }
+}
+
+function badgeForCCF(ccf) {
+  if (ccf >= 90) return { text: "Excellent", cls: "good" };
+  if (ccf >= 80) return { text: "Meets Goal", cls: "good" };
+  if (ccf >= 70) return { text: "Needs Work", cls: "bad" };
+  return { text: "Low", cls: "bad" };
+}
+
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-function toLocal(ts){
-  try{
-    const d = new Date(ts);
-    return d.toLocaleString();
-  }catch(_e){ return ts; }
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(cell => {
+    const s = String(cell ?? "");
+    // Basic CSV escaping
+    if (s.includes(",") || s.includes("\n") || s.includes("\"") ) {
+      return `"${s.replaceAll("\"", '""')}"`;
+    }
+    return s;
+  }).join(",")).join("\n");
+  downloadText(filename, csv);
 }
 
-function badgeForCCF(ccf){
-  if (ccf >= 90) return { text:"Excellent", cls:"good" };
-  if (ccf >= 80) return { text:"Meets Goal", cls:"good" };
-  if (ccf >= 70) return { text:"Needs Work", cls:"bad" };
-  return { text:"Low", cls:"bad" };
+function summarizeReasons(pauses = []) {
+  // returns array of {reason, ms, count}
+  const map = new Map();
+  pauses.forEach(p => {
+    const reasons = (p.reasons && p.reasons.length)
+      ? p.reasons
+      : (p.reason ? [p.reason] : ["Unspecified"]);
+    const dur = p.ms ?? p.durMs ?? 0;
+    // If multiple reasons selected, we count each (useful for training feedback)
+    reasons.forEach(r => {
+      const key = String(r || "Unspecified");
+      const cur = map.get(key) || { reason: key, ms: 0, count: 0 };
+      cur.ms += dur;
+      cur.count += 1;
+      map.set(key, cur);
+    });
+  });
+  return [...map.values()].sort((a, b) => b.ms - a.ms);
 }
 
-function renderLatest(session){
+function sessionDisplayName(session) {
+  const s = session?.assignedTo?.student || session?.assignedTo || "";
+  return (typeof s === "string" && s.trim()) ? s.trim() : "Unassigned";
+}
+
+function makeReportText(session) {
+  const ccf = session.finalCCF ?? 0;
+  const totalMs = session.totalMs ?? ((session.compMs || 0) + (session.offMs || 0));
+  const pauses = session.pauses || [];
+  const reasons = summarizeReasons(pauses);
+
+  const lines = [];
+  lines.push("CCF CPR TIMER – REPORT CARD");
+  lines.push("--------------------------------");
+  lines.push(`Date/time: ${toLocal(session.endedAt)}`);
+  lines.push(`Student: ${sessionDisplayName(session)}`);
+
+  if (session.classContext?.name) lines.push(`Class: ${session.classContext.name}`);
+  if (session.classContext?.instructor) lines.push(`Instructor: ${session.classContext.instructor}`);
+  if (session.classContext?.location) lines.push(`Location/Notes: ${session.classContext.location}`);
+
+  lines.push("");
+  lines.push(`Final CCF: ${ccf}% (${badgeForCCF(ccf).text})`);
+  lines.push(`Total time: ${fmt(totalMs)}`);
+  lines.push(`CPR on: ${fmt(session.compMs || 0)}`);
+  lines.push(`Hands-off: ${fmt(session.offMs || 0)}`);
+  lines.push(`Pauses: ${session.pauseCount ?? pauses.length}`);
+  lines.push(`Longest pause: ${fmt(session.longestPauseMs || 0)}`);
+
+  lines.push("");
+  lines.push("Pause reasons (by total time):");
+  if (!reasons.length) {
+    lines.push("- None recorded");
+  } else {
+    reasons.slice(0, 10).forEach(r => {
+      lines.push(`- ${r.reason}: ${fmt(r.ms)} (${r.count}x)`);
+    });
+  }
+
+  lines.push("");
+  lines.push("Pause log (most recent first):");
+  if (!pauses.length) {
+    lines.push("- No pauses recorded");
+  } else {
+    pauses.slice().reverse().slice(0, 25).forEach(p => {
+      const label = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
+      lines.push(`- ${label} • ${fmt(p.ms ?? p.durMs ?? 0)}`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+function renderLatestFree(session) {
   const el = document.getElementById("latestCard");
-  if (!session){
+  if (!session) {
     el.innerHTML = `
       <div class="emptyCard">
         <div class="emptyTitle">No sessions yet</div>
@@ -57,7 +170,10 @@ function renderLatest(session){
     return;
   }
 
-  const b = badgeForCCF(session.finalCCF);
+  const b = badgeForCCF(session.finalCCF || 0);
+  const pauses = session.pauses || [];
+  const reasonSummary = summarizeReasons(pauses).slice(0, 4);
+
   el.innerHTML = `
     <div class="scoreTop">
       <div>
@@ -70,116 +186,261 @@ function renderLatest(session){
     <div class="scoreBigRow" style="margin-top:12px;">
       <div class="scoreBig">
         <div class="scoreLabel">Final CCF</div>
-        <div class="scoreValue">${session.finalCCF}%</div>
+        <div class="scoreValue">${session.finalCCF ?? 0}%</div>
       </div>
       <div style="text-align:right;">
         <div class="scoreLabel">Total</div>
-        <div style="font-weight:1000; font-size:18px; margin-top:6px;">${fmt(session.totalMs)}</div>
+        <div style="font-weight:1000; font-size:18px; margin-top:6px;">${fmt(session.totalMs ?? 0)}</div>
       </div>
     </div>
 
     <div class="scoreGrid">
       <div class="miniCard">
-        <div class="miniLabel">CPR On</div>
-        <div class="miniValue">${fmt(session.compMs)}</div>
-      </div>
-      <div class="miniCard">
         <div class="miniLabel">Hands-Off</div>
-        <div class="miniValue">${fmt(session.offMs)}</div>
+        <div class="miniValue">${fmt(session.offMs ?? 0)}</div>
       </div>
       <div class="miniCard">
         <div class="miniLabel">Longest Pause</div>
-        <div class="miniValue">${fmt(session.longestPauseMs)}</div>
+        <div class="miniValue">${fmt(session.longestPauseMs ?? 0)}</div>
       </div>
       <div class="miniCard">
         <div class="miniLabel">Pauses</div>
-        <div class="miniValue">${session.pauseCount}</div>
+        <div class="miniValue">${session.pauseCount ?? pauses.length}</div>
+      </div>
+      <div class="miniCard">
+        <div class="miniLabel">CPR On</div>
+        <div class="miniValue">${fmt(session.compMs ?? 0)}</div>
       </div>
     </div>
 
     <div class="breakdownBlock">
-      <div class="breakTitle">Pauses (most recent)</div>
+      <div class="breakTitle">Pause reasons (top)</div>
       <div class="breakList">
-        ${(session.pauses && session.pauses.length)
-          ? session.pauses.slice().reverse().slice(0,8).map(p=>`
+        ${reasonSummary.length
+          ? reasonSummary.map(r => `
               <div class="breakItem">
                 <div>
-                  <div class="strong">${p.reason}</div>
-                  <div class="muted">pause</div>
+                  <div class="strong">${r.reason}</div>
+                  <div class="muted">${r.count}x</div>
                 </div>
-                <div class="strong">${fmt(p.ms)}</div>
+                <div class="strong">${fmt(r.ms)}</div>
               </div>
             `).join("")
-          : `<div class="breakItem"><div class="strong">No pauses recorded</div><div class="muted">Nice work</div></div>`
+          : `<div class="breakItem"><div class="strong">No pause reasons recorded</div><div class="muted">(Pause prompt may be OFF)</div></div>`
         }
       </div>
     </div>
   `;
 }
 
-function renderHistory(list){
+function renderLatestPro(session) {
+  // Pro uses the same card, but adds student name at the top and a download button in the Pro tools row.
+  renderLatestFree(session);
+  const el = document.getElementById("latestCard");
+  if (!session) return;
+
+  const student = sessionDisplayName(session);
+  el.querySelector(".scoreTitle")?.insertAdjacentHTML(
+    "afterend",
+    `<div class="scoreSub" style="margin-top:4px;">Student: <strong>${student}</strong></div>`
+  );
+}
+
+function renderHistory(list, proEnabled) {
   const el = document.getElementById("historyList");
-  if (!list.length){
+  const historyBlock = document.querySelector(".historyBlock");
+  const exportBtn = document.getElementById("btnExport");
+
+  if (!proEnabled) {
+    // Free: hide history + export (keeps page simple)
+    if (historyBlock) historyBlock.style.display = "none";
+    if (exportBtn) exportBtn.style.display = "none";
+    return;
+  }
+
+  if (historyBlock) historyBlock.style.display = "block";
+  if (exportBtn) exportBtn.style.display = "inline-flex";
+
+  if (!list.length) {
     el.innerHTML = `<div class="historyEmpty">No saved sessions.</div>`;
     return;
   }
 
   el.innerHTML = list.map((s, idx) => {
-    const b = badgeForCCF(s.finalCCF);
+    const b = badgeForCCF(s.finalCCF || 0);
+    const student = sessionDisplayName(s);
     return `
       <div class="histRow">
         <div>
           <div class="histTopLine">
-            <div class="histCCF">${s.finalCCF}%</div>
+            <div class="histCCF">${s.finalCCF ?? 0}%</div>
             <div class="histBadge ${b.cls}">${b.text}</div>
           </div>
-          <div class="histMeta">${toLocal(s.endedAt)} • Total ${fmt(s.totalMs)} • Hands-Off ${fmt(s.offMs)}</div>
+          <div class="histMeta">${student} • ${toLocal(s.endedAt)} • Total ${fmt(s.totalMs ?? 0)} • Hands-Off ${fmt(s.offMs ?? 0)}</div>
+          <div class="histActions">
+            <button class="pillBtn" data-act="assign" data-idx="${idx}">Assign</button>
+            <button class="pillBtn" data-act="download" data-idx="${idx}">Download</button>
+          </div>
         </div>
-        <button class="histBtn" data-idx="${idx}" aria-label="Delete">🗑</button>
+        <button class="histBtn" data-act="delete" data-idx="${idx}" aria-label="Delete">🗑</button>
       </div>
     `;
   }).join("");
 
-  el.querySelectorAll(".histBtn").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const i = Number(btn.dataset.idx);
-      const arr = loadSessions();
-      arr.splice(i,1);
-      saveSessions(arr);
-      boot();
+  el.querySelectorAll("button[data-act]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const act = btn.dataset.act;
+      const idx = Number(btn.dataset.idx);
+      if (!Number.isFinite(idx)) return;
+      if (act === "delete") {
+        const arr = loadSessions();
+        arr.splice(idx, 1);
+        saveSessions(arr);
+        boot();
+        return;
+      }
+      if (act === "download") {
+        const s = loadSessions()[idx];
+        if (!s) return;
+        const student = sessionDisplayName(s).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
+        const stamp = new Date(s.endedAt || Date.now()).toISOString().slice(0, 10);
+        downloadText(`ccf_report_${student}_${stamp}.txt`, makeReportText(s));
+        return;
+      }
+      if (act === "assign") {
+        const arr = loadSessions();
+        const s = arr[idx];
+        if (!s) return;
+        const cls = loadClassSetup();
+        const roster = (cls?.students || []).filter(Boolean);
+        const msg = roster.length
+          ? `Assign to which student?\n\nRoster:\n${roster.slice(0, 25).join("\n")}`
+          : "Enter student name:";
+        const name = prompt(msg, (s.assignedTo?.student || ""));
+        if (!name) return;
+        s.assignedTo = { student: name.trim(), assignedAt: Date.now() };
+        arr[idx] = s;
+        saveSessions(arr);
+        boot();
+      }
     });
   });
 }
 
-function exportCSV(){
+function exportCSV() {
   const arr = loadSessions();
-  if (!arr.length){
+  if (!arr.length) {
     alert("No sessions to export.");
     return;
   }
-  const header = ["endedAt","finalCCF","totalMs","compMs","offMs","pauseCount","longestPauseMs"].join(",");
-  const rows = arr.map(s => [
-    s.endedAt,
-    s.finalCCF,
-    s.totalMs,
-    s.compMs,
-    s.offMs,
-    s.pauseCount,
-    s.longestPauseMs
-  ].join(","));
-  const csv = [header, ...rows].join("\n");
-  downloadText("ccf_sessions.csv", csv);
+  const rows = [
+    ["endedAt", "student", "finalCCF", "totalMs", "compMs", "offMs", "pauseCount", "longestPauseMs"],
+    ...arr.map(s => [
+      s.endedAt,
+      sessionDisplayName(s),
+      s.finalCCF ?? 0,
+      s.totalMs ?? 0,
+      s.compMs ?? 0,
+      s.offMs ?? 0,
+      s.pauseCount ?? 0,
+      s.longestPauseMs ?? 0,
+    ])
+  ];
+  downloadCSV("ccf_sessions_pro.csv", rows);
 }
 
-function boot(){
+function syncProUI(proEnabled) {
+  const upgrade = document.getElementById("upgradeCard");
+  const adZone = document.getElementById("adZone");
+  const proBlock = document.getElementById("proBlock");
+  const debugBtn = document.getElementById("btnDebugPro");
+
+  if (upgrade) upgrade.style.display = proEnabled ? "none" : "block";
+  if (adZone) adZone.style.display = proEnabled ? "none" : "block";
+  if (proBlock) proBlock.style.display = proEnabled ? "block" : "none";
+
+  if (debugBtn) {
+    debugBtn.style.display = "inline-flex";
+    debugBtn.addEventListener("click", () => {
+      const next = !isPro();
+      localStorage.setItem(PRO_KEY, next ? "1" : "0");
+      boot();
+    });
+  }
+
+  const upgradeLink = document.getElementById("btnUpgrade");
+  if (upgradeLink) {
+    upgradeLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      alert("Unlock Pro in the Android/iOS app using the one-time in-app purchase. (Web version stays free.)");
+    });
+  }
+}
+
+function syncClassUI(proEnabled) {
+  if (!proEnabled) return;
+  const sel = document.getElementById("studentSelect");
+  const meta = document.getElementById("classMeta");
+  if (!sel || !meta) return;
+
+  const cls = loadClassSetup();
+  const name = cls?.name || "";
+  const instructor = cls?.instructor || "";
+  const count = (cls?.students || []).filter(Boolean).length;
+  meta.textContent = name
+    ? `${name}${instructor ? ` • ${instructor}` : ""} • ${count} students`
+    : "No class loaded (Timer → Settings → Class Setup)";
+
+  const roster = (cls?.students || []).map(s => String(s || "").trim()).filter(Boolean);
+  sel.innerHTML = ["Unassigned", ...roster].map(s => `<option value="${s}">${s}</option>`).join("");
+}
+
+function wireProActions(proEnabled) {
+  const btnAssign = document.getElementById("btnAssignLatest");
+  const btnDownload = document.getElementById("btnDownloadLatest");
+  if (!proEnabled) return;
+
+  btnAssign?.addEventListener("click", () => {
+    const arr = loadSessions();
+    const s = arr[0];
+    if (!s) return alert("No sessions to assign yet.");
+    const sel = document.getElementById("studentSelect");
+    const value = (sel?.value || "Unassigned").trim();
+    s.assignedTo = (value && value !== "Unassigned")
+      ? { student: value, assignedAt: Date.now() }
+      : null;
+    arr[0] = s;
+    saveSessions(arr);
+    boot();
+  });
+
+  btnDownload?.addEventListener("click", () => {
+    const s = loadSessions()[0];
+    if (!s) return alert("No sessions to download yet.");
+    const student = sessionDisplayName(s).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
+    const stamp = new Date(s.endedAt || Date.now()).toISOString().slice(0, 10);
+    downloadText(`ccf_report_${student}_${stamp}.txt`, makeReportText(s));
+  });
+}
+
+function boot() {
+  applyDebugPro();
+  const proEnabled = isPro();
+  syncProUI(proEnabled);
+
   const sessions = loadSessions();
   document.getElementById("reportCount").textContent = `${sessions.length} saved`;
-  renderLatest(sessions[0]);
-  renderHistory(sessions);
+
+  if (proEnabled) renderLatestPro(sessions[0]);
+  else renderLatestFree(sessions[0]);
+
+  syncClassUI(proEnabled);
+  wireProActions(proEnabled);
+  renderHistory(sessions, proEnabled);
 }
 
-document.getElementById("btnClear").addEventListener("click", ()=>{
-  if (confirm("Clear all saved sessions?")){
+document.getElementById("btnClear").addEventListener("click", () => {
+  if (confirm("Clear all saved sessions?")) {
     saveSessions([]);
     boot();
   }
