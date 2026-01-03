@@ -1,0 +1,1316 @@
+/* ===========================
+   CCF CPR TIMER – styles.css
+   FIXED: matches current HTML class names
+   - Restores visible Breath & Pulse bars (.barTrack/.barFill)
+   - Restores CPR/PAUSE button styling (.actionBtn.primary/.actionBtn.warn)
+   - Large pause reason modal + big RESUME CPR button
+   - Breath bar box acts as Advanced Airway toggle
+   =========================== */
+
+:root{
+  --bg0:#0b1220;
+  --bg1:#0e1a2e;
+
+  --card:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.12);
+
+  --text:rgba(255,255,255,.94);
+  --muted:rgba(255,255,255,.74);
+
+  --green1:#4ec261;
+  --green2:#269b42;
+  --yellow1:#ffd66b;
+  --yellow2:#ffb703;
+  --blue1:#52a6ff;
+  --blue2:#1d77ff;
+  --danger1:#ff6b6b;
+  --danger2:#ff3b3b;
+
+  --shadow: 0 18px 44px rgba(0,0,0,.34);
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(1100px 800px at 20% -10%, rgba(82,166,255,.22), transparent 55%),
+    radial-gradient(900px 700px at 90% 10%, rgba(78,194,97,.18), transparent 55%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
+}
+
+/* ---------- Header ---------- */
+.topHeader{
+  position: sticky;
+  top:0;
+  z-index: 20;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 12px 14px;
+  background: rgba(10,16,28,.84);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.brand{
+  font-weight: 950;
+  letter-spacing:.2px;
+}
+
+.topRight{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+.topBtn{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 900;
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 88px;
+}
+
+.topBtn.danger{
+  background: linear-gradient(180deg, rgba(255,107,107,.26), rgba(255,59,59,.18));
+  border-color: rgba(255,107,107,.45);
+}
+
+/* ---------- Layout ---------- */
+.wrap{
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 14px;
+  padding-bottom: 26px;
+}
+
+.statusCard,
+.timerCard{
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+
+.statusCard{ margin-top: 10px; }
+.timerCard{ margin-top: 12px; }
+
+.statusTop{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap: 10px;
+}
+
+.statusTitle{
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.statusRight{
+  font-weight: 950;
+  opacity: .92;
+}
+
+.statusSub{
+  margin-top: 6px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.ccfLine{
+  margin-top: 10px;
+  font-weight: 950;
+  opacity: .92;
+}
+
+.bigTime{
+  text-align:center;
+  font-size: 64px;
+  font-weight: 1000;
+  letter-spacing: .8px;
+  margin: 6px 0 10px;
+}
+
+/* ---------- Breath & Pulse visual bars ---------- */
+.barBlock{
+  margin-top: 12px;
+  padding: 10px 10px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+}
+
+.barMeta{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-weight: 900;
+  color: rgba(255,255,255,.86);
+  margin-bottom: 8px;
+}
+
+.barTrack{
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
+  overflow:hidden;
+}
+
+.barFill{
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  box-shadow: 0 10px 22px rgba(0,0,0,.22);
+  transition: width .08s linear;
+}
+
+#breathBarFill{
+  background: linear-gradient(90deg, rgba(78,194,97,1), rgba(38,155,66,1));
+}
+#pulseBarFill{
+  background: linear-gradient(90deg, rgba(82,166,255,1), rgba(29,119,255,1));
+}
+
+/* Breath bar box acts as Advanced Airway toggle */
+#breathBarBox{ cursor:pointer; }
+#breathBarBox:active{ transform: translateY(1px); }
+#breathBarBox.airwayOn{
+  outline: 2px solid rgba(78,194,97,.60);
+}
+#breathBarBox:focus{
+  outline: 2px solid rgba(82,166,255,.65);
+}
+
+/* ---------- CPR / PAUSE buttons ---------- */
+.actionsRow{
+  margin-top: 12px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.actionBtn{
+  appearance:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 22px;
+  padding: 16px 14px;
+  text-align:center;
+  box-shadow: var(--shadow);
+  min-height: 112px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap: 8px;
+}
+
+.actionBtn .label{
+  font-weight: 1000;
+  font-size: 30px;
+  letter-spacing:.4px;
+  line-height: 1.0;
+}
+
+.actionBtn .sub{
+  font-weight: 900;
+  color: rgba(255,255,255,.85);
+  font-size: 18px;
+}
+
+.actionBtn .mini{
+  font-weight: 950;
+  opacity: .92;
+}
+
+.actionBtn.primary{
+  background:
+    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.34), transparent 55%),
+    linear-gradient(180deg, rgba(78,194,97,.92), rgba(38,155,66,.92));
+  border-color: rgba(78,194,97,.30);
+}
+
+.actionBtn.warn{
+  background:
+    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.34), transparent 55%),
+    linear-gradient(180deg, rgba(255,214,107,.92), rgba(255,183,3,.92));
+  border-color: rgba(255,214,107,.30);
+  color: rgba(0,0,0,.88);
+}
+
+.actionBtn.warn .sub,
+.actionBtn.warn .mini{
+  color: rgba(0,0,0,.78);
+}
+
+/* ---------- Metronome / Advanced airway rows ---------- */
+.metRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.metToggle{
+  flex: 1;
+  appearance:none;
+  border-radius: 18px;
+  padding: 14px 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  font-weight: 950;
+  text-align:left;
+  box-shadow: 0 16px 34px rgba(0,0,0,.22);
+}
+
+.metToggle.advAirway.on{
+  outline: 2px solid rgba(78,194,97,.60);
+}
+
+.metBtn{
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  font-weight: 1000;
+  font-size: 26px;
+  box-shadow: 0 16px 34px rgba(0,0,0,.18);
+}
+
+.metValue{
+  min-width: 110px;
+  text-align:center;
+  font-weight: 1000;
+  font-size: 26px;
+  color: rgba(255,255,255,.92);
+}
+
+.metHint{
+  flex: 1;
+  text-align:right;
+  opacity: .80;
+  font-weight: 850;
+  font-size: 13px;
+}
+
+/* ---------- Pause reasons modal ---------- */
+.overlay{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding: 16px;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(6px);
+  z-index: 60;
+}
+
+.overlay.show{ display:flex; }
+
+.modal{
+  width: min(520px, 100%);
+  border-radius: 22px;
+  background: rgba(14,22,38,.94);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
+  overflow:hidden;
+}
+
+.modalBody{
+  padding: 16px 16px 18px;
+}
+
+.resumeBig{
+  width: 100%;
+  border-radius: 18px;
+  padding: 18px 16px;
+  font-weight: 1000;
+  font-size: 30px;
+  letter-spacing: .6px;
+  background: linear-gradient(180deg, rgba(78,194,97,1), rgba(38,155,66,1));
+  border: 1px solid rgba(255,255,255,.18);
+  box-shadow: 0 14px 30px rgba(0,0,0,.28);
+  color: white;
+}
+
+.pauseTitle{
+  margin-top: 14px;
+  font-weight: 1000;
+  font-size: 22px;
+  text-align:center;
+}
+
+.pauseHint{
+  margin-top: 6px;
+  margin-bottom: 12px;
+  text-align:center;
+  opacity: .85;
+  font-weight: 850;
+}
+
+.reasonGrid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 420px){
+  .reasonGrid{ grid-template-columns: 1fr 1fr; }
+}
+
+.reasonChip{
+  width: 100%;
+  border-radius: 16px;
+  padding: 14px 14px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  font-weight: 950;
+  color: rgba(255,255,255,.95);
+  text-align:left;
+  box-shadow: 0 10px 22px rgba(0,0,0,.18);
+}
+
+.reasonChip[aria-pressed="true"]{
+  background: rgba(78,194,97,.24);
+  border-color: rgba(78,194,97,.55);
+}
+
+.pauseFooterRow{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.secondaryBtn{
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.14);
+  color: rgba(255,255,255,.92);
+  font-weight: 950;
+}
+
+.pauseFooterHint{
+  opacity: .75;
+  font-weight: 800;
+}
+
+@media (max-width: 360px){
+  .bigTime{ font-size: 56px; }
+  .actionBtn{ min-height: 108px; }
+  .resumeBig{ font-size: 26px; }
+}
+
+
+
+/* Header right group */
+.headerRight{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+/* Settings modal layout */
+.settingsModal .modalHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+.modalTitle{
+  font-weight: 1000;
+  font-size: 18px;
+}
+
+.iconBtn{
+  appearance:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 14px;
+  width: 44px;
+  height: 44px;
+  font-weight: 1000;
+  font-size: 18px;
+}
+
+.settingsNav{
+  display:flex;
+  gap: 8px;
+  padding: 10px 16px 0;
+}
+
+.segBtn{
+  flex: 1;
+  appearance:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.90);
+  border-radius: 14px;
+  padding: 10px 10px;
+  font-weight: 950;
+}
+
+.segBtn.active{
+  background: rgba(82,166,255,.18);
+  border-color: rgba(82,166,255,.40);
+}
+
+.settingsBody{
+  padding-top: 12px;
+}
+
+.settingsSection{
+  display:none;
+}
+.settingsSection.show{
+  display:block;
+}
+
+.sectionCard{
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.22);
+}
+
+.sectionH{
+  font-weight: 1000;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.sectionP{
+  color: rgba(255,255,255,.86);
+  font-weight: 800;
+  line-height: 1.35;
+  margin-top: 8px;
+}
+
+.sectionP.muted{ color: rgba(255,255,255,.70); }
+
+.row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.smallBtn{
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  font-weight: 1000;
+  font-size: 26px;
+  box-shadow: 0 16px 34px rgba(0,0,0,.18);
+}
+
+.bpmBig{
+  flex: 1;
+  text-align:center;
+  font-weight: 1100;
+  font-size: 24px;
+}
+
+.rangeRow{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rangeRow input[type="range"]{
+  flex: 1;
+}
+
+.field{
+  display:block;
+  margin-top: 12px;
+}
+
+.fieldLabel{
+  display:block;
+  font-weight: 950;
+  margin-bottom: 6px;
+  color: rgba(255,255,255,.82);
+}
+
+.field input, .field textarea{
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  padding: 12px 12px;
+  font-weight: 850;
+  outline: none;
+}
+
+.primaryBtn{
+  flex: 1;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-weight: 1000;
+  border: 1px solid rgba(78,194,97,.30);
+  background: linear-gradient(180deg, rgba(78,194,97,.92), rgba(38,155,66,.92));
+  color: white;
+}
+
+.muted{ color: rgba(255,255,255,.72); }
+
+
+
+/* ===========================
+   UI REFRESH OVERRIDES
+   Brighter, friendlier + restores top button style
+   =========================== */
+
+:root{
+  --bg0:#071423;
+  --bg1:#0a2240;
+  --card:rgba(255,255,255,.10);
+  --stroke:rgba(255,255,255,.16);
+  --shadow: 0 18px 44px rgba(0,0,0,.30);
+}
+
+/* Make header buttons a bit brighter */
+.topBtn{
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.18);
+}
+.topBtn#btnSettings{
+  min-width: 48px;
+  padding: 10px 12px;
+}
+
+/* Restore + enhance top control buttons */
+.topControls{
+  margin-top: 12px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ctlBtn{
+  border-radius: 22px;
+  padding: 14px 14px;
+  min-height: 82px;
+  background:
+    radial-gradient(700px 200px at 50% -20%, rgba(255,255,255,.35), transparent 55%),
+    rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: var(--shadow);
+  transform: translateZ(0);
+}
+
+.ctlBtn .ctlLabel{
+  font-size: 18px;
+  font-weight: 1000;
+}
+
+.ctlBtn .ctlSub{
+  font-size: 14px;
+  font-weight: 950;
+  opacity: .9;
+}
+
+.ctlBtn.score{
+  background:
+    radial-gradient(700px 200px at 50% -20%, rgba(255,255,255,.35), transparent 55%),
+    linear-gradient(180deg, rgba(82,166,255,.22), rgba(29,119,255,.12));
+  border-color: rgba(82,166,255,.34);
+}
+
+.ctlBtn .ctlScore{
+  font-size: 30px;
+  font-weight: 1100;
+  letter-spacing: .6px;
+}
+
+.ctlBtn.danger{
+  background:
+    radial-gradient(700px 200px at 50% -20%, rgba(255,255,255,.30), transparent 55%),
+    linear-gradient(180deg, rgba(255,107,107,.28), rgba(255,59,59,.18));
+  border-color: rgba(255,107,107,.48);
+}
+
+@media (min-width: 520px){
+  .topControls{ grid-template-columns: 1fr 1fr 1fr 1fr; }
+}
+
+/* Make cards feel more inviting */
+.statusCard, .timerCard, .sectionCard{
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.14);
+}
+
+/* Switch / toggle row */
+.divider{
+  height: 1px;
+  background: rgba(255,255,255,.12);
+  margin: 14px 0;
+}
+
+.toggleRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 14px;
+  margin-top: 10px;
+  padding: 12px 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+}
+
+.toggleText{
+  flex: 1;
+}
+
+.toggleTitle{
+  font-weight: 1000;
+  font-size: 16px;
+}
+
+.toggleSub{
+  margin-top: 4px;
+  font-weight: 850;
+  color: rgba(255,255,255,.74);
+  line-height: 1.25;
+}
+
+.switch{
+  position: relative;
+  display: inline-block;
+  width: 56px;
+  height: 34px;
+  flex: 0 0 auto;
+}
+.switch input{
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider{
+  position:absolute;
+  cursor:pointer;
+  inset:0;
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.18);
+  transition: .2s;
+  border-radius: 999px;
+  box-shadow: 0 12px 26px rgba(0,0,0,.22);
+}
+.slider:before{
+  position:absolute;
+  content:"";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  top: 3px;
+  background: rgba(255,255,255,.92);
+  transition: .2s;
+  border-radius: 50%;
+}
+.switch input:checked + .slider{
+  background: rgba(78,194,97,.38);
+  border-color: rgba(78,194,97,.55);
+}
+.switch input:checked + .slider:before{
+  transform: translateX(22px);
+}
+
+
+
+/* ===========================
+   BRIGHTER FRIENDLY THEME
+   =========================== */
+body{
+  background:
+    radial-gradient(900px 650px at 15% -10%, rgba(120,210,255,.38), transparent 55%),
+    radial-gradient(900px 650px at 95% 5%, rgba(120,255,190,.28), transparent 55%),
+    radial-gradient(700px 550px at 40% 110%, rgba(255,230,160,.18), transparent 60%),
+    linear-gradient(180deg, #072244, #0b335f 55%, #092545);
+}
+
+/* =====================================================================
+   REPORTS PAGE (Professional layout)
+   Targets: reports.html + reports.js generated markup
+   ===================================================================== */
+
+/* Keep reports content centered and readable on mobile */
+main.app{
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 14px;
+  padding-bottom: 28px;
+}
+
+/* Reports top bar */
+.topbar{
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(8,20,34,.86);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+.topbar .brand{ display:flex; align-items:center; gap:10px; }
+.topbar .title{ font-weight: 1000; font-size: 18px; letter-spacing:.2px; }
+.modePill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  font-weight: 950;
+  font-size: 12px;
+  color: rgba(255,255,255,.90);
+}
+
+.topActions{ display:flex; align-items:center; gap:10px; }
+
+/* Reuse your existing button look, tuned for reports */
+.endBtn{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.94);
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-weight: 950;
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.endBtn.ghost{ background: rgba(255,255,255,.04); }
+.endBtn:active{ transform: translateY(1px); }
+
+/* Header status strip */
+.stateBar{
+  margin-top: 12px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}
+.stateLabel{ font-weight: 1000; letter-spacing:.18px; font-size: 12px; opacity:.9; }
+.stateSub{ margin-top: 2px; font-weight: 900; color: rgba(255,255,255,.76); }
+.stateMini{ font-weight: 1000; opacity:.92; }
+
+/* Cards */
+.upgradeCard,
+.reportCard,
+.proBlock,
+.historyBlock{
+  margin-top: 12px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+
+/* Upgrade card */
+.upgradeTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+.upgradeTitle{ font-weight: 1100; font-size: 16px; }
+.upgradeSub{ margin-top: 4px; color: rgba(255,255,255,.78); font-weight: 850; line-height: 1.3; }
+.proPill{
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255,214,107,.18);
+  border: 1px solid rgba(255,214,107,.36);
+  font-weight: 1100;
+  font-size: 12px;
+  color: rgba(255,214,107,.96);
+}
+.upgradeBtns{ display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.upgradeBtns .primaryBtn,
+.upgradeBtns .secondaryBtn{ flex: 1 1 180px; }
+.upgradeNote{ margin-top: 10px; color: rgba(255,255,255,.72); font-weight: 850; font-size: 12px; }
+
+/* Ad zone */
+.adZone{ margin-top: 12px; }
+.adLabel{ font-weight: 950; opacity:.85; margin-bottom: 8px; }
+.adBox{
+  background: rgba(0,0,0,.18);
+  border: 1px dashed rgba(255,255,255,.20);
+  border-radius: 18px;
+  padding: 16px;
+  text-align:center;
+  color: rgba(255,255,255,.75);
+  font-weight: 850;
+}
+
+/* Latest report summary */
+.scoreTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+.scoreTitle{ font-weight: 1100; font-size: 18px; }
+.scoreSub{ margin-top: 4px; color: rgba(255,255,255,.76); font-weight: 850; }
+
+.scoreBadge{
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 1100;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+}
+.scoreBadge.good{ border-color: rgba(78,194,97,.40); background: rgba(78,194,97,.18); }
+.scoreBadge.bad{ border-color: rgba(255,107,107,.44); background: rgba(255,107,107,.18); }
+
+.scoreBigRow{ display:flex; align-items:flex-end; justify-content:space-between; gap: 10px; }
+.scoreLabel{ color: rgba(255,255,255,.72); font-weight: 900; font-size: 12px; }
+.scoreValue{ font-size: 44px; line-height: 1.0; font-weight: 1200; letter-spacing: .4px; margin-top: 4px; }
+
+.scoreGrid{
+  margin-top: 12px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.miniCard{
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  padding: 12px;
+}
+.miniLabel{ color: rgba(255,255,255,.72); font-weight: 900; font-size: 12px; }
+.miniValue{ margin-top: 6px; font-weight: 1100; font-size: 18px; }
+
+.reasonsBlock{ margin-top: 12px; }
+.reasonsTitle{ font-weight: 1100; font-size: 14px; margin-bottom: 8px; }
+.reasonsList{ display:flex; flex-direction:column; gap: 8px; }
+.reasonLine{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+}
+.reasonName{ font-weight: 1000; }
+.reasonMeta{ color: rgba(255,255,255,.78); font-weight: 900; font-size: 12px; }
+
+/* Pro block */
+.historyTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+.historyTitle{ font-weight: 1100; font-size: 16px; }
+.historySub{ color: rgba(255,255,255,.76); font-weight: 850; margin-top: 4px; }
+.historyBtns{ display:flex; gap: 10px; flex-wrap: wrap; }
+
+.studentRow{
+  margin-top: 12px;
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.studentRow select{
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  padding: 12px 12px;
+  font-weight: 900;
+  outline: none;
+}
+@media (min-width: 520px){
+  .studentRow{ grid-template-columns: 1fr auto auto; align-items:end; }
+}
+
+/* History list */
+.historyList{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
+.histItem{
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  padding: 12px;
+}
+.histTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+.histName{ font-weight: 1100; }
+.histMeta{ color: rgba(255,255,255,.76); font-weight: 850; margin-top: 4px; }
+.histActions{ margin-top: 10px; display:flex; gap: 8px; flex-wrap: wrap; }
+.histActions .endBtn{ padding: 9px 10px; border-radius: 12px; }
+
+/* Empty state */
+.emptyCard{ text-align:center; padding: 18px 14px; }
+.emptyTitle{ font-weight: 1200; font-size: 18px; }
+.emptySub{ margin-top: 6px; color: rgba(255,255,255,.76); font-weight: 850; }
+.newBtn{
+  margin-top: 12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-weight: 1100;
+  border: 1px solid rgba(82,166,255,.34);
+  background: rgba(82,166,255,.18);
+  color: rgba(255,255,255,.95);
+}
+
+/* Slightly brighter cards */
+.statusCard, .timerCard, .sectionCard, .ctlBtn{
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.18);
+}
+
+/* Make bar blocks pop */
+.barBlock{
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.14);
+}
+
+/* Friendlier button glow */
+.actionBtn.primary{
+  box-shadow: 0 18px 44px rgba(0,0,0,.26), 0 0 0 1px rgba(78,194,97,.22) inset;
+}
+.actionBtn.warn{
+  box-shadow: 0 18px 44px rgba(0,0,0,.26), 0 0 0 1px rgba(255,183,3,.18) inset;
+}
+
+
+/* ======================================================
+   DARK BLUE "POP" THEME (High contrast, vibrant accents)
+   - Dark navy background
+   - Bright white text
+   - Punchy bars
+   - True red END button
+   ====================================================== */
+
+:root{
+  /* Backgrounds */
+  --bg0:#06182E;           /* deep navy */
+  --bg1:#082C4A;           /* navy teal */
+  --panel:#0C3557;         /* card tint */
+  --panel2:#0E3C62;        /* slightly brighter */
+  --stroke:rgba(255,255,255,.18);
+
+  /* Text */
+  --text:rgba(255,255,255,.96);
+  --muted:rgba(255,255,255,.78);
+  --muted2:rgba(255,255,255,.62);
+
+  /* Accents */
+  --primary:#39D98A;       /* vivid green */
+  --primary2:#20B972;
+  --caution:#FFC857;       /* amber */
+  --caution2:#F3B73F;
+  --danger:#FF3B4D;        /* true red */
+  --danger2:#D91F34;
+  --info:#4DA3FF;          /* vivid blue */
+  --info2:#1D77FF;
+
+  /* Shadows / glows */
+  --shadow: 0 18px 44px rgba(0,0,0,.38);
+  --glow-primary: 0 0 0 2px rgba(57,217,138,.28), 0 18px 44px rgba(0,0,0,.28);
+  --glow-danger:  0 0 0 2px rgba(255,59,77,.28), 0 18px 44px rgba(0,0,0,.28);
+  --glow-info:    0 0 0 2px rgba(77,163,255,.26), 0 18px 44px rgba(0,0,0,.28);
+}
+
+body{
+  background:
+    radial-gradient(1000px 700px at 15% -10%, rgba(77,163,255,.26), transparent 55%),
+    radial-gradient(1000px 700px at 95% 10%, rgba(57,217,138,.16), transparent 55%),
+    radial-gradient(900px 650px at 50% 115%, rgba(255,200,87,.10), transparent 60%),
+    linear-gradient(180deg, var(--bg0), var(--bg1) 55%, var(--bg0));
+  color: var(--text);
+}
+
+/* Header */
+.topHeader{
+  background: rgba(6,16,30,.72);
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+.brand{ color: rgba(255,255,255,.95); }
+
+/* Top right buttons */
+.topBtn{
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.18);
+  color: rgba(255,255,255,.92);
+}
+.topBtn:hover{ filter: brightness(1.05); }
+
+/* Surfaces */
+.statusCard, .timerCard, .sectionCard, .ctlBtn, .actionBtn{
+  background: linear-gradient(180deg, rgba(14,60,98,.55), rgba(10,42,72,.45));
+  border-color: rgba(255,255,255,.16);
+  box-shadow: var(--shadow);
+}
+
+/* Top control buttons */
+.ctlBtn{
+  background:
+    radial-gradient(700px 220px at 50% -25%, rgba(255,255,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(12,53,87,.70), rgba(8,33,56,.55));
+  border-color: rgba(255,255,255,.14);
+}
+.ctlBtn .ctlLabel{ color: rgba(255,255,255,.95); }
+.ctlBtn .ctlSub{ color: rgba(255,255,255,.78); }
+
+/* Live CCF */
+.ctlBtn.score{
+  border-color: rgba(77,163,255,.40);
+  background:
+    radial-gradient(700px 220px at 50% -25%, rgba(255,255,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(77,163,255,.20), rgba(10,42,72,.55));
+}
+.ctlBtn.score .ctlScore{ color: rgba(255,255,255,.96); text-shadow: 0 10px 26px rgba(0,0,0,.22); }
+
+/* END button (true red + white text) */
+.ctlBtn.danger{
+  border-color: rgba(255,59,77,.55);
+  background:
+    radial-gradient(700px 220px at 50% -25%, rgba(255,255,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(255,59,77,.42), rgba(217,31,52,.22));
+}
+.ctlBtn.danger .ctlLabel{ color: #fff; }
+.ctlBtn.danger:active{ transform: translateY(1px); }
+
+/* ON state glow */
+.ctlBtn.isOn{
+  box-shadow: var(--glow-primary);
+  border-color: rgba(57,217,138,.60);
+  background:
+    radial-gradient(700px 220px at 50% -25%, rgba(255,255,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(57,217,138,.20), rgba(10,42,72,.55));
+}
+
+/* Bars: darker tracks + vivid fills */
+.barBlock{
+  background: linear-gradient(180deg, rgba(12,53,87,.50), rgba(8,33,56,.35));
+  border-color: rgba(255,255,255,.14);
+}
+.barMeta{ color: rgba(255,255,255,.86); }
+
+.barTrack{
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.12);
+}
+#breathBarFill{
+  background: linear-gradient(90deg, rgba(57,217,138,1), rgba(32,185,114,1));
+  box-shadow: 0 10px 26px rgba(57,217,138,.22);
+}
+#pulseBarFill{
+  background: linear-gradient(90deg, rgba(77,163,255,1), rgba(29,119,255,1));
+  box-shadow: 0 10px 26px rgba(77,163,255,.22);
+}
+
+/* Breath bar highlight when Advanced Airway ON */
+#breathBarBox.airwayOn{
+  box-shadow: var(--glow-primary);
+  border-color: rgba(57,217,138,.55);
+}
+
+/* CPR / PAUSE big buttons: more contrast */
+.actionBtn.primary{
+  border-color: rgba(57,217,138,.42);
+  background:
+    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.22), transparent 55%),
+    linear-gradient(180deg, rgba(57,217,138,.92), rgba(32,185,114,.90));
+}
+.actionBtn.warn{
+  border-color: rgba(255,200,87,.50);
+  background:
+    radial-gradient(700px 180px at 50% -30%, rgba(255,255,255,.22), transparent 55%),
+    linear-gradient(180deg, rgba(255,200,87,.92), rgba(243,183,63,.90));
+}
+
+/* Make labels pop */
+.actionBtn .label{ text-shadow: 0 10px 26px rgba(0,0,0,.22); }
+.bigTime{ text-shadow: 0 16px 44px rgba(0,0,0,.26); }
+
+/* Settings modal: slightly brighter */
+.modal{
+  background: rgba(6,16,30,.92);
+  border-color: rgba(255,255,255,.14);
+}
+
+/* ===========================
+   REPORTS – Pro / Upgrade UI
+   =========================== */
+.upgradeCard{
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(10, 28, 56, .55);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 16px 44px rgba(0,0,0,.24);
+}
+.upgradeTop{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+.upgradeTitle{
+  font-weight:1000;
+  letter-spacing:.2px;
+}
+.upgradeSub{
+  margin-top:6px;
+  opacity:.9;
+  font-size:13px;
+}
+.proPill{
+  align-self:flex-start;
+  padding:6px 10px;
+  border-radius:999px;
+  font-weight:1000;
+  font-size:12px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(57,217,138,.14);
+}
+.upgradeBtns{
+  display:flex;
+  gap:10px;
+  margin-top:12px;
+  flex-wrap:wrap;
+}
+.upgradeNote{
+  margin-top:10px;
+  opacity:.75;
+  font-size:12px;
+}
+
+.proBlock{
+  display:none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  border-radius: 18px;
+  padding: 14px;
+}
+.historySub{
+  margin-top:4px;
+  opacity:.8;
+  font-size:12px;
+}
+.studentRow{
+  display:flex;
+  gap:10px;
+  align-items:flex-end;
+  margin-top:12px;
+}
+.studentRow select{
+  width:100%;
+}
+.pillBtn{
+  margin-top:8px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-weight:900;
+  font-size:12px;
+  cursor:pointer;
+}
+.pillBtn:hover{ filter: brightness(1.08); }
+.histActions{ display:flex; gap:8px; }
+
+@media (max-width: 520px){
+  .studentRow{ flex-direction:column; align-items:stretch; }
+  .histActions{ flex-wrap:wrap; }
+}
+
+
+/* ===========================
+   Premium Reports: Class Dashboard
+   =========================== */
+.classDash{ margin-top: 14px; }
+.dashGrid{ display:grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 900px){
+  .dashGrid{ grid-template-columns: 1fr 1fr; }
+}
+.dashCard{
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+.dashTitle{ font-weight: 1000; letter-spacing: .2px; }
+.dashSub{ margin-top: 4px; color: rgba(255,255,255,.75); font-weight: 750; }
+.dashBig{ margin-top: 10px; font-size: 34px; font-weight: 1200; letter-spacing: .5px; }
+.dashKpiRow{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.dashKpi{ background: rgba(0,0,0,.18); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 10px; }
+.kLabel{ font-size: 12px; color: rgba(255,255,255,.7); font-weight: 850; }
+.kValue{ margin-top: 2px; font-size: 16px; font-weight: 1050; }
+
+.classChart{ margin-top: 10px; display:grid; gap: 10px; }
+.targetLine{ font-size: 12px; color: rgba(255,255,255,.7); font-weight: 850; }
+
+.barRow{ display:grid; grid-template-columns: 44px 1fr 56px; gap: 10px; align-items:center; }
+.barLabel{ font-weight: 950; opacity: .9; }
+.barTrackSmall{ height: 10px; border-radius: 999px; background: rgba(255,255,255,.09); overflow:hidden; }
+.barFillSmall{ height: 100%; border-radius: 999px; background: rgba(255,255,255,.38); }
+.barValue{ text-align:right; font-weight: 1000; }
+.barValue.good{ color: rgba(155,255,196,.92); }
+.barValue.warn{ color: rgba(255,224,153,.92); }
+.barValue.bad{ color: rgba(255,160,160,.92); }
+.barValue.muted{ color: rgba(255,255,255,.55); }
+
+.studentTable{ margin-top: 12px; display:grid; gap: 8px; }
+.tHead{ display:grid; grid-template-columns: 1fr 60px 80px 110px; gap: 10px; font-size: 12px; color: rgba(255,255,255,.7); font-weight: 900; padding: 0 2px; }
+.tRow{ display:grid; grid-template-columns: 1fr 60px 80px 110px; gap: 10px; align-items:center; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.14); }
+.tName{ font-weight: 1000; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tNum{ text-align:right; font-weight: 1000; }
+.tStatus{ text-align:right; }
+.pill{ display:inline-flex; align-items:center; height: 24px; padding: 0 10px; border-radius: 999px; font-weight: 950; font-size: 12px; border: 1px solid rgba(255,255,255,.10); }
+.pill.good{ background: rgba(155,255,196,.14); color: rgba(155,255,196,.92); border-color: rgba(155,255,196,.22); }
+.pill.warn{ background: rgba(255,224,153,.14); color: rgba(255,224,153,.92); border-color: rgba(255,224,153,.22); }
+.pill.bad{ background: rgba(255,160,160,.14); color: rgba(255,160,160,.92); border-color: rgba(255,160,160,.22); }
+.pill.muted{ background: rgba(255,255,255,.06); color: rgba(255,255,255,.70); border-color: rgba(255,255,255,.12); }
+
+.emptyNote{ color: rgba(255,255,255,.75); font-weight: 850; padding: 10px 0; }
+.dashHint{ margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px dashed rgba(255,255,255,.20); color: rgba(255,255,255,.85); background: rgba(0,0,0,.14); font-weight: 850; }
