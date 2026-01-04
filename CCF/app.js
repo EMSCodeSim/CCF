@@ -1,4 +1,30 @@
-/* ===========================
+/*
+function showErrorBanner(msg){
+  let bar = document.getElementById("errorBanner");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "errorBanner";
+    bar.style.position = "fixed";
+    bar.style.left = "12px";
+    bar.style.right = "12px";
+    bar.style.bottom = "80px";
+    bar.style.zIndex = "9999";
+    bar.style.padding = "10px 12px";
+    bar.style.borderRadius = "14px";
+    bar.style.background = "rgba(190,30,60,0.92)";
+    bar.style.color = "white";
+    bar.style.fontWeight = "800";
+    bar.style.fontSize = "13px";
+    bar.style.boxShadow = "0 12px 30px rgba(0,0,0,0.35)";
+    bar.style.pointerEvents = "auto";
+    bar.addEventListener("click", () => bar.remove());
+    document.body.appendChild(bar);
+  }
+  bar.textContent = "Error: " + msg + " (tap to dismiss)";
+  clearTimeout(bar._t);
+  bar._t = setTimeout(() => { try { bar.remove(); } catch {} }, 8000);
+}
+ ===========================
    CCF CPR TIMER – app.js
    Fix: CPR button starts timer reliably
    + Breath bar toggles Advanced Airway
@@ -541,17 +567,20 @@ function init() {
   // work reliably on desktop and mobile across responsive layouts.
   function onPress(el, handler) {
     if (!el) return;
-    let lastTs = 0;
+
+    // Desktop-first reliability: use plain click.
+    // (Pointer events + aggressive preventDefault can break mouse clicks on some desktop layouts.)
     const wrapped = (e) => {
-      const now = Date.now();
-      if (now - lastTs < 350) return;
-      lastTs = now;
-      try { e.preventDefault?.(); } catch {}
-      try { e.stopPropagation?.(); } catch {}
-      handler(e);
+      try {
+        handler(e);
+      } catch (err) {
+        console.error("Handler error:", err);
+        // Show a small banner if something goes wrong so the UI never "silently" fails.
+        try { showErrorBanner(String(err?.message || err)); } catch {}
+      }
     };
-    el.addEventListener('pointerup', wrapped, { passive: false });
-    el.addEventListener('click', wrapped, { passive: false });
+
+    el.addEventListener("click", wrapped, { passive: true });
   }
 
   UI = {
