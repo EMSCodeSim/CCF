@@ -134,6 +134,10 @@
               <div class="sectionP muted">
                 Tip: Tap the Breaths bar to toggle Advanced Airway mode.
               </div>
+
+              <div class="sectionP" style="margin-top:14px">
+                <a class="linkBtn" href="PrivacyPolicy.html" target="_blank" rel="noopener">Privacy Policy</a>
+              </div>
             </div>
           </section>
 
@@ -190,22 +194,22 @@
 
               <div class="sectionH smallH" style="margin-top:10px">CPR Profile</div>
 
-              <div class="rowField">
-                <label class="fieldLabel" for="patientTypeSelect">Patient</label>
-                <select id="patientTypeSelect" class="fieldSelect">
-                  <option value="adult">Adult</option>
-                  <option value="child">Child</option>
-                  <option value="infant">Infant</option>
-                </select>
-              </div>
+<div class="pillRow">
+  <div class="fieldLabel">Patient</div>
+  <div class="pillGroup" id="patientTypePills" role="group" aria-label="Patient type">
+    <button type="button" class="pillBtn" data-value="adult">Adult</button>
+    <button type="button" class="pillBtn" data-value="child">Child</button>
+    <button type="button" class="pillBtn" data-value="infant">Infant</button>
+  </div>
+</div>
 
-              <div class="rowField">
-                <label class="fieldLabel" for="rescuerCountSelect">Rescuers</label>
-                <select id="rescuerCountSelect" class="fieldSelect">
-                  <option value="1">1 rescuer</option>
-                  <option value="2">2 rescuers</option>
-                </select>
-              </div>
+<div class="pillRow">
+  <div class="fieldLabel">Rescuers</div>
+  <div class="pillGroup" id="rescuerCountPills" role="group" aria-label="Rescuer count">
+    <button type="button" class="pillBtn" data-value="1">1 rescuer</button>
+    <button type="button" class="pillBtn" data-value="2">2 rescuers</button>
+  </div>
+</div>
 
               <div class="toggleRow">
                 <div class="toggleText">

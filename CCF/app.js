@@ -571,8 +571,8 @@ function init() {
     pauseReasonToggle: $("pauseReasonToggle"),
     breathTimerToggle: $("breathTimerToggle"),
     pulseCueToggle: $("pulseCueToggle"),
-    patientTypeSelect: $("patientTypeSelect"),
-    rescuerCountSelect: $("rescuerCountSelect"),
+    patientTypePills: $("patientTypePills"),
+    rescuerCountPills: $("rescuerCountPills"),
 
     cprOnTime: $("cprOnTime"),
     handsOffTime: $("handsOffTime"),
@@ -689,12 +689,34 @@ function init() {
     updatePulseBar();
   });
 
-  // CPR profile selectors
-  UI.patientTypeSelect?.addEventListener("change", () => {
-    const v = UI.patientTypeSelect.value;
+
+  // CPR profile pills
+  function setActivePill(groupEl, value) {
+    if (!groupEl) return;
+    const btns = groupEl.querySelectorAll(".pillBtn");
+    btns.forEach((b) => {
+      const v = b.getAttribute("data-value");
+      if (String(v) === String(value)) b.classList.add("active");
+      else b.classList.remove("active");
+    });
+  }
+
+  function wirePillGroup(groupEl, onPick) {
+    if (!groupEl) return;
+    groupEl.querySelectorAll(".pillBtn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const v = btn.getAttribute("data-value");
+        if (v != null) onPick(v);
+      });
+    });
+  }
+
+  wirePillGroup(UI.patientTypePills, (v) => {
     if (v === "adult" || v === "child" || v === "infant") {
       state.patientType = v;
       localStorage.setItem(LS_KEYS.patientType, v);
+      setActivePill(UI.patientTypePills, v);
+
       // Breath cue timing changes immediately
       state.breathCprMs = 0;
       state.breathsDue = false;
@@ -702,11 +724,12 @@ function init() {
     }
   });
 
-  UI.rescuerCountSelect?.addEventListener("change", () => {
-    const v = UI.rescuerCountSelect.value;
+  wirePillGroup(UI.rescuerCountPills, (v) => {
     if (v === "1" || v === "2") {
       state.rescuerCount = parseInt(v, 10);
       localStorage.setItem(LS_KEYS.rescuerCount, v);
+      setActivePill(UI.rescuerCountPills, v);
+
       state.breathCprMs = 0;
       state.breathsDue = false;
       resetBreathBox();
@@ -732,8 +755,8 @@ function init() {
   if (UI?.pauseReasonToggle) UI.pauseReasonToggle.checked = !!state.pauseReasonPromptEnabled;
   if (UI?.breathTimerToggle) UI.breathTimerToggle.checked = !!state.breathTimerEnabled;
   if (UI?.pulseCueToggle) UI.pulseCueToggle.checked = !!state.pulseCueEnabled;
-  if (UI?.patientTypeSelect) UI.patientTypeSelect.value = state.patientType;
-  if (UI?.rescuerCountSelect) UI.rescuerCountSelect.value = String(state.rescuerCount);
+  if (UI?.patientTypePills) setActivePill(UI.patientTypePills, state.patientType);
+  if (UI?.rescuerCountPills) setActivePill(UI.rescuerCountPills, String(state.rescuerCount));
   if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
   if (UI.metState) UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
   setAdvancedAirway(false);
