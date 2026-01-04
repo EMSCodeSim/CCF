@@ -1307,8 +1307,15 @@ body{
   font-weight:900;
   font-size:12px;
   cursor:pointer;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action: manipulation;
 }
 .pillBtn:hover{ filter: brightness(1.08); }
+.pillBtn.active{
+  background: rgba(82,166,255,.18);
+  border-color: rgba(82,166,255,.34);
+ }
 .histActions{ display:flex; gap:8px; }
 
 @media (max-width: 520px){

@@ -537,6 +537,23 @@ function syncBpmUI() {
 }
 
 function init() {
+  // Robust press handler: binds pointerup + click (deduped) so controls
+  // work reliably on desktop and mobile across responsive layouts.
+  function onPress(el, handler) {
+    if (!el) return;
+    let lastTs = 0;
+    const wrapped = (e) => {
+      const now = Date.now();
+      if (now - lastTs < 350) return;
+      lastTs = now;
+      try { e.preventDefault?.(); } catch {}
+      try { e.stopPropagation?.(); } catch {}
+      handler(e);
+    };
+    el.addEventListener('pointerup', wrapped, { passive: false });
+    el.addEventListener('click', wrapped, { passive: false });
+  }
+
   UI = {
     mainTimer: $("mainTimer"),
     ccfLine: $("ccfLine"),
@@ -593,12 +610,12 @@ function init() {
   };
 
   // Buttons
-  UI.btnCpr?.addEventListener("click", startCPR);
-  UI.btnPause?.addEventListener("click", startPause);
-  UI.btnEnd?.addEventListener("click", endSession);
+  onPress(UI.btnCpr, startCPR);
+  onPress(UI.btnPause, startPause);
+  onPress(UI.btnEnd, endSession);
 
   // Metronome
-  UI.btnMet?.addEventListener("click", () => {
+  onPress(UI.btnMet, () => {
     if (!state.running) return;
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     state.metronomeOn = !state.metronomeOn;
@@ -606,14 +623,14 @@ function init() {
     startMetronome();
   });
 
-  UI.bpmDown?.addEventListener("click", () => {
+  onPress(UI.bpmDown, () => {
     state.bpm = Math.max(60, state.bpm - 5);
     syncBpmUI();
     saveBpmToStorage();
     startMetronome();
   });
 
-  UI.bpmUp?.addEventListener("click", () => {
+  onPress(UI.bpmUp, () => {
     state.bpm = Math.min(200, state.bpm + 5);
     syncBpmUI();
     saveBpmToStorage();
@@ -621,17 +638,17 @@ function init() {
   });
 
   // Advanced airway (optional button still present)
-  UI.btnAdvAirway?.addEventListener("click", () => setAdvancedAirway(!state.advancedAirway));
+  onPress(UI.btnAdvAirway, () => setAdvancedAirway(!state.advancedAirway));
 
   // Breath bar box is primary toggle
   if (UI.breathBarBox) {
-    UI.breathBarBox.addEventListener("click", handleBreathBoxToggle);
+    onPress(UI.breathBarBox, handleBreathBoxToggle);
     UI.breathBarBox.addEventListener("keydown", handleBreathBoxToggle);
   }
 
   // Pause reasons chips
   UI.reasonChips?.forEach((chip) => {
-    chip.addEventListener("click", () => {
+    onPress(chip, () => {
       const reason = chip.dataset.reason;
       const isPressed = chip.getAttribute("aria-pressed") === "true";
       const next = !isPressed;
@@ -640,12 +657,12 @@ function init() {
     });
   });
 
-  UI.btnClearPauseReasons?.addEventListener("click", () => {
+  onPress(UI.btnClearPauseReasons, () => {
     state.currentReasons = [];
     UI.reasonChips?.forEach((chip) => chip.setAttribute("aria-pressed", "false"));
   });
 
-  UI.btnResumePause?.addEventListener("click", () => {
+  onPress(UI.btnResumePause, () => {
     // Start CPR first (prevents getting stuck if overlay fails to hide)
     startCPR();
     hidePauseModal();
@@ -653,11 +670,11 @@ function init() {
 
 
   // Settings open/close
-  UI.btnSettings?.addEventListener("click", () => {
+  onPress(UI.btnSettings, () => {
     showSettings();
     setSettingsTab("about");
   });
-  UI.btnSettingsClose?.addEventListener("click", hideSettings);
+  onPress(UI.btnSettingsClose, hideSettings);
 
   // Close settings by tapping backdrop
   UI.settingsOverlay?.addEventListener("click", (e) => {
@@ -665,9 +682,9 @@ function init() {
   });
 
   // Tabs
-  UI.tabAbout?.addEventListener("click", () => setSettingsTab("about"));
-  UI.tabMet?.addEventListener("click", () => setSettingsTab("met"));
-  UI.tabSetup?.addEventListener("click", () => setSettingsTab("setup"));
+  onPress(UI.tabAbout, () => setSettingsTab("about"));
+  onPress(UI.tabMet, () => setSettingsTab("met"));
+  onPress(UI.tabSetup, () => setSettingsTab("setup"));
 
   // Pause reason prompt toggle
   UI.pauseReasonToggle?.addEventListener("change", () => {
@@ -704,7 +721,7 @@ function init() {
   function wirePillGroup(groupEl, onPick) {
     if (!groupEl) return;
     groupEl.querySelectorAll(".pillBtn").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      onPress(btn, () => {
         const v = btn.getAttribute("data-value");
         if (v != null) onPick(v);
       });
