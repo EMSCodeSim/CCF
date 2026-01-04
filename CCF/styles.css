@@ -521,6 +521,16 @@ body{
   margin-top: 10px;
 }
 
+/* Simple 2-column layout helper (Reports → Class Setup) */
+.twoCol{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 560px){
+  .twoCol{ grid-template-columns: 1fr; }
+}
+
 .smallBtn{
   width: 54px;
   height: 54px;
@@ -1262,3 +1272,55 @@ body{
   .studentRow{ flex-direction:column; align-items:stretch; }
   .histActions{ flex-wrap:wrap; }
 }
+
+
+/* ===========================
+   Premium Reports: Class Dashboard
+   =========================== */
+.classDash{ margin-top: 14px; }
+.dashGrid{ display:grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 900px){
+  .dashGrid{ grid-template-columns: 1fr 1fr; }
+}
+.dashCard{
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+.dashTitle{ font-weight: 1000; letter-spacing: .2px; }
+.dashSub{ margin-top: 4px; color: rgba(255,255,255,.75); font-weight: 750; }
+.dashBig{ margin-top: 10px; font-size: 34px; font-weight: 1200; letter-spacing: .5px; }
+.dashKpiRow{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.dashKpi{ background: rgba(0,0,0,.18); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 10px; }
+.kLabel{ font-size: 12px; color: rgba(255,255,255,.7); font-weight: 850; }
+.kValue{ margin-top: 2px; font-size: 16px; font-weight: 1050; }
+
+.classChart{ margin-top: 10px; display:grid; gap: 10px; }
+.targetLine{ font-size: 12px; color: rgba(255,255,255,.7); font-weight: 850; }
+
+.barRow{ display:grid; grid-template-columns: 44px 1fr 56px; gap: 10px; align-items:center; }
+.barLabel{ font-weight: 950; opacity: .9; }
+.barTrackSmall{ height: 10px; border-radius: 999px; background: rgba(255,255,255,.09); overflow:hidden; }
+.barFillSmall{ height: 100%; border-radius: 999px; background: rgba(255,255,255,.38); }
+.barValue{ text-align:right; font-weight: 1000; }
+.barValue.good{ color: rgba(155,255,196,.92); }
+.barValue.warn{ color: rgba(255,224,153,.92); }
+.barValue.bad{ color: rgba(255,160,160,.92); }
+.barValue.muted{ color: rgba(255,255,255,.55); }
+
+.studentTable{ margin-top: 12px; display:grid; gap: 8px; }
+.tHead{ display:grid; grid-template-columns: 1fr 60px 80px 110px; gap: 10px; font-size: 12px; color: rgba(255,255,255,.7); font-weight: 900; padding: 0 2px; }
+.tRow{ display:grid; grid-template-columns: 1fr 60px 80px 110px; gap: 10px; align-items:center; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.14); }
+.tName{ font-weight: 1000; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tNum{ text-align:right; font-weight: 1000; }
+.tStatus{ text-align:right; }
+.pill{ display:inline-flex; align-items:center; height: 24px; padding: 0 10px; border-radius: 999px; font-weight: 950; font-size: 12px; border: 1px solid rgba(255,255,255,.10); }
+.pill.good{ background: rgba(155,255,196,.14); color: rgba(155,255,196,.92); border-color: rgba(155,255,196,.22); }
+.pill.warn{ background: rgba(255,224,153,.14); color: rgba(255,224,153,.92); border-color: rgba(255,224,153,.22); }
+.pill.bad{ background: rgba(255,160,160,.14); color: rgba(255,160,160,.92); border-color: rgba(255,160,160,.22); }
+.pill.muted{ background: rgba(255,255,255,.06); color: rgba(255,255,255,.70); border-color: rgba(255,255,255,.12); }
+
+.emptyNote{ color: rgba(255,255,255,.75); font-weight: 850; padding: 10px 0; }
+.dashHint{ margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px dashed rgba(255,255,255,.20); color: rgba(255,255,255,.85); background: rgba(0,0,0,.14); font-weight: 850; }

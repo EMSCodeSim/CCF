@@ -118,7 +118,6 @@
         <div class="settingsNav" role="tablist" aria-label="Settings sections">
           <button class="segBtn active" id="tabAbout" type="button" role="tab" aria-selected="true">About</button>
           <button class="segBtn" id="tabMet" type="button" role="tab" aria-selected="false">Metronome</button>
-          <button class="segBtn" id="tabClass" type="button" role="tab" aria-selected="false">Class Setup</button>
           <button class="segBtn" id="tabSetup" type="button" role="tab" aria-selected="false">Setup</button>
         </div>
 
@@ -159,43 +158,6 @@
               </div>
 </div>
           </section>
-
-          <!-- CLASS SETUP -->
-          <section class="settingsSection" id="panelClass" role="tabpanel" aria-labelledby="tabClass">
-            <div class="sectionCard">
-              <div class="sectionH">Class Setup</div>
-
-              <label class="field">
-                <span class="fieldLabel">Class name</span>
-                <input id="className" type="text" placeholder="RC Health EMT - Skills Day" />
-              </label>
-
-              <label class="field">
-                <span class="fieldLabel">Instructor</span>
-                <input id="classInstructor" type="text" placeholder="Instructor name" />
-              </label>
-
-              <label class="field">
-                <span class="fieldLabel">Location / Notes</span>
-                <input id="classLocation" type="text" placeholder="Room / station / notes" />
-              </label>
-
-              <label class="field">
-                <span class="fieldLabel">Student list (one per line)</span>
-                <textarea id="classStudents" rows="6" placeholder="Student One&#10;Student Two&#10;Student Three"></textarea>
-              </label>
-
-              <div class="row">
-                <button class="primaryBtn" id="btnSaveClass" type="button">Save Class</button>
-                <button class="secondaryBtn" id="btnClearClass" type="button">Clear</button>
-              </div>
-
-              <div class="sectionP muted">
-                Later, Reports can assign each CPR session to a student and generate a CPR report card per student.
-              </div>
-            </div>
-          </section>
-
 
           <!-- SETUP -->
           <section class="settingsSection" id="panelSetup" role="tabpanel" aria-labelledby="tabSetup">

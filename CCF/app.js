@@ -403,7 +403,7 @@ function handleBreathBoxToggle(e) {
 
 /* ---------- INIT / BINDINGS ---------- */
 
-/* ---------- SETTINGS (About / Metronome / Class Setup) ---------- */
+/* ---------- SETTINGS (About / Metronome) ---------- */
 const LS_KEYS = {
   bpm: "ccf.bpm",
   classSetup: "ccf.classSetup",
@@ -422,14 +422,6 @@ function loadSettingsFromStorage() {
   const pr = localStorage.getItem(LS_KEYS.pauseReason);
   if (pr === "0") state.pauseReasonPromptEnabled = false;
   if (pr === "1") state.pauseReasonPromptEnabled = true;
-
-  const cls = safeParseJSON(localStorage.getItem(LS_KEYS.classSetup) || "", null);
-  if (cls && UI?.className) {
-    UI.className.value = cls.name || "";
-    UI.classInstructor.value = cls.instructor || "";
-    UI.classLocation.value = cls.location || "";
-    UI.classStudents.value = (cls.students || []).join("\n");
-  }
 }
 
 function saveBpmToStorage() {
@@ -452,7 +444,6 @@ function setSettingsTab(which) {
   const tabs = [
     { id: "about", tab: UI?.tabAbout, panel: UI?.panelAbout },
     { id: "met", tab: UI?.tabMet, panel: UI?.panelMet },
-    { id: "class", tab: UI?.tabClass, panel: UI?.panelClass },
     { id: "setup", tab: UI?.tabSetup, panel: UI?.panelSetup },
   ];
 
@@ -469,28 +460,6 @@ function setSettingsTab(which) {
 function syncBpmUI() {
   if (UI?.bpmValue) UI.bpmValue.textContent = state.bpm;
   if (UI?.bpmSlider) UI.bpmSlider.value = String(state.bpm);
-}
-
-function saveClassSetup() {
-  const payload = {
-    name: UI?.className?.value?.trim() || "",
-    instructor: UI?.classInstructor?.value?.trim() || "",
-    location: UI?.classLocation?.value?.trim() || "",
-    students: (UI?.classStudents?.value || "")
-      .split("\n")
-      .map(s => s.trim())
-      .filter(Boolean),
-    updatedAt: Date.now(),
-  };
-  localStorage.setItem(LS_KEYS.classSetup, JSON.stringify(payload));
-}
-
-function clearClassSetup() {
-  if (UI?.className) UI.className.value = "";
-  if (UI?.classInstructor) UI.classInstructor.value = "";
-  if (UI?.classLocation) UI.classLocation.value = "";
-  if (UI?.classStudents) UI.classStudents.value = "";
-  localStorage.removeItem(LS_KEYS.classSetup);
 }
 
 function init() {
@@ -519,19 +488,11 @@ function init() {
     btnSettingsClose: $("btnSettingsClose"),
     tabAbout: $("tabAbout"),
     tabMet: $("tabMet"),
-    tabClass: $("tabClass"),
     tabSetup: $("tabSetup"),
     panelAbout: $("panelAbout"),
     panelMet: $("panelMet"),
-    panelClass: $("panelClass"),
     panelSetup: $("panelSetup"),
     bpmSlider: $("bpmSlider"),
-    className: $("className"),
-    classInstructor: $("classInstructor"),
-    classLocation: $("classLocation"),
-    classStudents: $("classStudents"),
-    btnSaveClass: $("btnSaveClass"),
-    btnClearClass: $("btnClearClass"),
     pauseReasonToggle: $("pauseReasonToggle"),
 
     cprOnTime: $("cprOnTime"),
@@ -627,7 +588,6 @@ function init() {
   // Tabs
   UI.tabAbout?.addEventListener("click", () => setSettingsTab("about"));
   UI.tabMet?.addEventListener("click", () => setSettingsTab("met"));
-  UI.tabClass?.addEventListener("click", () => setSettingsTab("class"));
   UI.tabSetup?.addEventListener("click", () => setSettingsTab("setup"));
 
   // Pause reason prompt toggle
@@ -646,17 +606,6 @@ function init() {
       startMetronome();
     }
   });
-
-  // Class setup save/clear
-  UI.btnSaveClass?.addEventListener("click", () => {
-    saveClassSetup();
-    // quick feedback by momentarily changing button text
-    const btn = UI.btnSaveClass;
-    const old = btn.textContent;
-    btn.textContent = "Saved ✓";
-    setTimeout(() => (btn.textContent = old), 900);
-  });
-  UI.btnClearClass?.addEventListener("click", clearClassSetup);
 
   // Initial UI
   hidePauseModal();

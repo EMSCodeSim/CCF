@@ -46,12 +46,6 @@
     <div class="upgradeNote">Web/free mode: shows simple CCF score and basic pause info.</div>
   </section>
 
-  <!-- AD ZONE (free only) -->
-  <section class="adZone" id="adZone" aria-label="Ads">
-    <div class="adLabel">Ad (Reports only)</div>
-    <div class="adBox">Your ad network container goes here</div>
-  </section>
-
   <section class="reportCard" id="latestCard" aria-label="Latest report"></section>
 
   <!-- Pro: class + student reporting tools -->
@@ -61,12 +55,77 @@
         <div class="historyTitle">Class & Students</div>
         <div class="historySub" id="classMeta">No class loaded</div>
       </div>
-      <div class="historyBtns">
-        <a class="endBtn" href="./index.html">⚙️ Edit class</a>
-      </div>
     </div>
 
-    <div class="studentRow">
+    <!-- Class setup (moved here so paid materials stay together) -->
+    <section class="dashCard" aria-label="Class setup" style="margin-top:12px;">
+      <div class="dashTitle">Class Setup</div>
+      <div class="dashSub">Create a roster so reports can show individual and class scores.</div>
+
+      <label class="field">
+        <span class="fieldLabel">Class name</span>
+        <input id="className" type="text" placeholder="RC Health EMT - Skills Day" />
+      </label>
+
+      <label class="field">
+        <span class="fieldLabel">Instructor</span>
+        <input id="classInstructor" type="text" placeholder="Instructor name" />
+      </label>
+
+      <div class="twoCol">
+        <label class="field">
+          <span class="fieldLabel">Target CCF %</span>
+          <input id="classTargetCcf" type="number" min="50" max="95" step="1" placeholder="80" />
+        </label>
+
+        <label class="field">
+          <span class="fieldLabel">Session length</span>
+          <select id="classSessionLength">
+            <option value="120">2 minutes</option>
+            <option value="300">5 minutes</option>
+            <option value="600">10 minutes</option>
+            <option value="0">Custom / unknown</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="fieldLabel">Location / Notes</span>
+        <input id="classLocation" type="text" placeholder="Room / station / notes" />
+      </label>
+
+      <label class="field">
+        <span class="fieldLabel">Student list (one per line)</span>
+        <textarea id="classStudents" rows="6" placeholder="Student One&#10;Student Two&#10;Student Three"></textarea>
+      </label>
+
+      <div class="row" style="gap:10px;">
+        <button class="primaryBtn" id="btnSaveClass" type="button">Save Class</button>
+        <button class="secondaryBtn" id="btnClearClass" type="button">Clear</button>
+      </div>
+    </section>
+
+    <!-- Premium class dashboard -->
+    <section class="classDash" aria-label="Class dashboard" style="margin-top:12px;">
+      <div class="dashGrid">
+        <div class="dashCard" id="classScoreCard"></div>
+        <div class="dashCard">
+          <div class="dashTitle">Class Performance</div>
+          <div class="dashSub" id="classChartSub">Average CCF by student</div>
+          <div id="classChart" class="classChart" aria-label="Class chart"></div>
+        </div>
+      </div>
+
+      <div class="dashCard" style="margin-top:12px;">
+        <div class="dashTitle">Students</div>
+        <div class="dashSub">Export includes per-student averages and class score summary.</div>
+        <div id="studentTable" class="studentTable"></div>
+      </div>
+
+      <div class="dashHint" id="classDashHint" style="display:none;"></div>
+    </section>
+
+    <div class="studentRow" style="margin-top:12px;">
       <label class="field" style="margin:0;">
         <span class="fieldLabel">Assign most recent session to…</span>
         <select id="studentSelect"></select>

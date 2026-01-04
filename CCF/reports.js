@@ -45,6 +45,16 @@ function loadClassSetup() {
   return safeParseJSON(localStorage.getItem(CLASS_KEY) || "", null);
 }
 
+function saveClassSetup(payload) {
+  try {
+    localStorage.setItem(CLASS_KEY, JSON.stringify({ ...payload, updatedAt: Date.now() }));
+  } catch {}
+}
+
+function clearClassSetup() {
+  try { localStorage.removeItem(CLASS_KEY); } catch {}
+}
+
 function toLocal(ts) {
   try {
     const d = new Date(ts);
@@ -246,6 +256,182 @@ function renderLatestPro(session) {
   );
 }
 
+
+/* ===========================
+   Premium: Class Dashboard
+   - Computes per-student averages and a class score
+   =========================== */
+
+function getClassSetup() {
+  try {
+    const cls = JSON.parse(localStorage.getItem(CLASS_KEY) || "null");
+    if (!cls) return null;
+    cls.students = Array.isArray(cls.students) ? cls.students.filter(Boolean) : [];
+    cls.targetCcf = Number.isFinite(parseInt(cls.targetCcf, 10)) ? parseInt(cls.targetCcf, 10) : 80;
+    cls.sessionLengthSec = Number.isFinite(parseInt(cls.sessionLengthSec, 10)) ? parseInt(cls.sessionLengthSec, 10) : 0;
+    return cls;
+  } catch {
+    return null;
+  }
+}
+
+function computeStudentStats(sessions, rosterNames) {
+  const map = new Map();
+  rosterNames.forEach(n => map.set(n, { name: n, attempts: 0, avg: 0, best: 0, worst: 0 }));
+  let classSum = 0;
+  let classN = 0;
+
+  sessions.forEach(s => {
+    const who = (s?.assignedTo?.student || s?.assignedTo || "").trim();
+    if (!who || !map.has(who)) return;
+    const ccf = Number(s.finalCCF ?? s.ccfPct ?? 0);
+    if (!Number.isFinite(ccf)) return;
+
+    const st = map.get(who);
+    st.attempts += 1;
+    st.best = st.attempts === 1 ? ccf : Math.max(st.best, ccf);
+    st.worst = st.attempts === 1 ? ccf : Math.min(st.worst, ccf);
+    // incremental average
+    st.avg = st.avg + (ccf - st.avg) / st.attempts;
+
+    classSum += ccf;
+    classN += 1;
+  });
+
+  const rows = Array.from(map.values()).map(r => ({
+    name: r.name,
+    attempts: r.attempts,
+    avg: Math.round(r.avg * 10) / 10,
+    best: r.attempts ? Math.round(r.best) : 0,
+    worst: r.attempts ? Math.round(r.worst) : 0,
+  }));
+
+  return {
+    rows,
+    classAvg: classN ? Math.round((classSum / classN) * 10) / 10 : 0,
+    classN,
+  };
+}
+
+function statusFor(avg, attempts, target) {
+  if (!attempts) return { text: "No data", cls: "muted" };
+  if (avg >= target) return { text: "Meets goal", cls: "good" };
+  if (avg >= target - 5) return { text: "Close", cls: "warn" };
+  return { text: "Below", cls: "bad" };
+}
+
+function renderClassDashboard(sessions, proEnabled) {
+  const scoreEl = document.getElementById("classScoreCard");
+  const chartEl = document.getElementById("classChart");
+  const tableEl = document.getElementById("studentTable");
+  const hintEl = document.getElementById("classDashHint");
+  if (!proEnabled) return;
+
+  const cls = getClassSetup();
+  const roster = (cls?.students || []).map(s => String(s).trim()).filter(Boolean);
+  const target = cls?.targetCcf ?? 80;
+
+  if (!cls || !roster.length) {
+    if (hintEl) {
+      hintEl.style.display = "block";
+      hintEl.innerHTML = `To set up a class: use <strong>Class Setup</strong> above, add your students (one per line), then assign sessions to students below.`;
+    }
+    if (scoreEl) scoreEl.innerHTML = `
+      <div class="dashTitle">Class Score</div>
+      <div class="dashBig">—</div>
+      <div class="dashSub">No class roster yet</div>
+      <div class="dashKpiRow">
+        <div class="dashKpi"><div class="kLabel">Target</div><div class="kValue">${target}%</div></div>
+        <div class="dashKpi"><div class="kLabel">Passing</div><div class="kValue">0/0</div></div>
+        <div class="dashKpi"><div class="kLabel">Avg hands-off</div><div class="kValue">—</div></div>
+      </div>
+    `;
+    if (chartEl) chartEl.innerHTML = `<div class="emptyNote">Add students in Class Setup to see class performance.</div>`;
+    if (tableEl) tableEl.innerHTML = `<div class="emptyNote">No students yet.</div>`;
+    return;
+  } else {
+    if (hintEl) hintEl.style.display = "none";
+  }
+
+  const stats = computeStudentStats(sessions, roster);
+  const rows = stats.rows;
+
+  // class avg hands-off
+  const avgHandsOffSec = sessions.length
+    ? Math.round((sessions.reduce((a, s) => a + ((s.offMs || 0) / 1000), 0) / sessions.length) * 10) / 10
+    : 0;
+
+  const passingCount = rows.filter(r => r.attempts && r.avg >= target).length;
+
+  if (scoreEl) {
+    scoreEl.innerHTML = `
+      <div class="dashTitle">Class Score</div>
+      <div class="dashBig">${stats.classN ? `${stats.classAvg}%` : "—"}</div>
+      <div class="dashSub">${stats.classN ? `Across ${stats.classN} assigned attempts` : "No assigned attempts yet"}</div>
+      <div class="dashKpiRow">
+        <div class="dashKpi"><div class="kLabel">Target</div><div class="kValue">${target}%</div></div>
+        <div class="dashKpi"><div class="kLabel">Passing</div><div class="kValue">${passingCount}/${rows.length}</div></div>
+        <div class="dashKpi"><div class="kLabel">Avg hands-off</div><div class="kValue">${avgHandsOffSec}s</div></div>
+      </div>
+    `;
+  }
+
+  // Chart (simple bars)
+  if (chartEl) {
+    const max = 100;
+    chartEl.innerHTML = rows.map(r => {
+      const pct = r.attempts ? r.avg : 0;
+      const st = statusFor(pct, r.attempts, target);
+      return `
+        <div class="barRow">
+          <div class="barLabel">${initials(r.name)}</div>
+          <div class="barTrackSmall" aria-hidden="true">
+            <div class="barFillSmall" style="width:${Math.max(0, Math.min(100, (pct / max) * 100))}%"></div>
+          </div>
+          <div class="barValue ${st.cls}">${r.attempts ? `${Math.round(pct)}%` : "—"}</div>
+        </div>
+      `;
+    }).join("");
+    chartEl.insertAdjacentHTML("afterbegin", `<div class="targetLine">Target ${target}%</div>`);
+  }
+
+  // Table
+  if (tableEl) {
+    tableEl.innerHTML = `
+      <div class="tHead">
+        <div>Student</div><div>Avg</div><div>Attempts</div><div>Status</div>
+      </div>
+      ${rows.map(r => {
+        const st = statusFor(r.avg, r.attempts, target);
+        return `
+          <div class="tRow">
+            <div class="tName">${escapeHtml(r.name)}</div>
+            <div class="tNum">${r.attempts ? `${Math.round(r.avg)}%` : "—"}</div>
+            <div class="tNum">${r.attempts}</div>
+            <div class="tStatus"><span class="pill ${st.cls}">${st.text}</span></div>
+          </div>
+        `;
+      }).join("")}
+    `;
+  }
+}
+
+function initials(name) {
+  const parts = String(name).trim().split(/\s+/);
+  if (!parts.length) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function renderHistory(list, proEnabled) {
   const el = document.getElementById("historyList");
   const historyBlock = document.querySelector(".historyBlock");
@@ -333,8 +519,13 @@ function exportCSV() {
     alert("No sessions to export.");
     return;
   }
+
+  const cls = getClassSetup();
+  const roster = (cls?.students || []).map(s => String(s).trim()).filter(Boolean);
+  const target = cls?.targetCcf ?? 80;
+
   const rows = [
-    ["endedAt", "student", "finalCCF", "totalMs", "compMs", "offMs", "pauseCount", "longestPauseMs"],
+    ["endedAt","student","finalCCF","totalMs","compMs","offMs","pauseCount","longestPauseMs","className","instructor","targetCcf"],
     ...arr.map(s => [
       s.endedAt,
       sessionDisplayName(s),
@@ -344,19 +535,44 @@ function exportCSV() {
       s.offMs ?? 0,
       s.pauseCount ?? 0,
       s.longestPauseMs ?? 0,
+      s.classContext?.name || cls?.name || "",
+      s.classContext?.instructor || cls?.instructor || "",
+      target,
     ])
   ];
-  downloadCSV("ccf_sessions_pro.csv", rows);
+
+  // Append class + student summary (premium)
+  if (cls && roster.length) {
+    const stats = computeStudentStats(arr, roster);
+    const passingCount = stats.rows.filter(r => r.attempts && r.avg >= target).length;
+
+    rows.push([]);
+    rows.push(["CLASS_SUMMARY"]);
+    rows.push(["className", cls.name || ""]);
+    rows.push(["instructor", cls.instructor || ""]);
+    rows.push(["targetCcf", target]);
+    rows.push(["classAvgCcf", stats.classN ? stats.classAvg : ""]);
+    rows.push(["assignedAttempts", stats.classN]);
+    rows.push(["studentsPassing", `${passingCount}/${stats.rows.length}`]);
+
+    rows.push([]);
+    rows.push(["STUDENT_AVERAGES"]);
+    rows.push(["student","avgCcf","attempts","best","worst","status"]);
+    stats.rows.forEach(r => {
+      const st = statusFor(r.avg, r.attempts, target);
+      rows.push([r.name, r.attempts ? r.avg : "", r.attempts, r.best, r.worst, st.text]);
+    });
+  }
+
+  downloadCSV("ccf_reports_premium.csv", rows);
 }
 
 function syncProUI(proEnabled) {
   const upgrade = document.getElementById("upgradeCard");
-  const adZone = document.getElementById("adZone");
   const proBlock = document.getElementById("proBlock");
   const debugBtn = document.getElementById("btnDebugPro");
 
   if (upgrade) upgrade.style.display = proEnabled ? "none" : "block";
-  if (adZone) adZone.style.display = proEnabled ? "none" : "block";
   if (proBlock) proBlock.style.display = proEnabled ? "block" : "none";
 
   if (debugBtn) {
@@ -389,16 +605,101 @@ function syncClassUI(proEnabled) {
   const count = (cls?.students || []).filter(Boolean).length;
   meta.textContent = name
     ? `${name}${instructor ? ` • ${instructor}` : ""} • ${count} students`
-    : "No class loaded (Timer → Settings → Class Setup)";
+    : "No class loaded (use Class Setup above)";
 
   const roster = (cls?.students || []).map(s => String(s || "").trim()).filter(Boolean);
   sel.innerHTML = ["Unassigned", ...roster].map(s => `<option value="${s}">${s}</option>`).join("");
+
+  // Populate the Class Setup form (if present)
+  const elName = document.getElementById("className");
+  const elInstr = document.getElementById("classInstructor");
+  const elLoc = document.getElementById("classLocation");
+  const elStudents = document.getElementById("classStudents");
+  const elTarget = document.getElementById("classTargetCcf");
+  const elLen = document.getElementById("classSessionLength");
+
+  if (elName) elName.value = name;
+  if (elInstr) elInstr.value = instructor;
+  if (elLoc) elLoc.value = cls?.location || "";
+  if (elStudents) elStudents.value = roster.join("\n");
+  if (elTarget) elTarget.value = String(cls?.targetCcf ?? "");
+  if (elLen) elLen.value = String(cls?.sessionLengthSec ?? 120);
+}
+
+function wireClassSetup(proEnabled) {
+  if (!proEnabled) return;
+  const btnSave = document.getElementById("btnSaveClass");
+  const btnClear = document.getElementById("btnClearClass");
+  const elName = document.getElementById("className");
+  const elInstr = document.getElementById("classInstructor");
+  const elLoc = document.getElementById("classLocation");
+  const elStudents = document.getElementById("classStudents");
+  const elTarget = document.getElementById("classTargetCcf");
+  const elLen = document.getElementById("classSessionLength");
+
+  // Prevent double-binding when boot() re-runs
+  if (btnSave && btnSave.dataset.bound === "1") return;
+  if (btnSave) btnSave.dataset.bound = "1";
+  if (btnClear) btnClear.dataset.bound = "1";
+
+  if (btnSave) {
+    btnSave.addEventListener("click", () => {
+      const name = (elName?.value || "").trim();
+      const instructor = (elInstr?.value || "").trim();
+      const location = (elLoc?.value || "").trim();
+      const students = (elStudents?.value || "")
+        .split("\n")
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const targetRaw = parseInt(elTarget?.value || "", 10);
+      const targetCcf = Number.isFinite(targetRaw)
+        ? Math.min(95, Math.max(50, targetRaw))
+        : 80;
+
+      const lenRaw = parseInt(elLen?.value || "", 10);
+      const sessionLengthSec = Number.isFinite(lenRaw) ? lenRaw : 120;
+
+      saveClassSetup({ name, instructor, location, students, targetCcf, sessionLengthSec });
+
+      // quick feedback
+      const old = btnSave.textContent;
+      btnSave.textContent = "Saved ✓";
+      setTimeout(() => (btnSave.textContent = old), 900);
+
+      boot();
+    });
+  }
+
+  if (btnClear) {
+    btnClear.addEventListener("click", () => {
+      if (!confirm("Clear class setup and roster?")) return;
+      clearClassSetup();
+      if (elName) elName.value = "";
+      if (elInstr) elInstr.value = "";
+      if (elLoc) elLoc.value = "";
+      if (elStudents) elStudents.value = "";
+      if (elTarget) elTarget.value = "";
+      if (elLen) elLen.value = "120";
+      boot();
+    });
+  }
 }
 
 function wireProActions(proEnabled) {
   const btnAssign = document.getElementById("btnAssignLatest");
   const btnDownload = document.getElementById("btnDownloadLatest");
   if (!proEnabled) return;
+
+  // Prevent double-binding when boot() re-runs
+  if (btnAssign && btnAssign.dataset.bound === "1") return;
+  if (btnAssign) btnAssign.dataset.bound = "1";
+  if (btnDownload) btnDownload.dataset.bound = "1";
+
+  // Prevent double-binding when boot() re-runs
+  if (btnAssign && btnAssign.dataset.bound === "1") return;
+  if (btnAssign) btnAssign.dataset.bound = "1";
+  if (btnDownload) btnDownload.dataset.bound = "1";
 
   btnAssign?.addEventListener("click", () => {
     const arr = loadSessions();
@@ -435,7 +736,9 @@ function boot() {
   else renderLatestFree(sessions[0]);
 
   syncClassUI(proEnabled);
+  wireClassSetup(proEnabled);
   wireProActions(proEnabled);
+  renderClassDashboard(sessions, proEnabled);
   renderHistory(sessions, proEnabled);
 }
 
