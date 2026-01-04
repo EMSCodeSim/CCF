@@ -525,7 +525,7 @@ function exportCSV() {
   const target = cls?.targetCcf ?? 80;
 
   const rows = [
-    ["endedAt","student","finalCCF","totalMs","compMs","offMs","pauseCount","longestPauseMs","className","instructor","targetCcf"],
+    ["endedAt","student","finalCCF","totalMs","compMs","offMs","pauseCount","longestPauseMs","patientType","rescuerCount","breathTimer","pulseCue","className","instructor","targetCcf"],
     ...arr.map(s => [
       s.endedAt,
       sessionDisplayName(s),
@@ -535,6 +535,10 @@ function exportCSV() {
       s.offMs ?? 0,
       s.pauseCount ?? 0,
       s.longestPauseMs ?? 0,
+      s.cprProfile?.patientType || "",
+      s.cprProfile?.rescuerCount ?? "",
+      (s.cprProfile?.breathTimerEnabled === false) ? "0" : "1",
+      (s.cprProfile?.pulseCueEnabled === false) ? "0" : "1",
       s.classContext?.name || cls?.name || "",
       s.classContext?.instructor || cls?.instructor || "",
       target,

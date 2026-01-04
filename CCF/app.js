@@ -64,6 +64,14 @@ const state = {
   // Future setting: turn this off to skip the reason modal
   pauseReasonPromptEnabled: true,
 
+  // Training cues
+  breathTimerEnabled: true,
+  pulseCueEnabled: true,
+
+  // CPR profile (affects breath cue when NO advanced airway)
+  patientType: "adult", // adult | child | infant
+  rescuerCount: 1,       // 1 | 2
+
   // Breathing prompts
   breathsDue: false,
   breathCprMs: 0,        // 30:2 training cue timer
@@ -101,6 +109,24 @@ function resetBreathBox() {
   state.breathsDue = false;
   state.breathCprMs = 0;
   state.breathAdvMs = 0;
+
+  // If breath cues are disabled, hide/disable the entire breath UI.
+  if (!state.breathTimerEnabled) {
+    state.advancedAirway = false;
+    if (UI?.advAirwayState) UI.advAirwayState.textContent = "OFF";
+    if (UI?.btnAdvAirway) UI.btnAdvAirway.classList.remove("on");
+    if (UI?.breathBarBox) {
+      UI.breathBarBox.classList.add("barHidden");
+      UI.breathBarBox.classList.add("disabled");
+    }
+    return;
+  }
+
+  // Ensure breath UI is visible when enabled
+  if (UI?.breathBarBox) {
+    UI.breathBarBox.classList.remove("barHidden");
+    UI.breathBarBox.classList.remove("disabled");
+  }
 
   if (UI?.breathBar) UI.breathBar.style.width = "0%";
   if (UI?.breathBarBox) UI.breathBarBox.classList.toggle("airwayOn", state.advancedAirway);
@@ -207,6 +233,13 @@ function endSession() {
     bpm: state.bpm,
     metronomeOn: !!state.metronomeOn,
 
+    cprProfile: {
+      patientType: state.patientType,
+      rescuerCount: state.rescuerCount,
+      breathTimerEnabled: !!state.breathTimerEnabled,
+      pulseCueEnabled: !!state.pulseCueEnabled,
+    },
+
     // Keep a simple list for quick display (backward compatible with older reports.js)
     pauses: state.pauseEvents.map(p => ({
       reason: (p.reasons && p.reasons.length) ? p.reasons.join(", ") : "Unspecified",
@@ -269,6 +302,8 @@ function endSession() {
 function updateBreathBar(dt) {
   if (!UI?.breathBar || !UI?.breathMeta) return;
 
+  if (!state.breathTimerEnabled) return;
+
   if (state.advancedAirway) {
     // Advanced airway: 1 breath every 6 seconds + grace window to give breath
     const intervalMs = 6000;
@@ -292,8 +327,11 @@ function updateBreathBar(dt) {
     return;
   }
 
-  // No airway (BLS cue): breaths every ~17s (approx 30 compressions @ ~110 bpm)
-  const cycleMs = 17000;
+  // No airway (BLS cue): breath cue is based on compression count per cycle.
+  // Adult always uses 30:2. Child/infant uses 30:2 for 1 rescuer, 15:2 for 2 rescuers.
+  const compressionsPerCycle = getCompressionsPerCycle();
+  // Estimate time for that number of compressions at current BPM + small buffer.
+  const cycleMs = clampMs(Math.round((compressionsPerCycle / Math.max(60, state.bpm)) * 60000) + 1000, 6000, 20000);
   state.breathCprMs += dt;
 
   if (state.breathCprMs >= cycleMs) {
@@ -308,8 +346,26 @@ function updateBreathBar(dt) {
     : `No airway • Breaths in ${fmt(cycleMs - state.breathCprMs)}`;
 }
 
+function getCompressionsPerCycle() {
+  // Adult always uses 30:2.
+  if (state.patientType === "adult") return 30;
+  // Child/infant: 15:2 when 2-rescuer BLS, otherwise 30:2.
+  return state.rescuerCount === 2 ? 15 : 30;
+}
+
+function clampMs(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
 function updatePulseBar() {
   if (!UI?.pulseBar || !UI?.pulseMeta) return;
+
+  if (!state.pulseCueEnabled) {
+    if (UI?.pulseBarBox) UI.pulseBarBox.classList.add("barHidden");
+    return;
+  }
+
+  if (UI?.pulseBarBox) UI.pulseBarBox.classList.remove("barHidden");
 
   const pulseCycle = 120000;
   const t = state.compMs + state.offMs;
@@ -408,6 +464,10 @@ const LS_KEYS = {
   bpm: "ccf.bpm",
   classSetup: "ccf.classSetup",
   pauseReason: "ccf.pauseReasonPrompt",
+  breathTimer: "ccf.breathTimer",
+  pulseCue: "ccf.pulseCue",
+  patientType: "ccf.patientType",
+  rescuerCount: "ccf.rescuerCount",
 };
 
 function safeParseJSON(str, fallback) {
@@ -422,6 +482,20 @@ function loadSettingsFromStorage() {
   const pr = localStorage.getItem(LS_KEYS.pauseReason);
   if (pr === "0") state.pauseReasonPromptEnabled = false;
   if (pr === "1") state.pauseReasonPromptEnabled = true;
+
+  const bt = localStorage.getItem(LS_KEYS.breathTimer);
+  if (bt === "0") state.breathTimerEnabled = false;
+  if (bt === "1") state.breathTimerEnabled = true;
+
+  const pc = localStorage.getItem(LS_KEYS.pulseCue);
+  if (pc === "0") state.pulseCueEnabled = false;
+  if (pc === "1") state.pulseCueEnabled = true;
+
+  const pt = localStorage.getItem(LS_KEYS.patientType);
+  if (pt === "adult" || pt === "child" || pt === "infant") state.patientType = pt;
+
+  const rc = localStorage.getItem(LS_KEYS.rescuerCount);
+  if (rc === "1" || rc === "2") state.rescuerCount = parseInt(rc, 10);
 }
 
 function saveBpmToStorage() {
@@ -475,6 +549,7 @@ function init() {
     breathMeta: $("breathMetaLeft"),
     pulseMeta: $("pulseMetaLeft"),
     breathBarBox: $("breathBarBox"),
+    pulseBarBox: $("pulseBarBox"),
 
     btnCpr: $("btnCpr"),
     btnPause: $("btnPause"),
@@ -494,6 +569,10 @@ function init() {
     panelSetup: $("panelSetup"),
     bpmSlider: $("bpmSlider"),
     pauseReasonToggle: $("pauseReasonToggle"),
+    breathTimerToggle: $("breathTimerToggle"),
+    pulseCueToggle: $("pulseCueToggle"),
+    patientTypeSelect: $("patientTypeSelect"),
+    rescuerCountSelect: $("rescuerCountSelect"),
 
     cprOnTime: $("cprOnTime"),
     handsOffTime: $("handsOffTime"),
@@ -596,6 +675,44 @@ function init() {
     localStorage.setItem(LS_KEYS.pauseReason, state.pauseReasonPromptEnabled ? "1" : "0");
   });
 
+  // Breath timer toggle
+  UI.breathTimerToggle?.addEventListener("change", () => {
+    state.breathTimerEnabled = !!UI.breathTimerToggle.checked;
+    localStorage.setItem(LS_KEYS.breathTimer, state.breathTimerEnabled ? "1" : "0");
+    resetBreathBox();
+  });
+
+  // Pulse cue toggle
+  UI.pulseCueToggle?.addEventListener("change", () => {
+    state.pulseCueEnabled = !!UI.pulseCueToggle.checked;
+    localStorage.setItem(LS_KEYS.pulseCue, state.pulseCueEnabled ? "1" : "0");
+    updatePulseBar();
+  });
+
+  // CPR profile selectors
+  UI.patientTypeSelect?.addEventListener("change", () => {
+    const v = UI.patientTypeSelect.value;
+    if (v === "adult" || v === "child" || v === "infant") {
+      state.patientType = v;
+      localStorage.setItem(LS_KEYS.patientType, v);
+      // Breath cue timing changes immediately
+      state.breathCprMs = 0;
+      state.breathsDue = false;
+      resetBreathBox();
+    }
+  });
+
+  UI.rescuerCountSelect?.addEventListener("change", () => {
+    const v = UI.rescuerCountSelect.value;
+    if (v === "1" || v === "2") {
+      state.rescuerCount = parseInt(v, 10);
+      localStorage.setItem(LS_KEYS.rescuerCount, v);
+      state.breathCprMs = 0;
+      state.breathsDue = false;
+      resetBreathBox();
+    }
+  });
+
   // BPM slider
   UI.bpmSlider?.addEventListener("input", () => {
     const v = parseInt(UI.bpmSlider.value, 10);
@@ -613,10 +730,15 @@ function init() {
   loadSettingsFromStorage();
   syncBpmUI();
   if (UI?.pauseReasonToggle) UI.pauseReasonToggle.checked = !!state.pauseReasonPromptEnabled;
+  if (UI?.breathTimerToggle) UI.breathTimerToggle.checked = !!state.breathTimerEnabled;
+  if (UI?.pulseCueToggle) UI.pulseCueToggle.checked = !!state.pulseCueEnabled;
+  if (UI?.patientTypeSelect) UI.patientTypeSelect.value = state.patientType;
+  if (UI?.rescuerCountSelect) UI.rescuerCountSelect.value = String(state.rescuerCount);
   if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
   if (UI.metState) UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
   setAdvancedAirway(false);
   resetBreathBox();
+  updatePulseBar();
 }
 
 // Make sure DOM is ready so buttons always wire up

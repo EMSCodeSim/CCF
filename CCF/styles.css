@@ -153,6 +153,13 @@ body{
   border: 1px solid rgba(255,255,255,.08);
 }
 
+.barHidden{ display:none !important; }
+
+.breathBox.disabled{
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .barMeta{
   display:flex;
   justify-content:space-between;
@@ -502,6 +509,42 @@ body{
   font-weight: 1000;
   font-size: 18px;
   margin-bottom: 8px;
+}
+
+/* Smaller subsection headings inside Settings */
+.sectionH.smallH{
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+/* Form rows used in Settings (CPR Profile) */
+.rowField{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.fieldLabel{
+  font-weight: 900;
+  color: rgba(255,255,255,0.85);
+}
+
+.fieldSelect{
+  min-width: 160px;
+  max-width: 220px;
+  width: 52%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.28);
+  color: rgba(255,255,255,0.92);
+  font-weight: 900;
 }
 
 .sectionP{

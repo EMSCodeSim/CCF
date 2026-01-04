@@ -54,7 +54,7 @@
       </div>
 
       <!-- Pulse check bar -->
-      <div class="barBlock">
+      <div class="barBlock" id="pulseBarBox">
         <div class="barMeta">
           <span id="pulseMetaLeft">Next pulse check in 00:00</span>
         </div>
@@ -164,6 +164,49 @@
             <div class="sectionCard">
               <div class="sectionH">Setup</div>
 
+              <div class="sectionH smallH" style="margin-top:10px">Training Cues</div>
+
+              <div class="toggleRow">
+                <div class="toggleText">
+                  <div class="toggleTitle">Breath timer</div>
+                  <div class="toggleSub">When OFF: hides breath prompts/timer.</div>
+                </div>
+                <label class="switch" aria-label="Breath timer">
+                  <input id="breathTimerToggle" type="checkbox" checked />
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="toggleRow">
+                <div class="toggleText">
+                  <div class="toggleTitle">Pulse check cue</div>
+                  <div class="toggleSub">When OFF: hides the pulse check bar.</div>
+                </div>
+                <label class="switch" aria-label="Pulse check cue">
+                  <input id="pulseCueToggle" type="checkbox" checked />
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="sectionH smallH" style="margin-top:10px">CPR Profile</div>
+
+              <div class="rowField">
+                <label class="fieldLabel" for="patientTypeSelect">Patient</label>
+                <select id="patientTypeSelect" class="fieldSelect">
+                  <option value="adult">Adult</option>
+                  <option value="child">Child</option>
+                  <option value="infant">Infant</option>
+                </select>
+              </div>
+
+              <div class="rowField">
+                <label class="fieldLabel" for="rescuerCountSelect">Rescuers</label>
+                <select id="rescuerCountSelect" class="fieldSelect">
+                  <option value="1">1 rescuer</option>
+                  <option value="2">2 rescuers</option>
+                </select>
+              </div>
+
               <div class="toggleRow">
                 <div class="toggleText">
                   <div class="toggleTitle">Pause reason prompt</div>
@@ -176,7 +219,7 @@
               </div>
 
               <div class="sectionP muted">
-                More setup options can be added here later (theme, class defaults, report card settings).
+                Note: CPR Profile changes how the breath cue behaves (e.g., child/infant 2-rescuer uses 15:2).
               </div>
             </div>
           </section>
