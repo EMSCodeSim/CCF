@@ -10,9 +10,9 @@ const PRO_KEY = "ccf.proUnlocked";
 const CLASS_UI_KEY = "ccf.classSetupOpen";
 
 function isPro() {
+  if (FORCE_PRO) return true;
   return localStorage.getItem(PRO_KEY) === "1";
 }
-
 // Debug helper: allow ?pro=1 or the Debug button to toggle Pro locally
 function applyDebugPro() {
   const url = new URL(window.location.href);
@@ -996,31 +996,66 @@ proEnabled) {
 }
 
 function wireProActions(proEnabled) {
+  // This section lives under "Most Recent Score"
   const btnAssign = document.getElementById("btnAssignLatest");
   const btnDownload = document.getElementById("btnDownloadLatest");
-  if (!proEnabled) return;
+  const sel = document.getElementById("studentSelect");
+
+  const quickName = document.getElementById("quickAddName");
+  const btnQuick = document.getElementById("btnQuickAddAssign");
 
   // Prevent double-binding when boot() re-runs
   if (btnAssign && btnAssign.dataset.bound === "1") return;
   if (btnAssign) btnAssign.dataset.bound = "1";
   if (btnDownload) btnDownload.dataset.bound = "1";
+  if (btnQuick) btnQuick.dataset.bound = "1";
 
-  // Prevent double-binding when boot() re-runs
-  if (btnAssign && btnAssign.dataset.bound === "1") return;
-  if (btnAssign) btnAssign.dataset.bound = "1";
-  if (btnDownload) btnDownload.dataset.bound = "1";
-
+  // Assign latest session to selected student
   btnAssign?.addEventListener("click", () => {
     const arr = loadSessions();
     const s = arr[0];
     if (!s) return alert("No sessions to assign yet.");
-    const sel = document.getElementById("studentSelect");
-    const value = (sel?.value || "Unassigned").trim();
-    s.assignedTo = (value && value !== "Unassigned")
-      ? { student: value, assignedAt: Date.now() }
-      : null;
+
+    const value = String(sel?.value || "").trim();
+    if (!value || value === "Unassigned") {
+      s.assignedTo = null;
+    } else {
+      s.assignedTo = { student: value, assignedAt: Date.now() };
+    }
+
     arr[0] = s;
     saveSessions(arr);
+    boot();
+  });
+
+  // Quick add student + assign
+  btnQuick?.addEventListener("click", () => {
+    const name = String(quickName?.value || "").trim();
+    if (!name) return alert("Enter a student name.");
+
+    const cls = loadClassSetup() || { name: "", instructor: "", instructorEmail: "", location: "", targetCcf: "", sessionLengthSec: "120", students: [] };
+    const students = Array.isArray(cls.students) ? cls.students : [];
+    const exists = students.some(st => String(st?.name || "").trim().toLowerCase() === name.toLowerCase());
+    if (!exists) {
+      students.push({ name, email: "", contact: "", score: "" });
+      cls.students = students;
+      saveClassSetup(cls);
+    }
+
+    // refresh dropdown + select
+    syncClassUI(true);
+    const sel2 = document.getElementById("studentSelect");
+    if (sel2) sel2.value = name;
+
+    // assign now
+    const arr = loadSessions();
+    const s = arr[0];
+    if (!s) return alert("No sessions to assign yet.");
+    s.assignedTo = { student: name, assignedAt: Date.now() };
+    arr[0] = s;
+    saveSessions(arr);
+
+    if (quickName) quickName.value = "";
     boot();
   });
 
@@ -1029,14 +1064,12 @@ function wireProActions(proEnabled) {
     if (!s) return alert("No sessions to download yet.");
     const student = sessionDisplayName(s).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
     const stamp = new Date(s.endedAt || Date.now()).toISOString().slice(0, 10);
-    downloadText(`ccf_report_${student}_${stamp}.txt`, makeReportText(s));
+    downloadReportCard(s, `${stamp}_${student}.txt`);
   });
 }
 
 function boot() {
-  applyDebugPro();
-  const proEnabled = isPro();
-  syncProUI(proEnabled);
+    const proEnabled = isPro();
 
   const sessions = loadSessions();
   const reportCountEl = document.getElementById("reportCount");
