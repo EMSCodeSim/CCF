@@ -17,6 +17,10 @@ const CLASS_KEY = "ccf.classSetup";
 const PRO_KEY = "ccf.proUnlocked";
 const CLASS_UI_KEY = "ccf.classSetupOpen";
 
+// TEMP: remove paywall while building instructor features.
+// Set to false to re-enable Pro gating once the feature set is finalized.
+const FORCE_PRO = true;
+
 /* ===== Instructor UX helpers (v1) ===== */
 function getLocked(cls) {
   return !!(cls && cls.locked);
