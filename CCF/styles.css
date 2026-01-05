@@ -1453,3 +1453,35 @@ body{
 .tNameBtn:hover{ text-decoration: underline; }
 .scoreInput{ width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.18); color: rgba(255,255,255,.92); padding: 8px 10px; font-weight: 900; text-align:right; }
 .scoreInput::placeholder{ color: rgba(255,255,255,.45); }
+
+
+/* ===== Reports: sticky summary + score source tags ===== */
+.stickySummary{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(10,14,20,.92);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.stickyRow{ display:grid; gap:6px; }
+.stickyTitle{ font-weight: 900; }
+.stickyMeta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  font-size: 12px;
+  opacity: .92;
+}
+.srcTag{
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  opacity: .9;
+  white-space: nowrap;
+}
+/* ================================================ */

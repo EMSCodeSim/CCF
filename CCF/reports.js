@@ -9,6 +9,57 @@ const CLASS_KEY = "ccf.classSetup";
 const PRO_KEY = "ccf.proUnlocked";
 const CLASS_UI_KEY = "ccf.classSetupOpen";
 
+/* ===== Instructor UX helpers (v1) ===== */
+function getLocked(cls) {
+  return !!(cls && cls.locked);
+}
+function setLocked(cls, locked) {
+  cls.locked = !!locked;
+  return cls;
+}
+function classSummaryLine(cls) {
+  if (!cls || !cls.name) return "Set class info and roster (optional)";
+  const count = (cls.students || []).filter(s => String(s?.name || "").trim()).length;
+  const target = Number(cls.targetCcf || 80);
+  return `${cls.name} | ${count} student${count === 1 ? "" : "s"} | Target CCF: ${target}%`;
+}
+function applyClassLockUI(cls) {
+  const locked = getLocked(cls);
+  const lockToggle = document.getElementById("classLocked");
+  const lockNote = document.getElementById("classLockedNote");
+  if (lockToggle) lockToggle.checked = locked;
+  if (lockNote) lockNote.style.display = locked ? "block" : "none";
+
+  const ids = [
+    "className",
+    "instructorName",
+    "instructorEmail",
+    "classLocation",
+    "targetCcf",
+    "sessionLengthSec",
+    "btnAddStudent",
+    "btnSaveClass",
+    "btnClearClass",
+    "quickAddName",
+    "btnQuickAddAssign",
+  ];
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = locked;
+    el.setAttribute("aria-disabled", locked ? "true" : "false");
+  });
+
+  document
+    .querySelectorAll("#rosterEditor input, #rosterEditor button")
+    .forEach((el) => {
+      el.disabled = locked;
+      el.setAttribute("aria-disabled", locked ? "true" : "false");
+    });
+}
+/* ====================================== */
+
+
 function isPro() {
   if (FORCE_PRO) return true;
   return localStorage.getItem(PRO_KEY) === "1";
@@ -397,6 +448,22 @@ function renderClassDashboard(sessions, proEnabled) {
 
   const passingCount = rows.filter(r => r.attempts && r.avg >= target).length;
 
+// Sticky summary header (keeps key stats visible while scrolling roster)
+const sticky = document.getElementById("classReportStickySummary");
+if (sticky) {
+  const common = computeCommonIssue(sessions);
+  sticky.innerHTML = `
+    <div class="stickyRow">
+      <div class="stickyTitle">Class Report</div>
+      <div class="stickyMeta">
+        <span><strong>Avg CCF:</strong> ${stats.classN ? `${stats.classAvg}%` : "—"}</span>
+        <span><strong>Passing:</strong> ${passingCount}/${rows.length}</span>
+        <span><strong>Common issue:</strong> ${common || "—"}</span>
+      </div>
+    </div>
+  `;
+}
+
   if (scoreEl) {
     scoreEl.innerHTML = `
       <div class="dashTitle">Class Score</div>
@@ -437,7 +504,8 @@ function renderClassDashboard(sessions, proEnabled) {
       </div>
       ${rows.map(r => {
         const st = statusFor(r.avg, r.attempts, target);
-        const scoreVal = rosterByName.get(r.name)?.score ?? "";
+        const scoreVal = String(rosterByName.get(r.name)?.score ?? "").trim();
+        const source = r.attempts ? "Auto" : (scoreVal ? "Manual" : "Unassigned");
         return `
           <div class="tRow">
             <div class="tName">
@@ -445,8 +513,10 @@ function renderClassDashboard(sessions, proEnabled) {
             </div>
             <div class="tNum">${r.attempts ? `${Math.round(r.avg)}%` : "—"}</div>
             <div class="tNum">${r.attempts}</div>
-            <div class="tNum">
-              <input class="scoreInput" type="number" inputmode="numeric" min="0" max="100" placeholder="—" value="${escapeHtml(scoreVal)}" data-score-name="${escapeHtml(r.name)}" />
+            <div class="tNum" style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
+              <input class="scoreInput" type="number" inputmode="numeric" min="0" max="100" placeholder="—"
+                value="${escapeHtml(scoreVal)}" data-score-name="${escapeHtml(r.name)}" />
+              <span class="srcTag">${source}</span>
             </div>
             <div class="tStatus"><span class="pill ${st.cls}">${st.text}</span></div>
           </div>
@@ -771,40 +841,37 @@ function syncClassUI(proEnabled) {
   const meta = document.getElementById("classMeta");
   if (!sel || !meta) return;
 
-  const cls = loadClassSetup();
-  const name = cls?.name || "";
-  const instructor = cls?.instructor || "";
-  const instructorEmail = cls?.instructorEmail || "";
-  const count = (cls?.students || []).filter(s => s && String(s.name || "").trim()).length;
-  meta.textContent = name
-    ? `${name}${instructor ? ` • ${instructor}` : ""} • ${count} students`
-    : "No class loaded (use Class Setup above)";
+  const cls = loadClassSetup() || {};
+  meta.textContent = classSummaryLine(cls);
 
-  const roster = (cls?.students || []).map(s => String(s?.name || "").trim()).filter(Boolean);
-  sel.innerHTML = ["Unassigned", ...roster].map(s => `<option value="${s}">${s}</option>`).join("");
+  const roster = (cls.students || [])
+    .map((s) => String(s?.name || "").trim())
+    .filter(Boolean);
+  sel.innerHTML = ["Unassigned", ...roster]
+    .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
+    .join("");
 
   // Populate the Class Setup form (collapsible panel)
   const elName = document.getElementById("className");
   const elInstr = document.getElementById("instructorName");
   const elEmail = document.getElementById("instructorEmail");
-  const elEmail = document.getElementById("instructorEmail");
   const elLoc = document.getElementById("classLocation");
   const elTarget = document.getElementById("targetCcf");
   const elLen = document.getElementById("sessionLengthSec");
+  const elLocked = document.getElementById("classLocked");
 
-  if (elName) elName.value = name;
-  if (elInstr) elInstr.value = instructor;
-  if (elEmail) elEmail.value = instructorEmail;
-  if (elLoc) elLoc.value = cls?.location || "";
-  if (elTarget) elTarget.value = String(cls?.targetCcf ?? "");
-  if (elLen) elLen.value = String(cls?.sessionLengthSec ?? 120);
+  if (elName) elName.value = cls.name || "";
+  if (elInstr) elInstr.value = cls.instructor || "";
+  if (elEmail) elEmail.value = cls.instructorEmail || "";
+  if (elLoc) elLoc.value = cls.location || "";
+  if (elTarget) elTarget.value = String(cls.targetCcf ?? "");
+  if (elLen) elLen.value = String(cls.sessionLengthSec ?? 120);
+  if (elLocked) elLocked.checked = !!cls.locked;
 
-  renderRosterEditor(cls?.students || []);
-
-  // If no class exists, auto-open Class Setup to guide first-time instructors (once)
-  const shouldOpen = !name && !getClassSetupOpen();
-  if (shouldOpen) setClassSetupOpen(true);
+  renderRosterEditor(cls.students || []);
+  applyClassLockUI(cls);
 }
+
 
 
 const ACC_KEY = "ccf.reportsAccordion.v1";
@@ -1001,8 +1068,8 @@ function wireProActions(proEnabled) {
   const btnDownload = document.getElementById("btnDownloadLatest");
   const sel = document.getElementById("studentSelect");
 
-  const quickName = document.getElementById("quickAddName");
-  const btnQuick = document.getElementById("btnQuickAddAssign");
+  const quickName = document.getElementById("latestQuickAddName");
+  const btnQuick = document.getElementById("latestBtnQuickAddAssign");
 
   // Prevent double-binding when boot() re-runs
   if (btnAssign && btnAssign.dataset.bound === "1") return;
@@ -1067,6 +1134,32 @@ function wireProActions(proEnabled) {
     downloadReportCard(s, `${stamp}_${student}.txt`);
   });
 }
+
+function computeCommonIssue(sessions) {
+  // Uses pause reasons captured on sessions (s.pauses[])
+  const map = new Map();
+  sessions.forEach((s) => {
+    (s.pauses || []).forEach((p) => {
+      const reasons =
+        p.reasons && p.reasons.length ? p.reasons : [p.reason || "Unspecified"];
+      const dur = p.ms ?? p.durMs ?? 0;
+      reasons.forEach((r) => {
+        const key = String(r || "Unspecified");
+        map.set(key, (map.get(key) || 0) + dur);
+      });
+    });
+  });
+  let best = "";
+  let bestMs = 0;
+  for (const [k, ms] of map.entries()) {
+    if (ms > bestMs) {
+      bestMs = ms;
+      best = k;
+    }
+  }
+  return best ? `${best} (${fmt(bestMs)})` : "";
+}
+
 
 function boot() {
     const proEnabled = isPro();
