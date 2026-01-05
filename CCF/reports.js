@@ -4,6 +4,14 @@
    - Pro: class roster + student assignment + downloadable report cards (no ads)
    =========================== */
 
+
+function bindOnce(el, evt, key, handler){
+  if(!el) return;
+  const k = key || (evt + "_bound");
+  if(el.dataset && el.dataset[k]==="1") return;
+  el.addEventListener(evt, handler);
+  if(el.dataset) el.dataset[k]="1";
+}
 const SESSIONS_KEY = "ccf_sessions_v1";
 const CLASS_KEY = "ccf.classSetup";
 const PRO_KEY = "ccf.proUnlocked";
@@ -920,9 +928,7 @@ function wireAccordions(proEnabled) {
   setAccOpen("export", !!state.export && proEnabled);
 
   document.querySelectorAll(".accHead[data-acc]").forEach(btn => {
-    if (btn.dataset.bound === "1") return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", () => {
+    bindOnce(btn,"click","acc",() => {
       const id = btn.getAttribute("data-acc");
       const s = loadAccState();
       const now = !s[id];
@@ -1189,4 +1195,4 @@ function boot() {
 }
 
 
-boot();
+window.addEventListener("DOMContentLoaded", () => { try { boot(); } catch (e) { console.error(e); alert("Reports error: " + (e?.message||e)); } });

@@ -1485,3 +1485,7 @@ body{
   white-space: nowrap;
 }
 /* ================================================ */
+
+
+/* Click-safety (desktop) */
+.accHead, button, a, .primaryBtn, .secondaryBtn, .endBtn { position: relative; z-index: 2; }
