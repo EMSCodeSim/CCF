@@ -1431,3 +1431,25 @@ body{
 
 .emptyNote{ color: rgba(255,255,255,.75); font-weight: 850; padding: 10px 0; }
 .dashHint{ margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px dashed rgba(255,255,255,.20); color: rgba(255,255,255,.85); background: rgba(0,0,0,.14); font-weight: 850; }
+
+
+/* Reports accordion */
+.acc{ margin-top: 12px; }
+.accHead{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 14px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); color: inherit; text-align:left; cursor:pointer; }
+.accLeft{ display:flex; flex-direction:column; gap:2px; }
+.accTitle{ font-weight: 1000; letter-spacing:.2px; }
+.accSub{ font-size: 12px; opacity:.78; font-weight: 750; }
+.accRight{ display:flex; align-items:center; gap:10px; }
+.accMini{ font-size:12px; opacity:.8; font-weight:900; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.18); }
+.accChevron{ font-size: 18px; opacity:.9; transform: rotate(0deg); transition: transform .16s ease; }
+.acc.open .accChevron{ transform: rotate(180deg); }
+.accBody{ margin-top: 10px; }
+
+
+/* Student score input in reports table */
+.studentTable .tHead{ grid-template-columns: 1fr 60px 80px 90px 110px; }
+.studentTable .tRow{ grid-template-columns: 1fr 60px 80px 90px 110px; }
+.tNameBtn{ background: transparent; border:0; padding:0; color: inherit; font: inherit; text-align:left; cursor:pointer; font-weight:1000; }
+.tNameBtn:hover{ text-decoration: underline; }
+.scoreInput{ width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.18); color: rgba(255,255,255,.92); padding: 8px 10px; font-weight: 900; text-align:right; }
+.scoreInput::placeholder{ color: rgba(255,255,255,.45); }

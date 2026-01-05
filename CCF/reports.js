@@ -74,6 +74,8 @@ function normalizeClassSetup(cls) {
   } else {
     out.students = [];
   }
+  out.instructorEmail = String(out.instructorEmail || "").trim();
+
 
   // Defaults
   if (!Number.isFinite(parseInt(out.targetCcf, 10))) out.targetCcf = 80;
@@ -360,6 +362,7 @@ function renderClassDashboard(sessions, proEnabled) {
 
   const cls = getClassSetup();
   const roster = Array.isArray(cls?.students) ? cls.students : [];
+  const rosterByName = new Map(roster.map(s => [String(s?.name || "").trim(), s]));
   const target = cls?.targetCcf ?? 80;
 
   if (!cls || !roster.length) {
@@ -430,20 +433,51 @@ function renderClassDashboard(sessions, proEnabled) {
   if (tableEl) {
     tableEl.innerHTML = `
       <div class="tHead">
-        <div>Student</div><div>Avg</div><div>Attempts</div><div>Status</div>
+        <div>Student</div><div>Avg</div><div>Attempts</div><div>Score</div><div>Status</div>
       </div>
       ${rows.map(r => {
         const st = statusFor(r.avg, r.attempts, target);
+        const scoreVal = rosterByName.get(r.name)?.score ?? "";
         return `
           <div class="tRow">
-            <div class="tName">${escapeHtml(r.name)}</div>
+            <div class="tName">
+              <button class="tNameBtn" type="button" data-student-name="${escapeHtml(r.name)}">${escapeHtml(r.name)}</button>
+            </div>
             <div class="tNum">${r.attempts ? `${Math.round(r.avg)}%` : "—"}</div>
             <div class="tNum">${r.attempts}</div>
+            <div class="tNum">
+              <input class="scoreInput" type="number" inputmode="numeric" min="0" max="100" placeholder="—" value="${escapeHtml(scoreVal)}" data-score-name="${escapeHtml(r.name)}" />
+            </div>
             <div class="tStatus"><span class="pill ${st.cls}">${st.text}</span></div>
           </div>
         `;
       }).join("")}
     `;
+
+    // wire: click name to open student modal
+    tableEl.querySelectorAll(".tNameBtn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const nm = btn.getAttribute("data-student-name") || "";
+        openStudentModal(nm, sessions);
+      });
+    });
+
+    // wire: manual score edits
+    tableEl.querySelectorAll(".scoreInput").forEach(inp => {
+      inp.addEventListener("change", () => {
+        const nm = inp.getAttribute("data-score-name") || "";
+        const cls2 = loadClassSetup() || {};
+        cls2.students = Array.isArray(cls2.students) ? cls2.students : [];
+        cls2.students = cls2.students.map(s => {
+          if (String(s?.name||"").trim() === nm) {
+            return { ...s, score: String(inp.value || "").trim() };
+          }
+          return s;
+        });
+        saveClassSetup(cls2);
+      });
+    });
+
   }
 }
 
@@ -603,6 +637,108 @@ function exportCSV() {
   downloadCSV("ccf_reports_premium.csv", rows);
 }
 
+function buildClassSummary(cls, sessions) {
+  const name = cls?.name || "Class";
+  const target = cls?.targetCcf ?? 80;
+  const roster = Array.isArray(cls?.students) ? cls.students : [];
+  const rosterNames = roster.map(s => String(s?.name||"").trim()).filter(Boolean);
+
+  // per-student averages from assigned sessions
+  const byStudent = new Map();
+  rosterNames.forEach(n => byStudent.set(n, { name: n, attempts: 0, sum: 0 }));
+
+  sessions.forEach(s => {
+    const n = s?.assignedTo?.student;
+    if (!n || !byStudent.has(n)) return;
+    const rec = byStudent.get(n);
+    rec.attempts += 1;
+    rec.sum += (s.ccfPct || 0);
+  });
+
+  const rows = [...byStudent.values()].map(r => ({
+    name: r.name,
+    attempts: r.attempts,
+    avg: r.attempts ? (r.sum / r.attempts) : 0,
+    manual: String(roster.find(x => String(x?.name||"").trim()===r.name)?.score || "").trim()
+  })).sort((a,b)=>a.name.localeCompare(b.name));
+
+  const classAttempts = rows.reduce((a,r)=>a+r.attempts,0);
+  const classAvg = classAttempts ? (rows.reduce((a,r)=>a+(r.avg*r.attempts),0)/classAttempts) : 0;
+  const passing = rows.filter(r => r.attempts && r.avg >= target).length;
+
+  return { name, target, rows, classAvg, passing, total: rows.length };
+}
+
+function mailtoDraft(to, subject, body, bcc="") {
+  const params = [];
+  if (subject) params.push(`subject=${encodeURIComponent(subject)}`);
+  if (body) params.push(`body=${encodeURIComponent(body)}`);
+  if (bcc) params.push(`bcc=${encodeURIComponent(bcc)}`);
+  const url = `mailto:${encodeURIComponent(to || "")}?${params.join("&")}`;
+  window.location.href = url;
+}
+
+function wireExportActions(proEnabled, sessions) {
+  const btnCsv = document.getElementById("btnExportCsv");
+  const btnEmailInstr = document.getElementById("btnEmailInstructor");
+  const btnEmailStudents = document.getElementById("btnEmailStudents");
+  if (!proEnabled) return;
+
+  if (btnCsv && btnCsv.dataset.bound !== "1") {
+    btnCsv.dataset.bound = "1";
+    btnCsv.addEventListener("click", () => exportCSV());
+  }
+
+  if (btnEmailInstr && btnEmailInstr.dataset.bound !== "1") {
+    btnEmailInstr.dataset.bound = "1";
+    btnEmailInstr.addEventListener("click", () => {
+      const cls = loadClassSetup() || {};
+      const summary = buildClassSummary(cls, sessions);
+
+      let to = String(cls?.instructorEmail || "").trim();
+      if (!to) to = prompt("Instructor email (optional). Leave blank to open a draft without a recipient:", "") || "";
+
+      const subject = `CCF Class Summary - ${summary.name}`;
+      const lines = [
+        `Class: ${summary.name}`,
+        `Target: ${summary.target}%`,
+        `Class avg (assigned sessions): ${Math.round(summary.classAvg)}%`,
+        `Passing: ${summary.passing}/${summary.total}`,
+        ``,
+        `Student averages (assigned sessions):`,
+        ...summary.rows.map(r => `- ${r.name}: ${r.attempts ? Math.round(r.avg) + "%" : "—"} (${r.attempts} attempt${r.attempts===1?"":"s"})${r.manual ? ` • Manual score: ${r.manual}%` : ""}`)
+      ];
+
+      mailtoDraft(to, subject, lines.join("\n"));
+    });
+  }
+
+  if (btnEmailStudents && btnEmailStudents.dataset.bound !== "1") {
+    btnEmailStudents.dataset.bound = "1";
+    btnEmailStudents.addEventListener("click", () => {
+      const cls = loadClassSetup() || {};
+      const roster = Array.isArray(cls?.students) ? cls.students : [];
+      const emails = roster.map(s => String(s?.email||"").trim()).filter(Boolean);
+      if (!emails.length) return alert("No student emails in roster yet. Add emails in Class Setup (optional).");
+
+      const summary = buildClassSummary(cls, sessions);
+      const subject = `CCF Results - ${summary.name}`;
+      const body = [
+        `CCF results for: ${summary.name}`,
+        ``,
+        `If you have multiple attempts assigned, your average is shown.`,
+        ``,
+        `Reply to this email if you have questions.`,
+      ].join("\n");
+
+      // Use BCC so you can message everyone at once
+      const to = String(cls?.instructorEmail || "").trim();
+      mailtoDraft(to, subject, body, emails.join(","));
+    });
+  }
+}
+
+
 function syncProUI(proEnabled) {
   const upgrade = document.getElementById("upgradeCard");
   const proBlock = document.getElementById("proBlock");
@@ -638,6 +774,7 @@ function syncClassUI(proEnabled) {
   const cls = loadClassSetup();
   const name = cls?.name || "";
   const instructor = cls?.instructor || "";
+  const instructorEmail = cls?.instructorEmail || "";
   const count = (cls?.students || []).filter(s => s && String(s.name || "").trim()).length;
   meta.textContent = name
     ? `${name}${instructor ? ` • ${instructor}` : ""} • ${count} students`
@@ -648,13 +785,16 @@ function syncClassUI(proEnabled) {
 
   // Populate the Class Setup form (collapsible panel)
   const elName = document.getElementById("className");
-  const elInstr = document.getElementById("classInstructor");
+  const elInstr = document.getElementById("instructorName");
+  const elEmail = document.getElementById("instructorEmail");
+  const elEmail = document.getElementById("instructorEmail");
   const elLoc = document.getElementById("classLocation");
-  const elTarget = document.getElementById("classTargetCcf");
-  const elLen = document.getElementById("classSessionLength");
+  const elTarget = document.getElementById("targetCcf");
+  const elLen = document.getElementById("sessionLengthSec");
 
   if (elName) elName.value = name;
   if (elInstr) elInstr.value = instructor;
+  if (elEmail) elEmail.value = instructorEmail;
   if (elLoc) elLoc.value = cls?.location || "";
   if (elTarget) elTarget.value = String(cls?.targetCcf ?? "");
   if (elLen) elLen.value = String(cls?.sessionLengthSec ?? 120);
@@ -666,114 +806,127 @@ function syncClassUI(proEnabled) {
   if (shouldOpen) setClassSetupOpen(true);
 }
 
-function getClassSetupOpen() {
-  return localStorage.getItem(CLASS_UI_KEY) === "1";
+
+const ACC_KEY = "ccf.reportsAccordion.v1";
+
+function loadAccState() {
+  const raw = safeParseJSON(localStorage.getItem(ACC_KEY) || "", null);
+  if (raw && typeof raw === "object") return raw;
+  return { classSetup: false, latest: true, classReport: false, export: false };
+}
+function saveAccState(state) {
+  try { localStorage.setItem(ACC_KEY, JSON.stringify(state)); } catch {}
 }
 
-function setClassSetupOpen(open) {
-  try { localStorage.setItem(CLASS_UI_KEY, open ? "1" : "0"); } catch {}
-  const panel = document.getElementById("classSetupPanel");
-  const btn = document.getElementById("btnToggleClassSetup");
-  if (panel) panel.style.display = open ? "block" : "none";
-  if (btn) btn.classList.toggle("active", open);
+function setAccOpen(accId, open) {
+  const sec = document.querySelector(`.accHead[data-acc="${accId}"]`)?.closest(".acc");
+  const body = document.getElementById(
+    accId === "classSetup" ? "accBodyClassSetup" :
+    accId === "latest" ? "accBodyLatest" :
+    accId === "classReport" ? "accBodyClassReport" :
+    "accBodyExport"
+  );
+  if (sec) sec.classList.toggle("open", open);
+  if (body) body.style.display = open ? "block" : "none";
 }
 
-function wireClassSetupToggle(proEnabled) {
-  if (!proEnabled) return;
-  const btn = document.getElementById("btnToggleClassSetup");
-  if (!btn || btn.dataset.bound === "1") return;
-  btn.dataset.bound = "1";
-  btn.addEventListener("click", () => {
-    setClassSetupOpen(!getClassSetupOpen());
-  });
-  // Apply initial state
-  setClassSetupOpen(getClassSetupOpen());
-}
-
-function renderRosterEditor(students) {
-  const host = document.getElementById("rosterEditor");
-  if (!host) return;
-  const list = Array.isArray(students) ? students : [];
-
-  if (!list.length) {
-    host.innerHTML = `<div class="rosterEmpty">No students yet. Add students to create a roster.</div>`;
-    return;
+function wireAccordions(proEnabled) {
+  // Hide premium-only accordions if not Pro
+  const accClassSetup = document.getElementById("accClassSetup");
+  const accClassReport = document.getElementById("accClassReport");
+  const accExport = document.getElementById("accExport");
+  if (!proEnabled) {
+    if (accClassSetup) accClassSetup.style.display = "none";
+    if (accClassReport) accClassReport.style.display = "none";
+    if (accExport) accExport.style.display = "none";
+  } else {
+    if (accClassSetup) accClassSetup.style.display = "block";
+    if (accClassReport) accClassReport.style.display = "block";
+    if (accExport) accExport.style.display = "block";
   }
 
-  host.innerHTML = `
-    <div class="rosterHeader">
-      <div>Name</div>
-      <div>Email (optional)</div>
-      <div>Contact (optional)</div>
-      <div>Score (optional)</div>
-      <div></div>
-    </div>
-    ${list.map((s, idx) => `
-      <div class="rosterRow" data-idx="${idx}">
-        <input class="rosterName" type="text" value="${escapeAttr(s.name || "")}" placeholder="Student name" />
-        <input class="rosterEmail" type="email" value="${escapeAttr(s.email || "")}" placeholder="email@" />
-        <input class="rosterContact" type="text" value="${escapeAttr(s.contact || "")}" placeholder="phone / notes" />
-        <input class="rosterScore" type="number" min="0" max="100" step="1" value="${escapeAttr(s.score || "")}" placeholder="" />
-        <button class="rosterRemove" type="button" aria-label="Remove">✕</button>
-      </div>
-    `).join("")}
-  `;
+  const state = loadAccState();
+  // Always show latest accordion (free + pro)
+  setAccOpen("classSetup", !!state.classSetup && proEnabled);
+  setAccOpen("latest", state.latest !== false);
+  setAccOpen("classReport", !!state.classReport && proEnabled);
+  setAccOpen("export", !!state.export && proEnabled);
 
-  // Bind remove buttons
-  host.querySelectorAll(".rosterRemove").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      const row = e.currentTarget.closest(".rosterRow");
-      const idx = parseInt(row?.dataset?.idx || "-1", 10);
-      if (idx < 0) return;
-      // Remove from the current editor (draft), not from saved storage.
-      const st = readRosterFromEditor();
-      st.splice(idx, 1);
-      // keep panel edits without forcing Save: update in-memory panel only
-      renderRosterEditor(st);
-      // also keep select list up-to-date while editing
-      const sel = document.getElementById("studentSelect");
-      if (sel) {
-        const names = st.map(x => x.name).filter(Boolean);
-        sel.innerHTML = ["Unassigned", ...names].map(s => `<option value="${s}">${s}</option>`).join("");
-      }
-      // store a draft roster on the panel element
-      const panel = document.getElementById("classSetupPanel");
-      if (panel) panel.dataset.rosterDraft = JSON.stringify(st);
+  document.querySelectorAll(".accHead[data-acc]").forEach(btn => {
+    if (btn.dataset.bound === "1") return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-acc");
+      const s = loadAccState();
+      const now = !s[id];
+      s[id] = now;
+      saveAccState(s);
+      setAccOpen(id, now && (proEnabled || id === "latest"));
     });
   });
-
-  // Store a draft roster on the panel element so Save reads the current edit state.
-  const panel = document.getElementById("classSetupPanel");
-  if (panel) panel.dataset.rosterDraft = JSON.stringify(list);
 }
 
-function readRosterFromEditor() {
-  const host = document.getElementById("rosterEditor");
-  if (!host) return [];
-  const rows = Array.from(host.querySelectorAll(".rosterRow"));
-  return rows.map(r => {
-    const name = (r.querySelector(".rosterName")?.value || "").trim();
-    const email = (r.querySelector(".rosterEmail")?.value || "").trim();
-    const contact = (r.querySelector(".rosterContact")?.value || "").trim();
-    const score = (r.querySelector(".rosterScore")?.value || "").trim();
-    return { name, email, contact, score };
-  }).filter(x => x.name);
+function wireStudentModal() {
+  const overlay = document.getElementById("studentOverlay");
+  const btnClose = document.getElementById("btnCloseStudentModal");
+  if (!overlay || !btnClose) return;
+  if (btnClose.dataset.bound === "1") return;
+  btnClose.dataset.bound = "1";
+  btnClose.addEventListener("click", () => overlay.classList.remove("show"));
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) overlay.classList.remove("show");
+  });
 }
 
-function escapeAttr(s) {
-  return String(s || "").replaceAll("&", "&amp;").replaceAll("\"", "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+function openStudentModal(studentName, sessions) {
+  const overlay = document.getElementById("studentOverlay");
+  const title = document.getElementById("studentModalTitle");
+  const sub = document.getElementById("studentModalSub");
+  const body = document.getElementById("studentModalBody");
+  if (!overlay || !title || !sub || !body) return;
+
+  const assigned = sessions.filter(s => s.assignedTo?.student === studentName);
+  const attempts = assigned.length;
+  const avg = attempts ? assigned.reduce((a, x) => a + (x.ccfPct || 0), 0) / attempts : 0;
+  const best = attempts ? Math.max(...assigned.map(s => s.ccfPct || 0)) : 0;
+  const worst = attempts ? Math.min(...assigned.map(s => s.ccfPct || 0)) : 0;
+
+  title.textContent = studentName;
+  sub.textContent = attempts ? `${attempts} assigned session${attempts===1?"":"s"} • Avg ${Math.round(avg)}%` : "No assigned sessions yet";
+
+  body.innerHTML = `
+    <div class="dashCard" style="margin:0; padding:12px;">
+      <div class="dashKpiRow">
+        <div class="dashKpi"><div class="kLabel">Average</div><div class="kValue">${attempts ? Math.round(avg) + "%" : "—"}</div></div>
+        <div class="dashKpi"><div class="kLabel">Best</div><div class="kValue">${attempts ? Math.round(best) + "%" : "—"}</div></div>
+        <div class="dashKpi"><div class="kLabel">Worst</div><div class="kValue">${attempts ? Math.round(worst) + "%" : "—"}</div></div>
+      </div>
+      <div style="margin-top:10px; display:grid; gap:8px;">
+        ${assigned.slice(0, 20).map(s => `
+          <div class="tRow" style="grid-template-columns: 1fr 70px 90px;">
+            <div class="tName">${escapeHtml(toLocal(s.startedAt))}</div>
+            <div class="tNum">${Math.round(s.ccfPct||0)}%</div>
+            <div class="tNum">${Math.round(s.handsOffSec||0)}s off</div>
+          </div>
+        `).join("") || `<div class="emptyNote">Assign sessions from “Most Recent Score”.</div>`}
+      </div>
+    </div>
+  `;
+
+  overlay.classList.add("show");
 }
 
-function wireClassSetup(proEnabled) {
+function wireClassSetup(
+proEnabled) {
   if (!proEnabled) return;
   const btnSave = document.getElementById("btnSaveClass");
   const btnClear = document.getElementById("btnClearClass");
   const btnAddStudent = document.getElementById("btnAddStudent");
   const elName = document.getElementById("className");
-  const elInstr = document.getElementById("classInstructor");
+  const elInstr = document.getElementById("instructorName");
   const elLoc = document.getElementById("classLocation");
-  const elTarget = document.getElementById("classTargetCcf");
-  const elLen = document.getElementById("classSessionLength");
+  const elTarget = document.getElementById("targetCcf");
+  const elLen = document.getElementById("sessionLengthSec");
 
   // Prevent double-binding when boot() re-runs
   if (btnSave && btnSave.dataset.bound === "1") return;
@@ -804,6 +957,7 @@ function wireClassSetup(proEnabled) {
     btnSave.addEventListener("click", () => {
       const name = (elName?.value || "").trim();
       const instructor = (elInstr?.value || "").trim();
+      const instructorEmail = (elEmail?.value || "").trim();
       const location = (elLoc?.value || "").trim();
       const students = readRosterFromEditor();
 
@@ -815,7 +969,7 @@ function wireClassSetup(proEnabled) {
       const lenRaw = parseInt(elLen?.value || "", 10);
       const sessionLengthSec = Number.isFinite(lenRaw) ? lenRaw : 120;
 
-      saveClassSetup({ name, instructor, location, students, targetCcf, sessionLengthSec });
+      saveClassSetup({ name, instructor, instructorEmail, location, students, targetCcf, sessionLengthSec });
 
       // quick feedback
       const old = btnSave.textContent;
@@ -885,26 +1039,28 @@ function boot() {
   syncProUI(proEnabled);
 
   const sessions = loadSessions();
-  document.getElementById("reportCount").textContent = `${sessions.length} saved`;
+  const reportCountEl = document.getElementById("reportCount");
+  if (reportCountEl) reportCountEl.textContent = `${sessions.length} saved`;
 
+  // Accordions + modals
+  wireAccordions(proEnabled);
+  wireStudentModal();
+
+  // Latest card
   if (proEnabled) renderLatestPro(sessions[0]);
   else renderLatestFree(sessions[0]);
 
+  // Class + roster UI
   syncClassUI(proEnabled);
-  wireClassSetupToggle(proEnabled);
   wireClassSetup(proEnabled);
   wireProActions(proEnabled);
+
+  // Class report dashboard
   renderClassDashboard(sessions, proEnabled);
-  renderHistory(sessions, proEnabled);
+
+  // Export actions
+  wireExportActions(proEnabled, sessions);
 }
 
-document.getElementById("btnClear").addEventListener("click", () => {
-  if (confirm("Clear all saved sessions?")) {
-    saveSessions([]);
-    boot();
-  }
-});
-
-document.getElementById("btnExport").addEventListener("click", exportCSV);
 
 boot();
