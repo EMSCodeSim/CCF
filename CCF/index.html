@@ -64,6 +64,27 @@
       </div>
     </section>
 
+
+    <!-- End-of-session quick summary (shown after END) -->
+    <section class="endSummaryCard" id="endSummaryCard" style="display:none;" aria-label="End of session summary">
+      <div class="endSummaryTitle">Session Summary</div>
+      <div class="endSummaryGrid">
+        <div class="endSummaryItem">
+          <div class="endLabel">CCF</div>
+          <div class="endValue" id="endCcfValue">0%</div>
+        </div>
+        <div class="endSummaryItem">
+          <div class="endLabel">Pauses</div>
+          <div class="endValue" id="endPauseCount">0</div>
+        </div>
+        <div class="endSummaryItem endSummaryWide">
+          <div class="endLabel">Longest pause reason</div>
+          <div class="endValue" id="endLongestReason">—</div>
+        </div>
+      </div>
+      <div class="endSummaryHint">Press <strong>RESET</strong> to clear and start a new run.</div>
+    </section>
+
     <section class="actionsRow">
       <button class="actionBtn primary" id="btnCpr" type="button">
         <div class="label">CPR</div>
@@ -76,29 +97,6 @@
         <div class="sub">Hands-off</div>
         <div class="mini"><span id="handsOffTime">00:00</span></div>
       </button>
-    </section>
-
-    <!-- End-of-session quick summary (shown after END, cleared on RESET) -->
-    <section class="dashCard" id="endSummaryCard" style="display:none;" aria-live="polite">
-      <div class="dashTitle">Session Summary</div>
-      <div class="dashSub" id="endSummaryMeta">Saved locally</div>
-
-      <div class="dashGrid" style="margin-top:10px;">
-        <div class="miniCard">
-          <div class="miniLabel">CCF</div>
-          <div class="miniValue" id="endSummaryCcf">0%</div>
-        </div>
-        <div class="miniCard">
-          <div class="miniLabel">Pauses</div>
-          <div class="miniValue" id="endSummaryPauses">0</div>
-        </div>
-        <div class="miniCard">
-          <div class="miniLabel">Longest pause</div>
-          <div class="miniValue" id="endSummaryLongest">—</div>
-        </div>
-      </div>
-
-      <div class="dashSub" style="margin-top:10px;" id="endSummaryLongestReason">Reason: —</div>
     </section>
 
     <!-- Pause reasons modal -->
