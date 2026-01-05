@@ -260,7 +260,10 @@ function startCPR() {
 
   // If we are resuming from a pause, finalize that pause event first.
   finalizePauseEvent();
-  hidePauseModal();
+
+  // Hide pause modal on next tick to avoid "click-through" issues on some
+  // mobile webviews (ghost click hitting underlying UI after overlay hides).
+  setTimeout(() => hidePauseModal(), 0);
 
   state.mode = "cpr";
   state.pauseStartMs = null;
@@ -648,7 +651,15 @@ function init() {
     // Prevent double-binding if init() is ever re-run.
     if (el.dataset.bound === "1") return;
 
+    // Some mobile webviews will generate a "ghost" click after pointer/touch.
+    // We attach BOTH pointerup and click, and dedupe by time.
+    let lastTs = 0;
+
     const wrapped = (e) => {
+      const ts = Date.now();
+      if (ts - lastTs < 250) return;
+      lastTs = ts;
+
       try {
         handler(e);
       } catch (err) {
@@ -658,12 +669,10 @@ function init() {
       }
     };
 
-    // Mark bound ONLY after we attach listeners successfully.
-    if ("PointerEvent" in window) {
-      el.addEventListener("pointerup", wrapped);
-    } else {
-      el.addEventListener("click", wrapped);
-    }
+    // Always attach click for desktop reliability.
+    el.addEventListener("click", wrapped);
+    // Attach pointerup when available to eliminate delay on touch devices.
+    if ("PointerEvent" in window) el.addEventListener("pointerup", wrapped);
 
     el.dataset.bound = "1";
   }
@@ -781,10 +790,35 @@ function init() {
     UI.reasonChips?.forEach((chip) => chip.setAttribute("aria-pressed", "false"));
   });
 
-  onPress(UI.btnResumePause, () => {
-    // Start CPR first (prevents getting stuck if overlay fails to hide)
+  // RESUME CPR (inside pause modal)
+  // On iOS/webviews, hiding the overlay immediately can cause a "ghost click"
+  // to hit the underlying header (e.g., the Reports link). We block that by
+  // preventing default and stopping propagation on pointerdown/click.
+  if (UI.btnResumePause && UI.btnResumePause.dataset.blocked !== "1") {
+    UI.btnResumePause.dataset.blocked = "1";
+    const blocker = (e) => {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      } catch {}
+    };
+    UI.btnResumePause.addEventListener("pointerdown", blocker, { passive: false });
+    UI.btnResumePause.addEventListener("touchstart", blocker, { passive: false });
+  }
+
+  onPress(UI.btnResumePause, (e) => {
+    try {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      e?.stopImmediatePropagation?.();
+    } catch {}
+
+    // Resume CPR immediately
     startCPR();
-    hidePauseModal();
+
+    // Hide overlay on next tick to avoid click-through
+    setTimeout(() => hidePauseModal(), 0);
   });
 
 
