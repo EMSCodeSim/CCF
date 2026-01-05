@@ -7,6 +7,7 @@
 const SESSIONS_KEY = "ccf_sessions_v1";
 const CLASS_KEY = "ccf.classSetup";
 const PRO_KEY = "ccf.proUnlocked";
+const CLASS_UI_KEY = "ccf.classSetupOpen";
 
 function isPro() {
   return localStorage.getItem(PRO_KEY) === "1";
@@ -42,7 +43,42 @@ function saveSessions(arr) {
 }
 
 function loadClassSetup() {
-  return safeParseJSON(localStorage.getItem(CLASS_KEY) || "", null);
+  const raw = safeParseJSON(localStorage.getItem(CLASS_KEY) || "", null);
+  if (!raw || typeof raw !== "object") return null;
+  return normalizeClassSetup(raw);
+}
+
+function normalizeClassSetup(cls) {
+  // Backwards compat: older builds stored students as an array of strings.
+  // New format: students: [{name, email, contact, score}]
+  const out = { ...cls };
+  const st = out.students;
+
+  if (Array.isArray(st)) {
+    if (st.length && typeof st[0] === "string") {
+      out.students = st
+        .map(s => String(s || "").trim())
+        .filter(Boolean)
+        .map(name => ({ name, email: "", contact: "", score: "" }));
+    } else {
+      out.students = st
+        .filter(Boolean)
+        .map(x => ({
+          name: String(x.name || "").trim(),
+          email: String(x.email || "").trim(),
+          contact: String(x.contact || "").trim(),
+          score: (x.score === 0 || x.score) ? String(x.score) : "",
+        }))
+        .filter(x => x.name);
+    }
+  } else {
+    out.students = [];
+  }
+
+  // Defaults
+  if (!Number.isFinite(parseInt(out.targetCcf, 10))) out.targetCcf = 80;
+  if (!Number.isFinite(parseInt(out.sessionLengthSec, 10))) out.sessionLengthSec = 120;
+  return out;
 }
 
 function saveClassSetup(payload) {
@@ -263,21 +299,16 @@ function renderLatestPro(session) {
    =========================== */
 
 function getClassSetup() {
-  try {
-    const cls = JSON.parse(localStorage.getItem(CLASS_KEY) || "null");
-    if (!cls) return null;
-    cls.students = Array.isArray(cls.students) ? cls.students.filter(Boolean) : [];
-    cls.targetCcf = Number.isFinite(parseInt(cls.targetCcf, 10)) ? parseInt(cls.targetCcf, 10) : 80;
-    cls.sessionLengthSec = Number.isFinite(parseInt(cls.sessionLengthSec, 10)) ? parseInt(cls.sessionLengthSec, 10) : 0;
-    return cls;
-  } catch {
-    return null;
-  }
+  // Use the normalized loader (handles backwards compatibility)
+  return loadClassSetup();
 }
 
-function computeStudentStats(sessions, rosterNames) {
+function computeStudentStats(sessions, rosterStudents) {
   const map = new Map();
-  rosterNames.forEach(n => map.set(n, { name: n, attempts: 0, avg: 0, best: 0, worst: 0 }));
+  const names = (Array.isArray(rosterStudents) ? rosterStudents : [])
+    .map(s => String(s?.name || "").trim())
+    .filter(Boolean);
+  names.forEach(n => map.set(n, { name: n, attempts: 0, avg: 0, best: 0, worst: 0 }));
   let classSum = 0;
   let classN = 0;
 
@@ -328,13 +359,13 @@ function renderClassDashboard(sessions, proEnabled) {
   if (!proEnabled) return;
 
   const cls = getClassSetup();
-  const roster = (cls?.students || []).map(s => String(s).trim()).filter(Boolean);
+  const roster = Array.isArray(cls?.students) ? cls.students : [];
   const target = cls?.targetCcf ?? 80;
 
   if (!cls || !roster.length) {
     if (hintEl) {
       hintEl.style.display = "block";
-      hintEl.innerHTML = `To set up a class: use <strong>Class Setup</strong> above, add your students (one per line), then assign sessions to students below.`;
+      hintEl.innerHTML = `To set up a class: open <strong>Class Setup</strong>, add students to your roster (email/contact optional), then assign sessions to students below.`;
     }
     if (scoreEl) scoreEl.innerHTML = `
       <div class="dashTitle">Class Score</div>
@@ -498,9 +529,10 @@ function renderHistory(list, proEnabled) {
         const s = arr[idx];
         if (!s) return;
         const cls = loadClassSetup();
-        const roster = (cls?.students || []).filter(Boolean);
-        const msg = roster.length
-          ? `Assign to which student?\n\nRoster:\n${roster.slice(0, 25).join("\n")}`
+        const roster = Array.isArray(cls?.students) ? cls.students : [];
+        const rosterNames = roster.map(x => x.name).filter(Boolean);
+        const msg = rosterNames.length
+          ? `Assign to which student?\n\nRoster:\n${rosterNames.slice(0, 25).join("\n")}`
           : "Enter student name:";
         const name = prompt(msg, (s.assignedTo?.student || ""));
         if (!name) return;
@@ -521,7 +553,7 @@ function exportCSV() {
   }
 
   const cls = getClassSetup();
-  const roster = (cls?.students || []).map(s => String(s).trim()).filter(Boolean);
+  const roster = Array.isArray(cls?.students) ? cls.students : [];
   const target = cls?.targetCcf ?? 80;
 
   const rows = [
@@ -606,38 +638,140 @@ function syncClassUI(proEnabled) {
   const cls = loadClassSetup();
   const name = cls?.name || "";
   const instructor = cls?.instructor || "";
-  const count = (cls?.students || []).filter(Boolean).length;
+  const count = (cls?.students || []).filter(s => s && String(s.name || "").trim()).length;
   meta.textContent = name
     ? `${name}${instructor ? ` • ${instructor}` : ""} • ${count} students`
     : "No class loaded (use Class Setup above)";
 
-  const roster = (cls?.students || []).map(s => String(s || "").trim()).filter(Boolean);
+  const roster = (cls?.students || []).map(s => String(s?.name || "").trim()).filter(Boolean);
   sel.innerHTML = ["Unassigned", ...roster].map(s => `<option value="${s}">${s}</option>`).join("");
 
-  // Populate the Class Setup form (if present)
+  // Populate the Class Setup form (collapsible panel)
   const elName = document.getElementById("className");
   const elInstr = document.getElementById("classInstructor");
   const elLoc = document.getElementById("classLocation");
-  const elStudents = document.getElementById("classStudents");
   const elTarget = document.getElementById("classTargetCcf");
   const elLen = document.getElementById("classSessionLength");
 
   if (elName) elName.value = name;
   if (elInstr) elInstr.value = instructor;
   if (elLoc) elLoc.value = cls?.location || "";
-  if (elStudents) elStudents.value = roster.join("\n");
   if (elTarget) elTarget.value = String(cls?.targetCcf ?? "");
   if (elLen) elLen.value = String(cls?.sessionLengthSec ?? 120);
+
+  renderRosterEditor(cls?.students || []);
+
+  // If no class exists, auto-open Class Setup to guide first-time instructors (once)
+  const shouldOpen = !name && !getClassSetupOpen();
+  if (shouldOpen) setClassSetupOpen(true);
+}
+
+function getClassSetupOpen() {
+  return localStorage.getItem(CLASS_UI_KEY) === "1";
+}
+
+function setClassSetupOpen(open) {
+  try { localStorage.setItem(CLASS_UI_KEY, open ? "1" : "0"); } catch {}
+  const panel = document.getElementById("classSetupPanel");
+  const btn = document.getElementById("btnToggleClassSetup");
+  if (panel) panel.style.display = open ? "block" : "none";
+  if (btn) btn.classList.toggle("active", open);
+}
+
+function wireClassSetupToggle(proEnabled) {
+  if (!proEnabled) return;
+  const btn = document.getElementById("btnToggleClassSetup");
+  if (!btn || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  btn.addEventListener("click", () => {
+    setClassSetupOpen(!getClassSetupOpen());
+  });
+  // Apply initial state
+  setClassSetupOpen(getClassSetupOpen());
+}
+
+function renderRosterEditor(students) {
+  const host = document.getElementById("rosterEditor");
+  if (!host) return;
+  const list = Array.isArray(students) ? students : [];
+
+  if (!list.length) {
+    host.innerHTML = `<div class="rosterEmpty">No students yet. Add students to create a roster.</div>`;
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="rosterHeader">
+      <div>Name</div>
+      <div>Email (optional)</div>
+      <div>Contact (optional)</div>
+      <div>Score (optional)</div>
+      <div></div>
+    </div>
+    ${list.map((s, idx) => `
+      <div class="rosterRow" data-idx="${idx}">
+        <input class="rosterName" type="text" value="${escapeAttr(s.name || "")}" placeholder="Student name" />
+        <input class="rosterEmail" type="email" value="${escapeAttr(s.email || "")}" placeholder="email@" />
+        <input class="rosterContact" type="text" value="${escapeAttr(s.contact || "")}" placeholder="phone / notes" />
+        <input class="rosterScore" type="number" min="0" max="100" step="1" value="${escapeAttr(s.score || "")}" placeholder="" />
+        <button class="rosterRemove" type="button" aria-label="Remove">✕</button>
+      </div>
+    `).join("")}
+  `;
+
+  // Bind remove buttons
+  host.querySelectorAll(".rosterRemove").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const row = e.currentTarget.closest(".rosterRow");
+      const idx = parseInt(row?.dataset?.idx || "-1", 10);
+      if (idx < 0) return;
+      // Remove from the current editor (draft), not from saved storage.
+      const st = readRosterFromEditor();
+      st.splice(idx, 1);
+      // keep panel edits without forcing Save: update in-memory panel only
+      renderRosterEditor(st);
+      // also keep select list up-to-date while editing
+      const sel = document.getElementById("studentSelect");
+      if (sel) {
+        const names = st.map(x => x.name).filter(Boolean);
+        sel.innerHTML = ["Unassigned", ...names].map(s => `<option value="${s}">${s}</option>`).join("");
+      }
+      // store a draft roster on the panel element
+      const panel = document.getElementById("classSetupPanel");
+      if (panel) panel.dataset.rosterDraft = JSON.stringify(st);
+    });
+  });
+
+  // Store a draft roster on the panel element so Save reads the current edit state.
+  const panel = document.getElementById("classSetupPanel");
+  if (panel) panel.dataset.rosterDraft = JSON.stringify(list);
+}
+
+function readRosterFromEditor() {
+  const host = document.getElementById("rosterEditor");
+  if (!host) return [];
+  const rows = Array.from(host.querySelectorAll(".rosterRow"));
+  return rows.map(r => {
+    const name = (r.querySelector(".rosterName")?.value || "").trim();
+    const email = (r.querySelector(".rosterEmail")?.value || "").trim();
+    const contact = (r.querySelector(".rosterContact")?.value || "").trim();
+    const score = (r.querySelector(".rosterScore")?.value || "").trim();
+    return { name, email, contact, score };
+  }).filter(x => x.name);
+}
+
+function escapeAttr(s) {
+  return String(s || "").replaceAll("&", "&amp;").replaceAll("\"", "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 function wireClassSetup(proEnabled) {
   if (!proEnabled) return;
   const btnSave = document.getElementById("btnSaveClass");
   const btnClear = document.getElementById("btnClearClass");
+  const btnAddStudent = document.getElementById("btnAddStudent");
   const elName = document.getElementById("className");
   const elInstr = document.getElementById("classInstructor");
   const elLoc = document.getElementById("classLocation");
-  const elStudents = document.getElementById("classStudents");
   const elTarget = document.getElementById("classTargetCcf");
   const elLen = document.getElementById("classSessionLength");
 
@@ -645,16 +779,33 @@ function wireClassSetup(proEnabled) {
   if (btnSave && btnSave.dataset.bound === "1") return;
   if (btnSave) btnSave.dataset.bound = "1";
   if (btnClear) btnClear.dataset.bound = "1";
+  if (btnAddStudent) btnAddStudent.dataset.bound = "1";
+
+  if (btnAddStudent) {
+    btnAddStudent.addEventListener("click", () => {
+      const st = readRosterFromEditor();
+      st.push({ name: "", email: "", contact: "", score: "" });
+      renderRosterEditor(st);
+      // Focus the last name field for fast data entry
+      const host = document.getElementById("rosterEditor");
+      const last = host?.querySelectorAll(".rosterRow");
+      const lastRow = last && last.length ? last[last.length - 1] : null;
+      lastRow?.querySelector(".rosterName")?.focus();
+      // Keep select list in sync
+      const sel = document.getElementById("studentSelect");
+      if (sel) {
+        const names = st.map(x => x.name).filter(Boolean);
+        sel.innerHTML = ["Unassigned", ...names].map(s => `<option value="${s}">${s}</option>`).join("");
+      }
+    });
+  }
 
   if (btnSave) {
     btnSave.addEventListener("click", () => {
       const name = (elName?.value || "").trim();
       const instructor = (elInstr?.value || "").trim();
       const location = (elLoc?.value || "").trim();
-      const students = (elStudents?.value || "")
-        .split("\n")
-        .map(s => s.trim())
-        .filter(Boolean);
+      const students = readRosterFromEditor();
 
       const targetRaw = parseInt(elTarget?.value || "", 10);
       const targetCcf = Number.isFinite(targetRaw)
@@ -682,9 +833,9 @@ function wireClassSetup(proEnabled) {
       if (elName) elName.value = "";
       if (elInstr) elInstr.value = "";
       if (elLoc) elLoc.value = "";
-      if (elStudents) elStudents.value = "";
       if (elTarget) elTarget.value = "";
       if (elLen) elLen.value = "120";
+      renderRosterEditor([]);
       boot();
     });
   }
@@ -740,6 +891,7 @@ function boot() {
   else renderLatestFree(sessions[0]);
 
   syncClassUI(proEnabled);
+  wireClassSetupToggle(proEnabled);
   wireClassSetup(proEnabled);
   wireProActions(proEnabled);
   renderClassDashboard(sessions, proEnabled);

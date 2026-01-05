@@ -1339,6 +1339,63 @@ body{
   padding: 14px;
   box-shadow: var(--shadow);
 }
+
+/* Roster editor (Pro Reports) */
+.rosterEditor{
+  margin-top: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.rosterHeader{
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr .7fr 44px;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(255,255,255,.04);
+  font-weight: 1000;
+  font-size: 12px;
+  color: rgba(255,255,255,.82);
+}
+.rosterRow{
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr .7fr 44px;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  align-items: center;
+}
+.rosterRow input{
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-weight: 850;
+}
+.rosterRemove{
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 1000;
+}
+.rosterEmpty{
+  padding: 12px;
+  color: rgba(255,255,255,.75);
+  font-weight: 800;
+}
+
+@media (max-width: 720px){
+  .rosterHeader{ display:none; }
+  .rosterRow{ grid-template-columns: 1fr; }
+  .rosterRow input{ margin-top: 6px; }
+  .rosterRemove{ justify-self: end; margin-top: 8px; }
+}
 .dashTitle{ font-weight: 1000; letter-spacing: .2px; }
 .dashSub{ margin-top: 4px; color: rgba(255,255,255,.75); font-weight: 750; }
 .dashBig{ margin-top: 10px; font-size: 34px; font-weight: 1200; letter-spacing: .5px; }
