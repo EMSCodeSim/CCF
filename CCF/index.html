@@ -78,6 +78,29 @@
       </button>
     </section>
 
+    <!-- End-of-session quick summary (shown after END, cleared on RESET) -->
+    <section class="dashCard" id="endSummaryCard" style="display:none;" aria-live="polite">
+      <div class="dashTitle">Session Summary</div>
+      <div class="dashSub" id="endSummaryMeta">Saved locally</div>
+
+      <div class="dashGrid" style="margin-top:10px;">
+        <div class="miniCard">
+          <div class="miniLabel">CCF</div>
+          <div class="miniValue" id="endSummaryCcf">0%</div>
+        </div>
+        <div class="miniCard">
+          <div class="miniLabel">Pauses</div>
+          <div class="miniValue" id="endSummaryPauses">0</div>
+        </div>
+        <div class="miniCard">
+          <div class="miniLabel">Longest pause</div>
+          <div class="miniValue" id="endSummaryLongest">—</div>
+        </div>
+      </div>
+
+      <div class="dashSub" style="margin-top:10px;" id="endSummaryLongestReason">Reason: —</div>
+    </section>
+
     <!-- Pause reasons modal -->
     <div class="overlay" id="pauseOverlay" aria-hidden="true">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">

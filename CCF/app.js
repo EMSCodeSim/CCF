@@ -71,6 +71,8 @@ let UI = null;
 
 const state = {
   running: false,
+  sessionEnded: false,
+  lastSummary: null,
   mode: "idle", // "cpr" | "paused" | "idle"
   startMs: 0,
   lastMs: 0,
@@ -193,6 +195,9 @@ function hidePauseModal() {
 }
 
 function startCPR() {
+  // If a session was ended and the user presses CPR, start fresh.
+  if (state.sessionEnded) resetSession();
+
   // CPR start/resume must always start the session + animation loop
   startSession();
 
@@ -231,75 +236,39 @@ function startPause() {
   stopMetronome();
 }
 
-function endSession() {
-  if (!state.running) return;
+function setEndButtonMode(mode) {
+  // mode: "end" | "reset"
+  state.endButtonMode = mode;
+  if (UI?.btnEndLabel) UI.btnEndLabel.textContent = mode === "reset" ? "RESET" : "END";
+}
 
-  if (!confirm("End this session and save a report?")) return;
+function showEndSummary(summary) {
+  state.lastSummary = summary;
+  state.sessionEnded = true;
+  setEndButtonMode("reset");
+
+  if (UI?.endSummaryMeta) {
+    const ts = new Date(summary.endedAt || Date.now());
+    UI.endSummaryMeta.textContent = `Ended ${ts.toLocaleString()}`;
+  }
+  if (UI?.endSummaryCcf) UI.endSummaryCcf.textContent = `${summary.finalCCF}%`;
+  if (UI?.endSummaryPauses) UI.endSummaryPauses.textContent = String(summary.pauseCount);
+  if (UI?.endSummaryLongest) UI.endSummaryLongest.textContent = fmt(summary.longestPauseMs || 0);
+  if (UI?.endSummaryLongestReason) UI.endSummaryLongestReason.textContent = `Reason: ${summary.longestPauseReason || "—"}`;
+
+  if (UI?.endSummaryCard) UI.endSummaryCard.style.display = "block";
+}
+
+function clearEndSummary() {
+  state.lastSummary = null;
+  state.sessionEnded = false;
+  setEndButtonMode("end");
+  if (UI?.endSummaryCard) UI.endSummaryCard.style.display = "none";
+}
+
+function resetSession() {
   stopMetronome();
 
-  // If we end while paused, capture the last pause segment.
-  finalizePauseEvent();
-
-  // Build and save a session record for Reports.
-  const totalMs = state.compMs + state.offMs;
-  const finalCCF = totalMs > 0 ? Math.round((state.compMs / totalMs) * 100) : 0;
-  const longestPauseMs = state.pauseEvents.reduce((m, p) => Math.max(m, p?.durMs || 0), 0);
-
-  const classSetup = safeParseJSON(localStorage.getItem(LS_KEYS.classSetup) || "", null);
-
-  const session = {
-    endedAt: now(),
-    totalMs,
-    compMs: state.compMs,
-    offMs: state.offMs,
-    finalCCF,
-    pauseCount: state.pauseEvents.length,
-    longestPauseMs,
-    advancedAirwayUsed: !!state.advancedAirway,
-    bpm: state.bpm,
-    metronomeOn: !!state.metronomeOn,
-
-    cprProfile: {
-      patientType: state.patientType,
-      rescuerCount: state.rescuerCount,
-      breathTimerEnabled: !!state.breathTimerEnabled,
-      pulseCueEnabled: !!state.pulseCueEnabled,
-    },
-
-    // Keep a simple list for quick display (backward compatible with older reports.js)
-    pauses: state.pauseEvents.map(p => ({
-      reason: (p.reasons && p.reasons.length) ? p.reasons.join(", ") : "Unspecified",
-      ms: p.durMs || 0,
-      reasons: (p.reasons && p.reasons.length) ? [...p.reasons] : [],
-      startMs: p.startMs,
-      endMs: p.endMs,
-    })),
-
-    // Optional class context (editable in Settings)
-    classContext: classSetup ? {
-      name: classSetup.name || "",
-      instructor: classSetup.instructor || "",
-      location: classSetup.location || "",
-      updatedAt: classSetup.updatedAt || null,
-    } : null,
-
-    // Assigned later in Pro reports (or by the native app)
-    assignedTo: null,
-  };
-
-  const arr = loadSessions();
-  arr.unshift(session);
-  // Keep the newest 200 sessions to avoid unbounded storage growth.
-  if (arr.length > 200) arr.length = 200;
-  saveSessions(arr);
-
-  // Optional: in Pro, you may later replace this with a nicer modal.
-  const msg = isPro()
-    ? `Session saved.\n\nYou can assign this report to a student in Reports.`
-    : `Session saved.\n\nUpgrade in the app to unlock student assignment and downloadable report cards.`;
-  alert(msg);
-
-  // Stop the loop and reset for the next run.
   state.running = false;
   state.mode = "idle";
   state.startMs = 0;
@@ -321,147 +290,102 @@ function endSession() {
   if (UI?.ccfScoreText) UI.ccfScoreText.textContent = "0%";
   if (UI?.statusTitle) UI.statusTitle.textContent = "READY";
   if (UI?.statusSub) UI.statusSub.textContent = "Press CPR to start";
+
   resetBreathBox();
+  updateBars();
+  clearEndSummary();
 }
 
-/* ---------- BREATH / PULSE BARS ---------- */
-function updateBreathBar(dt) {
-  if (!UI?.breathBar || !UI?.breathMeta) return;
-
-  if (!state.breathTimerEnabled) return;
-
-  if (state.advancedAirway) {
-    // Advanced airway: 1 breath every 6 seconds + grace window to give breath
-    const intervalMs = 6000;
-    const graceMs = 2000;
-    const totalMs = intervalMs + graceMs;
-
-    state.breathAdvMs += dt;
-    if (state.breathAdvMs >= totalMs) state.breathAdvMs = state.breathAdvMs % totalMs;
-
-    const inGrace = state.breathAdvMs >= intervalMs;
-    const pct = Math.min(100, Math.round((Math.min(state.breathAdvMs, intervalMs) / intervalMs) * 100));
-    UI.breathBar.style.width = `${inGrace ? 100 : pct}%`;
-
-    if (inGrace) {
-      const remain = totalMs - state.breathAdvMs;
-      UI.breathMeta.textContent = `Advanced airway • Breath due (give now) • ${fmt(remain)} remaining`;
-    } else {
-      const remain = intervalMs - state.breathAdvMs;
-      UI.breathMeta.textContent = `Advanced airway • Next breath in ${fmt(remain)}`;
-    }
+function endSession() {
+  // If we already ended, END becomes RESET.
+  if (state.sessionEnded) {
+    resetSession();
     return;
   }
 
-  // No airway (BLS cue): breath cue is based on compression count per cycle.
-  // Adult always uses 30:2. Child/infant uses 30:2 for 1 rescuer, 15:2 for 2 rescuers.
-  const compressionsPerCycle = getCompressionsPerCycle();
-  // Estimate time for that number of compressions at current BPM + small buffer.
-  const cycleMs = clampMs(Math.round((compressionsPerCycle / Math.max(60, state.bpm)) * 60000) + 1000, 6000, 20000);
-  state.breathCprMs += dt;
-
-  if (state.breathCprMs >= cycleMs) {
-    state.breathsDue = true;
-    state.breathCprMs = cycleMs;
-  }
-
-  const pct = Math.min(100, Math.round((state.breathCprMs / cycleMs) * 100));
-  UI.breathBar.style.width = `${pct}%`;
-  UI.breathMeta.textContent = state.breathsDue
-    ? "No airway • Breaths due"
-    : `No airway • Breaths in ${fmt(cycleMs - state.breathCprMs)}`;
-}
-
-function getCompressionsPerCycle() {
-  // Adult always uses 30:2.
-  if (state.patientType === "adult") return 30;
-  // Child/infant: 15:2 when 2-rescuer BLS, otherwise 30:2.
-  return state.rescuerCount === 2 ? 15 : 30;
-}
-
-function clampMs(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-
-function updatePulseBar() {
-  if (!UI?.pulseBar || !UI?.pulseMeta) return;
-
-  if (!state.pulseCueEnabled) {
-    if (UI?.pulseBarBox) UI.pulseBarBox.classList.add("barHidden");
-    return;
-  }
-
-  if (UI?.pulseBarBox) UI.pulseBarBox.classList.remove("barHidden");
-
-  const pulseCycle = 120000;
-  const t = state.compMs + state.offMs;
-  const remain = pulseCycle - (t % pulseCycle);
-  const pct = Math.min(100, Math.round(((pulseCycle - remain) / pulseCycle) * 100));
-  UI.pulseBar.style.width = `${pct}%`;
-  UI.pulseMeta.textContent = `Next pulse check in ${fmt(remain)}`;
-}
-
-/* ---------- LOOP ---------- */
-function tick() {
   if (!state.running) return;
 
-  const t = now();
-  const dt = t - state.lastMs;
-  state.lastMs = t;
+  stopMetronome();
 
-  if (state.mode === "cpr") {
-    state.compMs += dt;
-    updateBreathBar(dt);
-  } else if (state.mode === "paused") {
-    state.offMs += dt;
+  // If we end while paused, capture the last pause segment.
+  finalizePauseEvent();
+  hidePauseModal();
+
+  // Compute final stats.
+  const totalMs = state.compMs + state.offMs;
+  const finalCCF = totalMs > 0 ? Math.round((state.compMs / totalMs) * 100) : 0;
+
+  // Find longest pause + its reason.
+  let longestPauseMs = 0;
+  let longestPauseReason = "Unspecified";
+  for (const p of (state.pauseEvents || [])) {
+    const dur = p?.durMs || 0;
+    if (dur > longestPauseMs) {
+      longestPauseMs = dur;
+      const reasons = (p?.reasons && p.reasons.length) ? p.reasons : [];
+      longestPauseReason = reasons.length ? reasons.join(", ") : (p?.reason || "Unspecified");
+    }
   }
 
-  updatePulseBar();
+  // Save a session record for the Reports tab (Pro later).
+  const classSetup = safeParseJSON(localStorage.getItem(LS_KEYS.classSetup) || "", null);
 
-  if (UI?.mainTimer) UI.mainTimer.textContent = fmt(state.compMs + state.offMs);
-  if (UI?.cprOnTime) UI.cprOnTime.textContent = fmt(state.compMs);
-  if (UI?.handsOffTime) UI.handsOffTime.textContent = fmt(state.offMs);
+  const session = {
+    endedAt: now(),
+    totalMs,
+    compMs: state.compMs,
+    offMs: state.offMs,
+    finalCCF,
+    pauseCount: state.pauseEvents.length,
+    longestPauseMs,
+    advancedAirwayUsed: !!state.advancedAirway,
+    bpm: state.bpm,
+    metronomeOn: !!state.metronomeOn,
 
-  const ccfPct = calcCCF();
-  const ccf = `CCF ${ccfPct}`;
-  if (UI?.ccfLine) UI.ccfLine.textContent = ccf;
-  if (UI?.statusRight) UI.statusRight.textContent = ccf;
-  if (UI?.ccfScoreText) UI.ccfScoreText.textContent = ccfPct;
+    cprProfile: {
+      patientType: state.patientType,
+      rescuerCount: state.rescuerCount,
+      breathTimerEnabled: !!state.breathTimerEnabled,
+      pulseCueEnabled: !!state.pulseCueEnabled,
+    },
 
-  requestAnimationFrame(tick);
-}
+    pauses: state.pauseEvents.map(p => ({
+      reason: (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified"),
+      ms: p.durMs || 0,
+      reasons: (p.reasons && p.reasons.length) ? [...p.reasons] : [],
+      startMs: p.startMs,
+      endMs: p.endMs,
+    })),
 
-/* ---------- METRONOME ---------- */
-function beep() {
-  if (!audioCtx) return;
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.type = "square";
-  o.frequency.value = 880;
-  g.gain.value = 0.03;
-  o.connect(g);
-  g.connect(audioCtx.destination);
-  o.start();
-  o.stop(audioCtx.currentTime + 0.03);
-}
+    classContext: classSetup ? {
+      name: classSetup.name || "",
+      instructor: classSetup.instructor || "",
+      location: classSetup.location || "",
+      updatedAt: classSetup.updatedAt || null,
+    } : null,
 
-function startMetronome() {
-  stopMetronome();
-  if (!state.metronomeOn || !state.running) return;
-  const interval = Math.round(60000 / state.bpm);
-  metInterval = setInterval(() => beep(), interval);
-}
+    assignedTo: null,
+  };
 
-function stopMetronome() {
-  if (metInterval) clearInterval(metInterval);
-  metInterval = null;
-}
+  const arr = loadSessions();
+  arr.unshift(session);
+  if (arr.length > 200) arr.length = 200;
+  saveSessions(arr);
 
-/* ---------- PAUSE REASONS (multi-select) ---------- */
-function toggleReason(reason, pressed) {
-  const idx = state.currentReasons.indexOf(reason);
-  if (pressed && idx === -1) state.currentReasons.push(reason);
-  if (!pressed && idx !== -1) state.currentReasons.splice(idx, 1);
+  // Stop the loop but keep the final numbers on screen until RESET.
+  state.running = false;
+  state.mode = "idle";
+
+  if (UI?.statusTitle) UI.statusTitle.textContent = "ENDED";
+  if (UI?.statusSub) UI.statusSub.textContent = "Review summary, then press RESET";
+
+  showEndSummary({
+    endedAt: session.endedAt,
+    finalCCF,
+    pauseCount: session.pauseCount,
+    longestPauseMs,
+    longestPauseReason,
+  });
 }
 
 function setAdvancedAirway(enabled) {
@@ -600,6 +524,7 @@ function init() {
     btnCpr: $("btnCpr"),
     btnPause: $("btnPause"),
     btnEnd: $("btnEnd"),
+    btnEndLabel: document.querySelector("#btnEnd .ctlLabel"),
 
     btnCCFScore: $("btnCCFScore"),
     ccfScoreText: $("ccfScoreText"),
@@ -622,6 +547,13 @@ function init() {
 
     cprOnTime: $("cprOnTime"),
     handsOffTime: $("handsOffTime"),
+
+    endSummaryCard: $("endSummaryCard"),
+    endSummaryMeta: $("endSummaryMeta"),
+    endSummaryCcf: $("endSummaryCcf"),
+    endSummaryPauses: $("endSummaryPauses"),
+    endSummaryLongest: $("endSummaryLongest"),
+    endSummaryLongestReason: $("endSummaryLongestReason"),
 
     btnMet: $("btnMetronome"),
     metState: $("metState"),
