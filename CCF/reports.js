@@ -884,6 +884,82 @@ function syncClassUI(proEnabled) {
   applyClassLockUI(cls);
 }
 
+// --- Roster Editor (Class Setup) ---
+function renderRosterEditor(students) {
+  const wrap = document.getElementById("rosterEditor");
+  if (!wrap) return;
+  const list = Array.isArray(students) ? students : [];
+
+  // Build rows
+  wrap.innerHTML = list.map((s, idx) => {
+    const name = escapeHtml(String(s?.name ?? ""));
+    const email = escapeHtml(String(s?.email ?? ""));
+    const contact = escapeHtml(String(s?.contact ?? ""));
+    const score = escapeHtml(String(s?.score ?? ""));
+    return `
+      <div class="rosterRow" data-i="${idx}">
+        <div class="rosterCols">
+          <label class="field">
+            <span class="fieldLabel">Name</span>
+            <input class="roName" type="text" value="${name}" placeholder="Student name" />
+          </label>
+          <label class="field">
+            <span class="fieldLabel">Email (optional)</span>
+            <input class="roEmail" type="email" value="${email}" placeholder="name@email.com" />
+          </label>
+          <label class="field">
+            <span class="fieldLabel">Contact (optional)</span>
+            <input class="roContact" type="text" value="${contact}" placeholder="Phone / notes" />
+          </label>
+          <label class="field" style="max-width:140px;">
+            <span class="fieldLabel">Score (optional)</span>
+            <input class="roScore" type="number" inputmode="numeric" min="0" max="100" value="${score}" placeholder="—" />
+          </label>
+        </div>
+        <button class="miniDanger" type="button" data-act="remove" aria-label="Remove student">✕</button>
+      </div>
+    `;
+  }).join("") || `<div class="muted">No students yet. Use “Add Student” or “Quick Add” below.</div>`;
+
+  // Bind events (delegated)
+  wrap.onclick = (e) => {
+    const btn = e.target && e.target.closest && e.target.closest('button[data-act="remove"]');
+    if (!btn) return;
+    const row = btn.closest(".rosterRow");
+    const i = row ? Number(row.getAttribute("data-i")) : -1;
+    if (i < 0) return;
+    const cls = loadClassSetup() || { students: [] };
+    cls.students = Array.isArray(cls.students) ? cls.students : [];
+    cls.students.splice(i, 1);
+    saveClassSetup(cls);
+    syncClassUI(true);
+    boot();
+  };
+
+  wrap.oninput = (e) => {
+    const row = e.target && e.target.closest && e.target.closest(".rosterRow");
+    if (!row) return;
+    const i = Number(row.getAttribute("data-i"));
+    if (!Number.isFinite(i) || i < 0) return;
+
+    const cls = loadClassSetup() || { students: [] };
+    cls.students = Array.isArray(cls.students) ? cls.students : [];
+    cls.students[i] = cls.students[i] || { name: "", email: "", contact: "", score: "" };
+
+    const r = cls.students[i];
+    if (e.target.classList.contains("roName")) r.name = e.target.value;
+    if (e.target.classList.contains("roEmail")) r.email = e.target.value;
+    if (e.target.classList.contains("roContact")) r.contact = e.target.value;
+    if (e.target.classList.contains("roScore")) r.score = e.target.value;
+
+    saveClassSetup(cls);
+    // Update summary line + class metrics without rebuilding entire UI each keystroke
+    syncClassUI(true);
+  };
+}
+
+
+
 
 
 const ACC_KEY = "ccf.reportsAccordion.v1";
