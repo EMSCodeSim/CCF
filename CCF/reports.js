@@ -527,16 +527,14 @@ el("div", { class:"row", style:"gap:10px; flex-wrap:wrap; align-items:flex-end; 
     ]),
     el("div", { id:"studentsList", class:"list", style:"margin-top:10px;" }, [])
   ]);
-  body.appendChild(Accordion({
-    classId,
-    id:"students",
-    title:"Students",
-    subtitle:`${cls.students.length} in roster`,
-    defaultOpen:false,
-    bodyEl: rosterWrap
-  }));
+  
+  // Students roster is part of Class Setup (not a separate accordion)
+  infoBody.appendChild(el("div", { class:"divider", style:"margin:14px 0;" }, []));
+  infoBody.appendChild(el("div", { class:"dashTitle" }, ["Students"]));
+  infoBody.appendChild(el("div", { class:"dashSub" }, ["Add students to this class. Names can be left blank until you’re ready to assign sessions."]));
+  infoBody.appendChild(rosterWrap);
 
-  // --- Assign Sessions (class context)
+// --- Assign Sessions (class context)
   const assignWrap = el("div", {}, [
     el("div", { class:"dashSub" }, ["Assign saved CCF sessions to students in this class."]),
     el("div", { id:"classSessionsList", class:"list", style:"margin-top:10px;" }, [])
@@ -773,8 +771,8 @@ function sessionTitle(s){
 function sessionRow(s, {mode, classId}){
   const row = el("div", { class:"sessionRow" }, [
     el("div", { class:"sessionLeft" }, [
-      el("div", { class:"sessionMain" }, [sessionTitle(s)]),
-      el("div", { class:"sessionSub" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : ""])
+      el("div", { class:"sessionMain" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session"]),
+      el("div", { class:"sessionSub" }, [sessionTitle(s)])
     ]),
     el("div", { class:"sessionActions" }, [])
   ]);
@@ -824,8 +822,8 @@ function renderClassSessions(cls){
 
   classSessions.slice(0, 25).forEach(s=>{
     const card = el("div", { class:"sessionAssignCard" }, [
-      el("div", { class:"sessionMain" }, [sessionTitle(s)]),
-      el("div", { class:"sessionSub" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : ""]),
+      el("div", { class:"sessionMain" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session"]),
+      el("div", { class:"sessionSub" }, [sessionTitle(s)]),
       el("div", { class:"row", style:"gap:10px; margin-top:8px; flex-wrap:wrap; align-items:flex-end;" }, [
         el("label", { class:"field", style:"margin:0; flex:1; min-width:200px;" }, [
           el("span", { class:"fieldLabel" }, ["Assign to student (optional)"]),
