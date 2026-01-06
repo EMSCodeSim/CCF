@@ -1,1593 +1,1058 @@
-/* ===========================
-   CCF CPR TIMER – reports.js
-   - Free: simple CCF + basic pause summary (with ads)
-   - Pro: class roster + student assignment + downloadable report cards (no ads)
-   =========================== */
 
+/* =========================================================
+   Reports (Mobile-first)
+   - Local-only class + roster storage
+   - Sessions from timer: localStorage key ccf_sessions_v1
+   ========================================================= */
 
-function bindOnce(el, evt, key, handler){
-  if(!el) return;
-  const k = "__b_" + (key || evt);
-  if(el.dataset && el.dataset[k]==="1") return;
-  el.addEventListener(evt, handler);
-  if(el.dataset) el.dataset[k]="1";
-}
 const SESSIONS_KEY = "ccf_sessions_v1";
-const CLASS_KEY = "ccf.classSetup";
-const PRO_KEY = "ccf.proUnlocked";
-const CLASS_UI_KEY = "ccf.classSetupOpen";
+const CLASSES_KEY  = "ccf.classes.v1";
+const DEFAULTS_KEY = "ccf.classDefaults.v1";
+const UI_KEY       = "ccf.reports.ui.v1"; // remembers last view/class
 
-// TEMP: remove paywall while building instructor features.
-// Set to false to re-enable Pro gating once the feature set is finalized.
-const FORCE_PRO = true;
+// Later: re-enable Pro gating by checking ccf.proUnlocked.
+// For now, everything is enabled (per your request).
+const PRO_MODE = true;
 
-/* ===== Instructor UX helpers (v1) ===== */
-function getLocked(cls) {
-  return !!(cls && cls.locked);
+/* ---------- Storage helpers ---------- */
+function loadJson(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    if(!raw) return fallback;
+    const v = JSON.parse(raw);
+    return (v===null || v===undefined) ? fallback : v;
+  }catch{ return fallback; }
 }
-function setLocked(cls, locked) {
-  cls.locked = !!locked;
-  return cls;
-}
-function classSummaryLine(cls) {
-  if (!cls || !cls.name) return "Set class info and roster (optional)";
-  const count = (cls.students || []).filter(s => String(s?.name || "").trim()).length;
-  const target = Number(cls.targetCcf || 80);
-  return `${cls.name} | ${count} student${count === 1 ? "" : "s"} | Target CCF: ${target}%`;
-}
-function applyClassLockUI(cls) {
-  const locked = getLocked(cls);
-  const lockToggle = document.getElementById("classLocked");
-  const lockNote = document.getElementById("classLockedNote");
-  if (lockToggle) lockToggle.checked = locked;
-  if (lockNote) lockNote.style.display = locked ? "block" : "none";
-
-  const ids = [
-    "className",
-    "instructorName",
-    "instructorEmail",
-    "classLocation",
-    "targetCcf",
-    "sessionLengthSec",
-    "btnAddStudent",
-    "btnSaveClass",
-    "btnClearClass",
-      ];
-  ids.forEach((id) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.disabled = locked;
-    el.setAttribute("aria-disabled", locked ? "true" : "false");
-  });
-
-  document
-    .querySelectorAll("#rosterEditor input, #rosterEditor button")
-    .forEach((el) => {
-      el.disabled = locked;
-      el.setAttribute("aria-disabled", locked ? "true" : "false");
-    });
-}
-/* ====================================== */
-
-
-function isPro() {
-  if (FORCE_PRO) return true;
-  return localStorage.getItem(PRO_KEY) === "1";
-}
-// Debug helper: allow ?pro=1 or the Debug button to toggle Pro locally
-function applyDebugPro() {
-  const url = new URL(window.location.href);
-  if (url.searchParams.get("pro") === "1") {
-    localStorage.setItem(PRO_KEY, "1");
-  }
+function saveJson(key, value){
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
-function fmt(ms) {
-  ms = Math.max(0, ms | 0);
-  const s = Math.floor(ms / 1000);
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+/* ---------- IDs ---------- */
+function uid(){
+  return Math.random().toString(36).slice(2, 10) + "-" + Math.random().toString(36).slice(2, 10);
 }
 
-function safeParseJSON(str, fallback) {
-  try { return JSON.parse(str); } catch { return fallback; }
-}
-
-function loadSessions() {
-  const raw = localStorage.getItem(SESSIONS_KEY);
-  if (!raw) return [];
-  const arr = safeParseJSON(raw, []);
+/* ---------- Sessions ---------- */
+function loadSessions(){
+  const arr = loadJson(SESSIONS_KEY, []);
   return Array.isArray(arr) ? arr : [];
 }
-
-function saveSessions(arr) {
-  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(arr)); } catch {}
+function saveSessions(arr){
+  saveJson(SESSIONS_KEY, Array.isArray(arr) ? arr : []);
 }
 
-function loadClassSetup() {
-  const raw = safeParseJSON(localStorage.getItem(CLASS_KEY) || "", null);
-  if (!raw || typeof raw !== "object") return null;
-  return normalizeClassSetup(raw);
+/* ---------- Classes ---------- */
+function loadClasses(){
+  const arr = loadJson(CLASSES_KEY, []);
+  return Array.isArray(arr) ? arr : [];
 }
-
-function normalizeClassSetup(cls) {
-  // Backwards compat: older builds stored students as an array of strings.
-  // New format: students: [{name, email, contact, score}]
-  const out = { ...cls };
-  const st = out.students;
-
-  if (Array.isArray(st)) {
-    if (st.length && typeof st[0] === "string") {
-      out.students = st
-        .map(s => String(s || "").trim())
-        .filter(Boolean)
-        .map(name => ({ name, email: "", contact: "", score: "" }));
-    } else {
-      out.students = st
-        .filter(Boolean)
-        .map(x => ({
-          name: String(x.name || "").trim(),
-          email: String(x.email || "").trim(),
-          contact: String(x.contact || "").trim(),
-          score: (x.score === 0 || x.score) ? String(x.score) : "",
-        }))
-        .filter(x => x.name);
-    }
-  } else {
-    out.students = [];
-  }
-  out.instructorEmail = String(out.instructorEmail || "").trim();
-
-
-  // Defaults
-  if (!Number.isFinite(parseInt(out.targetCcf, 10))) out.targetCcf = 80;
-  if (!Number.isFinite(parseInt(out.sessionLengthSec, 10))) out.sessionLengthSec = 120;
-  return out;
+function saveClasses(arr){
+  saveJson(CLASSES_KEY, Array.isArray(arr) ? arr : []);
 }
-
-function saveClassSetup(payload) {
-  try {
-    localStorage.setItem(CLASS_KEY, JSON.stringify({ ...payload, updatedAt: Date.now() }));
-  } catch {}
+function getClassById(id){
+  return loadClasses().find(c => c.id === id);
 }
-
-function clearClassSetup() {
-  try { localStorage.removeItem(CLASS_KEY); } catch {}
+function upsertClass(cls){
+  const all = loadClasses();
+  const idx = all.findIndex(c => c.id === cls.id);
+  cls.updatedAt = Date.now();
+  if(idx>=0) all[idx]=cls; else all.unshift(cls);
+  saveClasses(all);
 }
-
-function toLocal(ts) {
-  try {
-    const d = new Date(ts);
-    return d.toLocaleString();
-  } catch {
-    return String(ts || "");
-  }
-}
-
-function badgeForCCF(ccf) {
-  if (ccf >= 90) return { text: "Excellent", cls: "good" };
-  if (ccf >= 80) return { text: "Meets Goal", cls: "good" };
-  if (ccf >= 70) return { text: "Needs Work", cls: "bad" };
-  return { text: "Low", cls: "bad" };
-}
-
-function downloadText(filename, text) {
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
-function downloadCSV(filename, rows) {
-  const csv = rows.map(r => r.map(cell => {
-    const s = String(cell ?? "");
-    // Basic CSV escaping
-    if (s.includes(",") || s.includes("\n") || s.includes("\"") ) {
-      return `"${s.replaceAll("\"", '""')}"`;
-    }
-    return s;
-  }).join(",")).join("\n");
-  downloadText(filename, csv);
-}
-
-function summarizeReasons(pauses = []) {
-  // returns array of {reason, ms, count}
-  const map = new Map();
-  pauses.forEach(p => {
-    const reasons = (p.reasons && p.reasons.length)
-      ? p.reasons
-      : (p.reason ? [p.reason] : ["Unspecified"]);
-    const dur = p.ms ?? p.durMs ?? 0;
-    // If multiple reasons selected, we count each (useful for training feedback)
-    reasons.forEach(r => {
-      const key = String(r || "Unspecified");
-      const cur = map.get(key) || { reason: key, ms: 0, count: 0 };
-      cur.ms += dur;
-      cur.count += 1;
-      map.set(key, cur);
-    });
+function deleteClass(id){
+  saveClasses(loadClasses().filter(c => c.id !== id));
+  // unassign sessions from deleted class
+  const sess = loadSessions();
+  let changed = false;
+  sess.forEach(s=>{
+    if(s.classId===id){ s.classId=null; s.studentId=null; changed=true; }
   });
-  return [...map.values()].sort((a, b) => b.ms - a.ms);
+  if(changed) saveSessions(sess);
+}
+function loadDefaults(){
+  return loadJson(DEFAULTS_KEY, { instructorName:"", instructorEmail:"", location:"" });
+}
+function saveDefaults(d){
+  saveJson(DEFAULTS_KEY, d || {});
 }
 
-function sessionDisplayName(session) {
-  const s = session?.assignedTo?.student || session?.assignedTo || "";
-  return (typeof s === "string" && s.trim()) ? s.trim() : "Unassigned";
+/* ---------- UI state ---------- */
+const state = {
+  view: "list",     // 'list' | 'class'
+  classId: null,    // selected class
+  ui: loadJson(UI_KEY, { openSections: {} }),
+  debounce: null,
+};
+function saveUI(){
+  saveJson(UI_KEY, { view: state.view, classId: state.classId, openSections: state.ui.openSections || {} });
 }
 
-function makeReportText(session) {
-  const ccf = session.finalCCF ?? 0;
-  const totalMs = session.totalMs ?? ((session.compMs || 0) + (session.offMs || 0));
-  const pauses = session.pauses || [];
-  const reasons = summarizeReasons(pauses);
-
-  const lines = [];
-  lines.push("CCF CPR TIMER – REPORT CARD");
-  lines.push("--------------------------------");
-  lines.push(`Date/time: ${toLocal(session.endedAt)}`);
-  lines.push(`Student: ${sessionDisplayName(session)}`);
-
-  if (session.classContext?.name) lines.push(`Class: ${session.classContext.name}`);
-  if (session.classContext?.instructor) lines.push(`Instructor: ${session.classContext.instructor}`);
-  if (session.classContext?.location) lines.push(`Location/Notes: ${session.classContext.location}`);
-
-  lines.push("");
-  lines.push(`Final CCF: ${ccf}% (${badgeForCCF(ccf).text})`);
-  lines.push(`Total time: ${fmt(totalMs)}`);
-  lines.push(`CPR on: ${fmt(session.compMs || 0)}`);
-  lines.push(`Hands-off: ${fmt(session.offMs || 0)}`);
-  lines.push(`Pauses: ${session.pauseCount ?? pauses.length}`);
-  lines.push(`Longest pause: ${fmt(session.longestPauseMs || 0)}`);
-
-  lines.push("");
-  lines.push("Pause reasons (by total time):");
-  if (!reasons.length) {
-    lines.push("- None recorded");
-  } else {
-    reasons.slice(0, 10).forEach(r => {
-      lines.push(`- ${r.reason}: ${fmt(r.ms)} (${r.count}x)`);
-    });
+/* ---------- DOM ---------- */
+const app = () => document.getElementById("app");
+function el(tag, attrs={}, children=[]){
+  const n = document.createElement(tag);
+  Object.entries(attrs||{}).forEach(([k,v])=>{
+    if(k==="class") n.className = v;
+    else if(k==="html") n.innerHTML = v;
+    else if(k.startsWith("on") && typeof v==="function") n.addEventListener(k.slice(2).toLowerCase(), v);
+    else if(v!==null && v!==undefined) n.setAttribute(k, String(v));
+  });
+  (children||[]).forEach(ch=>{
+    if(ch===null || ch===undefined) return;
+    if(typeof ch==="string") n.appendChild(document.createTextNode(ch));
+    else n.appendChild(ch);
+  });
+  return n;
+}
+function fmtDateISO(iso){
+  try{
+    if(!iso) return "";
+    const d = new Date(iso+"T00:00:00");
+    return d.toLocaleDateString();
+  }catch{ return iso || ""; }
+}
+function todayISO(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function clampInt(v, min, max, fallback){
+  const n = parseInt(v, 10);
+  if(Number.isFinite(n)){
+    return Math.max(min, Math.min(max, n));
   }
-
-  lines.push("");
-  lines.push("Pause log (most recent first):");
-  if (!pauses.length) {
-    lines.push("- No pauses recorded");
-  } else {
-    pauses.slice().reverse().slice(0, 25).forEach(p => {
-      const label = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
-      lines.push(`- ${label} • ${fmt(p.ms ?? p.durMs ?? 0)}`);
-    });
-  }
-
-  return lines.join("\n");
+  return fallback;
 }
 
-function renderLatestFree(session) {
-  const el = document.getElementById("latestCard");
-  if (!session) {
-    el.innerHTML = `
-      <div class="emptyCard">
-        <div class="emptyTitle">No sessions yet</div>
-        <div class="emptySub">Go back to the timer and run a scenario.</div>
-        <a class="newBtn" href="./index.html" style="text-decoration:none; display:block; text-align:center;">Start Timer</a>
-      </div>
-    `;
-    return;
-  }
-
-  const b = badgeForCCF(session.finalCCF || 0);
-  const pauses = session.pauses || [];
-  const reasonSummary = summarizeReasons(pauses).slice(0, 4);
-
-  el.innerHTML = `
-    <div class="scoreTop">
-      <div>
-        <div class="scoreTitle">Most Recent</div>
-        <div class="scoreSub">${toLocal(session.endedAt)}</div>
-      </div>
-      <div class="scoreBadge ${b.cls}">${b.text}</div>
-    </div>
-
-    <div class="scoreBigRow" style="margin-top:12px;">
-      <div class="scoreBig">
-        <div class="scoreLabel">Final CCF</div>
-        <div class="scoreValue">${session.finalCCF ?? 0}%</div>
-      </div>
-      <div style="text-align:right;">
-        <div class="scoreLabel">Total</div>
-        <div style="font-weight:1000; font-size:18px; margin-top:6px;">${fmt(session.totalMs ?? 0)}</div>
-      </div>
-    </div>
-
-    <div class="scoreGrid">
-      <div class="miniCard">
-        <div class="miniLabel">Hands-Off</div>
-        <div class="miniValue">${fmt(session.offMs ?? 0)}</div>
-      </div>
-      <div class="miniCard">
-        <div class="miniLabel">Longest Pause</div>
-        <div class="miniValue">${fmt(session.longestPauseMs ?? 0)}</div>
-      </div>
-      <div class="miniCard">
-        <div class="miniLabel">Pauses</div>
-        <div class="miniValue">${session.pauseCount ?? pauses.length}</div>
-      </div>
-      <div class="miniCard">
-        <div class="miniLabel">CPR On</div>
-        <div class="miniValue">${fmt(session.compMs ?? 0)}</div>
-      </div>
-    </div>
-
-    <div class="breakdownBlock">
-      <div class="breakTitle">Pause reasons (top)</div>
-      <div class="breakList">
-        ${reasonSummary.length
-          ? reasonSummary.map(r => `
-              <div class="breakItem">
-                <div>
-                  <div class="strong">${r.reason}</div>
-                  <div class="muted">${r.count}x</div>
-                </div>
-                <div class="strong">${fmt(r.ms)}</div>
-              </div>
-            `).join("")
-          : `<div class="breakItem"><div class="strong">No pause reasons recorded</div><div class="muted">(Pause prompt may be OFF)</div></div>`
-        }
-      </div>
-    </div>
-  `;
+/* ---------- Accordion ---------- */
+function accKey(classId, sectionId){ return `${classId||"list"}:${sectionId}`; }
+function isOpen(classId, sectionId){
+  const k = accKey(classId, sectionId);
+  return !!(state.ui.openSections && state.ui.openSections[k]);
 }
-
-function renderLatestPro(session) {
-  // Pro uses the same card, but adds student name at the top and a download button in the Pro tools row.
-  renderLatestFree(session);
-  const el = document.getElementById("latestCard");
-  if (!session) return;
-
-  const student = sessionDisplayName(session);
-  el.querySelector(".scoreTitle")?.insertAdjacentHTML(
-    "afterend",
-    `<div class="scoreSub" style="margin-top:4px;">Student: <strong>${student}</strong></div>`
-  );
+function setOpen(classId, sectionId, open){
+  state.ui.openSections = state.ui.openSections || {};
+  state.ui.openSections[accKey(classId, sectionId)] = !!open;
+  saveUI();
 }
+function Accordion({classId, id, title, subtitle, defaultOpen=false, bodyEl}){
+  const open = isOpen(classId, id) || defaultOpen;
+  const hdr = el("button", { class:"accHeader", type:"button" }, [
+    el("div", { class:"accHdrLeft" }, [
+      el("div", { class:"accTitle" }, [title]),
+      subtitle ? el("div", { class:"accSub" }, [subtitle]) : null
+    ]),
+    el("div", { class:"accChevron", "data-open": open ? "1":"0" }, [open ? "▾" : "▸"])
+  ]);
 
+  const body = el("div", { class:"accBody", style: open ? "" : "display:none;" }, [bodyEl]);
 
-/* ===========================
-   Premium: Class Dashboard
-   - Computes per-student averages and a class score
-   =========================== */
-
-function getClassSetup() {
-  // Use the normalized loader (handles backwards compatibility)
-  return loadClassSetup();
-}
-
-function computeStudentStats(sessions, rosterStudents) {
-  const map = new Map();
-  const names = (Array.isArray(rosterStudents) ? rosterStudents : [])
-    .map(s => String(s?.name || "").trim())
-    .filter(Boolean);
-  names.forEach(n => map.set(n, { name: n, attempts: 0, avg: 0, best: 0, worst: 0 }));
-  let classSum = 0;
-  let classN = 0;
-
-  sessions.forEach(s => {
-    const who = (s?.assignedTo?.student || s?.assignedTo || "").trim();
-    if (!who || !map.has(who)) return;
-    const ccf = Number(s.finalCCF ?? s.ccfPct ?? 0);
-    if (!Number.isFinite(ccf)) return;
-
-    const st = map.get(who);
-    st.attempts += 1;
-    st.best = st.attempts === 1 ? ccf : Math.max(st.best, ccf);
-    st.worst = st.attempts === 1 ? ccf : Math.min(st.worst, ccf);
-    // incremental average
-    st.avg = st.avg + (ccf - st.avg) / st.attempts;
-
-    classSum += ccf;
-    classN += 1;
+  hdr.addEventListener("click", ()=>{
+    const now = body.style.display !== "none";
+    body.style.display = now ? "none" : "";
+    hdr.querySelector(".accChevron").textContent = now ? "▸" : "▾";
+    setOpen(classId, id, !now);
   });
 
-  const rows = Array.from(map.values()).map(r => ({
-    name: r.name,
-    attempts: r.attempts,
-    avg: Math.round(r.avg * 10) / 10,
-    best: r.attempts ? Math.round(r.best) : 0,
-    worst: r.attempts ? Math.round(r.worst) : 0,
+  return el("section", { class:"accWrap" }, [hdr, body]);
+}
+
+/* ---------- Render: List view ---------- */
+function renderList(){
+  state.view = "list";
+  state.classId = null;
+  saveUI();
+
+  const classes = loadClasses();
+  const sessions = loadSessions();
+
+  const unassigned = sessions.filter(s => !s.classId && !s.studentId);
+
+  const container = el("div", { class:"pad16" }, [
+    el("div", { class:"row", style:"justify-content:space-between; align-items:center; gap:10px;" }, [
+      el("div", {}, [
+        el("div", { class:"dashTitle" }, ["Classes"]),
+        el("div", { class:"dashSub" }, ["Create a class, add students, then assign CCF sessions."])
+      ]),
+      el("button", { class:"primaryBtn", type:"button", id:"btnNewClass" }, ["+ New Class"])
+    ]),
+  ]);
+
+  // Unassigned sessions (collapsed by default)
+  const unBody = el("div", {}, [
+    unassigned.length ? el("div", { class:"dashSub" }, [`Unassigned sessions: ${unassigned.length}`]) :
+      el("div", { class:"dashSub" }, ["No unassigned sessions."]),
+    el("div", { class:"list" }, unassigned.slice().reverse().slice(0, 15).map(s => sessionRow(s, { mode:"unassigned" })))
+  ]);
+  container.appendChild(Accordion({
+    classId:null,
+    id:"unassigned",
+    title:"Unassigned sessions",
+    subtitle:"Assign past runs to a class/student",
+    defaultOpen:false,
+    bodyEl: unBody
   }));
 
-  return {
-    rows,
-    classAvg: classN ? Math.round((classSum / classN) * 10) / 10 : 0,
-    classN,
-  };
-}
-
-function statusFor(avg, attempts, target) {
-  if (!attempts) return { text: "No data", cls: "muted" };
-  if (avg >= target) return { text: "Meets goal", cls: "good" };
-  if (avg >= target - 5) return { text: "Close", cls: "warn" };
-  return { text: "Below", cls: "bad" };
-}
-
-function renderClassDashboard(sessions, proEnabled) {
-  const scoreEl = document.getElementById("classScoreCard");
-  const chartEl = document.getElementById("classChart");
-  const tableEl = document.getElementById("studentTable");
-  const hintEl = document.getElementById("classDashHint");
-  if (!proEnabled) return;
-
-  const cls = getClassSetup();
-  const roster = Array.isArray(cls?.students) ? cls.students : [];
-  const rosterByName = new Map(roster.map(s => [String(s?.name || "").trim(), s]));
-  const target = cls?.targetCcf ?? 80;
-
-  if (!cls || !roster.length) {
-    if (hintEl) {
-      hintEl.style.display = "block";
-      hintEl.innerHTML = `To set up a class: open <strong>Class Setup</strong>, add students to your roster (email/contact optional), then assign sessions to students below.`;
-    }
-    if (scoreEl) scoreEl.innerHTML = `
-      <div class="dashTitle">Class Score</div>
-      <div class="dashBig">—</div>
-      <div class="dashSub">No class roster yet</div>
-      <div class="dashKpiRow">
-        <div class="dashKpi"><div class="kLabel">Target</div><div class="kValue">${target}%</div></div>
-        <div class="dashKpi"><div class="kLabel">Passing</div><div class="kValue">0/0</div></div>
-        <div class="dashKpi"><div class="kLabel">Avg hands-off</div><div class="kValue">—</div></div>
-      </div>
-    `;
-    if (chartEl) chartEl.innerHTML = `<div class="emptyNote">Add students in Class Setup to see class performance.</div>`;
-    if (tableEl) tableEl.innerHTML = `<div class="emptyNote">No students yet.</div>`;
-    return;
-  } else {
-    if (hintEl) hintEl.style.display = "none";
+  // Class list
+  const listEl = el("div", { class:"list", style:"margin-top:12px;" }, []);
+  if(!classes.length){
+    listEl.appendChild(el("div", { class:"empty" }, ["No classes yet. Tap “New Class” to create one."]));
+  }else{
+    classes.forEach(cls => listEl.appendChild(classCard(cls)));
   }
+  container.appendChild(listEl);
 
-  const stats = computeStudentStats(sessions, roster);
-  const rows = stats.rows;
+  app().innerHTML = "";
+  app().appendChild(container);
 
-  // class avg hands-off
-  const avgHandsOffSec = sessions.length
-    ? Math.round((sessions.reduce((a, s) => a + ((s.offMs || 0) / 1000), 0) / sessions.length) * 10) / 10
-    : 0;
-
-  const passingCount = rows.filter(r => r.attempts && r.avg >= target).length;
-
-// Sticky summary header (keeps key stats visible while scrolling roster)
-const sticky = document.getElementById("classReportStickySummary");
-if (sticky) {
-  const common = computeCommonIssue(sessions);
-  sticky.innerHTML = `
-    <div class="stickyRow">
-      <div class="stickyTitle">Class Report</div>
-      <div class="stickyMeta">
-        <span><strong>Avg CCF:</strong> ${stats.classN ? `${stats.classAvg}%` : "—"}</span>
-        <span><strong>Passing:</strong> ${passingCount}/${rows.length}</span>
-        <span><strong>Common issue:</strong> ${common || "—"}</span>
-      </div>
-    </div>
-  `;
-}
-
-  if (scoreEl) {
-    scoreEl.innerHTML = `
-      <div class="dashTitle">Class Score</div>
-      <div class="dashBig">${stats.classN ? `${stats.classAvg}%` : "—"}</div>
-      <div class="dashSub">${stats.classN ? `Across ${stats.classN} assigned attempts` : "No assigned attempts yet"}</div>
-      <div class="dashKpiRow">
-        <div class="dashKpi"><div class="kLabel">Target</div><div class="kValue">${target}%</div></div>
-        <div class="dashKpi"><div class="kLabel">Passing</div><div class="kValue">${passingCount}/${rows.length}</div></div>
-        <div class="dashKpi"><div class="kLabel">Avg hands-off</div><div class="kValue">${avgHandsOffSec}s</div></div>
-      </div>
-    `;
-  }
-
-  // Chart (simple bars)
-  if (chartEl) {
-    const max = 100;
-    chartEl.innerHTML = rows.map(r => {
-      const pct = r.attempts ? r.avg : 0;
-      const st = statusFor(pct, r.attempts, target);
-      return `
-        <div class="barRow">
-          <div class="barLabel">${initials(r.name)}</div>
-          <div class="barTrackSmall" aria-hidden="true">
-            <div class="barFillSmall" style="width:${Math.max(0, Math.min(100, (pct / max) * 100))}%"></div>
-          </div>
-          <div class="barValue ${st.cls}">${r.attempts ? `${Math.round(pct)}%` : "—"}</div>
-        </div>
-      `;
-    }).join("");
-    chartEl.insertAdjacentHTML("afterbegin", `<div class="targetLine">Target ${target}%</div>`);
-  }
-
-  // Table
-  if (tableEl) {
-    tableEl.innerHTML = `
-      <div class="tHead">
-        <div>Student</div><div>Avg</div><div>Attempts</div><div>Score</div><div>Status</div>
-      </div>
-      ${rows.map(r => {
-        const st = statusFor(r.avg, r.attempts, target);
-        const scoreVal = String(rosterByName.get(r.name)?.score ?? "").trim();
-        const source = r.attempts ? "Auto" : (scoreVal ? "Manual" : "Unassigned");
-        return `
-          <div class="tRow">
-            <div class="tName">
-              <button class="tNameBtn" type="button" data-student-name="${escapeHtml(r.name)}">${escapeHtml(r.name)}</button>
-            </div>
-            <div class="tNum">${r.attempts ? `${Math.round(r.avg)}%` : "—"}</div>
-            <div class="tNum">${r.attempts}</div>
-            <div class="tNum" style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
-              <input class="scoreInput" type="number" inputmode="numeric" min="0" max="100" placeholder="—"
-                value="${escapeHtml(scoreVal)}" data-score-name="${escapeHtml(r.name)}" />
-              <span class="srcTag">${source}</span>
-            </div>
-            <div class="tStatus"><span class="pill ${st.cls}">${st.text}</span></div>
-          </div>
-        `;
-      }).join("")}
-    `;
-
-    // wire: click name to open student modal
-    tableEl.querySelectorAll(".tNameBtn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const nm = btn.getAttribute("data-student-name") || "";
-        openStudentModal(nm, sessions);
-      });
-    });
-
-    // wire: manual score edits
-    tableEl.querySelectorAll(".scoreInput").forEach(inp => {
-      inp.addEventListener("change", () => {
-        const nm = inp.getAttribute("data-score-name") || "";
-        const cls2 = loadClassSetup() || {};
-        cls2.students = Array.isArray(cls2.students) ? cls2.students : [];
-        cls2.students = cls2.students.map(s => {
-          if (String(s?.name||"").trim() === nm) {
-            return { ...s, score: String(inp.value || "").trim() };
-          }
-          return s;
-        });
-        saveClassSetup(cls2);
-      });
-    });
-
-  }
-}
-
-function initials(name) {
-  const parts = String(name).trim().split(/\s+/);
-  if (!parts.length) return "??";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function renderHistory(list, proEnabled) {
-  const el = document.getElementById("historyList");
-  const historyBlock = document.querySelector(".historyBlock");
-  const exportBtn = document.getElementById("btnExport");
-
-  if (!proEnabled) {
-    // Free: hide history + export (keeps page simple)
-    if (historyBlock) historyBlock.style.display = "none";
-    if (exportBtn) exportBtn.style.display = "none";
-    return;
-  }
-
-  if (historyBlock) historyBlock.style.display = "block";
-  if (exportBtn) exportBtn.style.display = "inline-flex";
-
-  if (!list.length) {
-    el.innerHTML = `<div class="historyEmpty">No saved sessions.</div>`;
-    return;
-  }
-
-  el.innerHTML = list.map((s, idx) => {
-    const b = badgeForCCF(s.finalCCF || 0);
-    const student = sessionDisplayName(s);
-    return `
-      <div class="histRow">
-        <div>
-          <div class="histTopLine">
-            <div class="histCCF">${s.finalCCF ?? 0}%</div>
-            <div class="histBadge ${b.cls}">${b.text}</div>
-          </div>
-          <div class="histMeta">${student} • ${toLocal(s.endedAt)} • Total ${fmt(s.totalMs ?? 0)} • Hands-Off ${fmt(s.offMs ?? 0)}</div>
-          <div class="histActions">
-            <button class="pillBtn" data-act="assign" data-idx="${idx}">Assign</button>
-            <button class="pillBtn" data-act="download" data-idx="${idx}">Download</button>
-          </div>
-        </div>
-        <button class="histBtn" data-act="delete" data-idx="${idx}" aria-label="Delete">🗑</button>
-      </div>
-    `;
-  }).join("");
-
-  el.querySelectorAll("button[data-act]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const act = btn.dataset.act;
-      const idx = Number(btn.dataset.idx);
-      if (!Number.isFinite(idx)) return;
-      if (act === "delete") {
-        const arr = loadSessions();
-        arr.splice(idx, 1);
-        saveSessions(arr);
-        boot();
-        return;
-      }
-      if (act === "download") {
-        const s = loadSessions()[idx];
-        if (!s) return;
-        const student = sessionDisplayName(s).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
-        const stamp = new Date(s.endedAt || Date.now()).toISOString().slice(0, 10);
-        downloadText(`ccf_report_${student}_${stamp}.txt`, makeReportText(s));
-        return;
-      }
-      if (act === "assign") {
-        const arr = loadSessions();
-        const s = arr[idx];
-        if (!s) return;
-        const cls = loadClassSetup();
-        const roster = Array.isArray(cls?.students) ? cls.students : [];
-        const rosterNames = roster.map(x => x.name).filter(Boolean);
-        const msg = rosterNames.length
-          ? `Assign to which student?\n\nRoster:\n${rosterNames.slice(0, 25).join("\n")}`
-          : "Enter student name:";
-        const name = prompt(msg, (s.assignedTo?.student || ""));
-        if (!name) return;
-        s.assignedTo = { student: name.trim(), assignedAt: Date.now() };
-        arr[idx] = s;
-        saveSessions(arr);
-        boot();
-      }
-    });
+  document.getElementById("btnNewClass").addEventListener("click", ()=>{
+    const d = loadDefaults();
+    const cls = {
+      id: uid(),
+      name: "",
+      dateISO: todayISO(),
+      instructorName: d.instructorName || "",
+      instructorEmail: d.instructorEmail || "",
+      location: d.location || "",
+      students: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      targetCcf: 80,
+    };
+    upsertClass(cls);
+    openClass(cls.id, true);
   });
 }
 
-function exportCSV() {
-  const arr = loadSessions();
-  if (!arr.length) {
-    alert("No sessions to export.");
+function classCard(cls){
+  const students = Array.isArray(cls.students) ? cls.students : [];
+  const sessions = loadSessions().filter(s => s.classId === cls.id);
+  const assignedToStudent = sessions.filter(s => s.studentId).length;
+
+  const title = (cls.name && cls.name.trim()) ? cls.name.trim() : "(Untitled class)";
+  const meta = [
+    cls.dateISO ? fmtDateISO(cls.dateISO) : "",
+    cls.instructorName ? cls.instructorName : "",
+    cls.location ? cls.location : "",
+  ].filter(Boolean).join(" • ");
+
+  const stats = `${students.length} students • ${assignedToStudent}/${sessions.length} assigned`;
+
+  const card = el("button", { class:"classCard", type:"button" }, [
+    el("div", { class:"classCardTop" }, [
+      el("div", { class:"className" }, [title]),
+      el("div", { class:"classMeta" }, [meta || ""])
+    ]),
+    el("div", { class:"classStats" }, [stats]),
+  ]);
+  card.addEventListener("click", ()=>openClass(cls.id, false));
+  return card;
+}
+
+/* ---------- Render: Class view ---------- */
+function openClass(classId, isNew){
+  state.view = "class";
+  state.classId = classId;
+  saveUI();
+  renderClass(classId, isNew);
+}
+
+function renderClass(classId, isNew){
+  const cls0 = getClassById(classId);
+  if(!cls0){
+    renderList();
     return;
   }
+  // Clone for in-memory edits
+  let cls = JSON.parse(JSON.stringify(cls0));
+  cls.students = Array.isArray(cls.students) ? cls.students : [];
 
-  const cls = getClassSetup();
-  const roster = Array.isArray(cls?.students) ? cls.students : [];
-  const target = cls?.targetCcf ?? 80;
+  const header = el("div", { class:"pad16" }, [
+    el("button", { class:"ghostBtn", type:"button", id:"btnBack" }, ["← Back to classes"]),
+    el("div", { class:"dashTitle", style:"margin-top:10px;" }, [cls.name?.trim() ? cls.name.trim() : "Class"]),
+    el("div", { class:"dashSub" }, [
+      (cls.dateISO ? fmtDateISO(cls.dateISO) : ""),
+      (cls.instructorName ? ` • ${cls.instructorName}` : ""),
+      (cls.location ? ` • ${cls.location}` : "")
+    ].join(""))
+  ]);
 
-  const rows = [
-    ["endedAt","student","finalCCF","totalMs","compMs","offMs","pauseCount","longestPauseMs","patientType","rescuerCount","breathTimer","pulseCue","className","instructor","targetCcf"],
-    ...arr.map(s => [
-      s.endedAt,
-      sessionDisplayName(s),
-      s.finalCCF ?? 0,
-      s.totalMs ?? 0,
-      s.compMs ?? 0,
-      s.offMs ?? 0,
-      s.pauseCount ?? 0,
-      s.longestPauseMs ?? 0,
-      s.cprProfile?.patientType || "",
-      s.cprProfile?.rescuerCount ?? "",
-      (s.cprProfile?.breathTimerEnabled === false) ? "0" : "1",
-      (s.cprProfile?.pulseCueEnabled === false) ? "0" : "1",
-      s.classContext?.name || cls?.name || "",
-      s.classContext?.instructor || cls?.instructor || "",
-      target,
+  const body = el("div", { class:"pad16", style:"padding-top:0;" }, []);
+
+  // --- Class info
+  const infoBody = el("div", { class:"formGrid" }, [
+    field("Class name (optional)", "text", "className", cls.name || "", "Ex: EMT Skills Day"),
+    field("Date", "date", "classDate", cls.dateISO || todayISO(), ""),
+    field("Instructor (optional)", "text", "instrName", cls.instructorName || "", ""),
+    field("Instructor email (optional)", "email", "instrEmail", cls.instructorEmail || "", ""),
+    field("Location / notes (optional)", "text", "classLoc", cls.location || "", "Station / room / notes"),
+    field("Target CCF % (optional)", "number", "targetCcf", String(cls.targetCcf ?? 80), ""),
+    el("div", { class:"row", style:"gap:10px; flex-wrap:wrap; margin-top:6px;" }, [
+      el("button", { class:"secondaryBtn", type:"button", id:"btnDeleteClass" }, ["Delete class"]),
+      el("button", { class:"secondaryBtn", type:"button", id:"btnDownloadClass" }, ["Download class CSV"]),
+      el("button", { class:"secondaryBtn", type:"button", id:"btnPrintClass" }, ["Print"]),
+      el("button", { class:"secondaryBtn", type:"button", id:"btnEmailInstructor" }, ["Email instructor"]),
     ])
-  ];
+  ]);
 
-  // Append class + student summary (premium)
-  if (cls && roster.length) {
-    const stats = computeStudentStats(arr, roster);
-    const passingCount = stats.rows.filter(r => r.attempts && r.avg >= target).length;
+  body.appendChild(Accordion({
+    classId,
+    id:"info",
+    title:"Class setup",
+    subtitle:"Name, date, instructor, location",
+    defaultOpen: !!isNew, // new class opens setup
+    bodyEl: infoBody
+  }));
 
-    rows.push([]);
-    rows.push(["CLASS_SUMMARY"]);
-    rows.push(["className", cls.name || ""]);
-    rows.push(["instructor", cls.instructor || ""]);
-    rows.push(["targetCcf", target]);
-    rows.push(["classAvgCcf", stats.classN ? stats.classAvg : ""]);
-    rows.push(["assignedAttempts", stats.classN]);
-    rows.push(["studentsPassing", `${passingCount}/${stats.rows.length}`]);
+  // --- Students
+  const rosterWrap = el("div", {}, [
+    el("div", { class:"row", style:"justify-content:space-between; align-items:center; gap:10px;" }, [
+      el("div", {}, [
+        el("div", { class:"dashSub" }, ["Add students (name required for assignment). Email is optional."])
+      ]),
+      el("button", { class:"primaryBtn", type:"button", id:"btnAddStudent" }, ["+ Add Student"])
+    ]),
+    el("div", { id:"studentsList", class:"list", style:"margin-top:10px;" }, [])
+  ]);
+  body.appendChild(Accordion({
+    classId,
+    id:"students",
+    title:"Students",
+    subtitle:`${cls.students.length} in roster`,
+    defaultOpen:false,
+    bodyEl: rosterWrap
+  }));
 
-    rows.push([]);
-    rows.push(["STUDENT_AVERAGES"]);
-    rows.push(["student","avgCcf","attempts","best","worst","status"]);
-    stats.rows.forEach(r => {
-      const st = statusFor(r.avg, r.attempts, target);
-      rows.push([r.name, r.attempts ? r.avg : "", r.attempts, r.best, r.worst, st.text]);
-    });
-  }
+  // --- Assign Sessions (class context)
+  const assignWrap = el("div", {}, [
+    el("div", { class:"dashSub" }, ["Assign saved CCF sessions to students in this class."]),
+    el("div", { id:"classSessionsList", class:"list", style:"margin-top:10px;" }, [])
+  ]);
+  body.appendChild(Accordion({
+    classId,
+    id:"assign",
+    title:"Assign sessions",
+    subtitle:"Link past runs to this class / student",
+    defaultOpen:false,
+    bodyEl: assignWrap
+  }));
 
-  downloadCSV("ccf_reports_premium.csv", rows);
-}
+  // --- Dashboard
+  const dashWrap = el("div", { id:"dashWrap" }, []);
+  body.appendChild(Accordion({
+    classId,
+    id:"dashboard",
+    title:"Class report",
+    subtitle:"Overall performance + student reports",
+    defaultOpen:false,
+    bodyEl: dashWrap
+  }));
 
-function buildClassSummary(cls, sessions) {
-  const name = cls?.name || "Class";
-  const target = cls?.targetCcf ?? 80;
-  const roster = Array.isArray(cls?.students) ? cls.students : [];
-  const rosterNames = roster.map(s => String(s?.name||"").trim()).filter(Boolean);
+  // --- Export
+  const exportWrap = el("div", {}, [
+    el("div", { class:"dashSub" }, ["Download / email results."]),
+    el("div", { class:"row", style:"gap:10px; flex-wrap:wrap; margin-top:10px;" }, [
+      el("button", { class:"secondaryBtn", type:"button", id:"btnEmailStudents" }, ["Email students (BCC)"]),
+      el("button", { class:"secondaryBtn", type:"button", id:"btnDownloadAllSessions" }, ["Download assigned sessions CSV"]),
+    ])
+  ]);
+  body.appendChild(Accordion({
+    classId,
+    id:"export",
+    title:"Export",
+    subtitle:"CSV / print / email",
+    defaultOpen:false,
+    bodyEl: exportWrap
+  }));
 
-  // per-student averages from assigned sessions
-  const byStudent = new Map();
-  rosterNames.forEach(n => byStudent.set(n, { name: n, attempts: 0, sum: 0 }));
+  app().innerHTML = "";
+  app().appendChild(header);
+  app().appendChild(body);
 
-  sessions.forEach(s => {
-    const n = s?.assignedTo?.student;
-    if (!n || !byStudent.has(n)) return;
-    const rec = byStudent.get(n);
-    rec.attempts += 1;
-    rec.sum += (s.ccfPct || 0);
+  // Initial render lists
+  renderStudents(cls);
+  renderClassSessions(cls);
+  renderDashboard(cls);
+
+  // Handlers
+  document.getElementById("btnBack").addEventListener("click", renderList);
+
+  // Autosave class fields (debounced)
+  const debSave = ()=>{
+    clearTimeout(state.debounce);
+    state.debounce = setTimeout(()=>{
+      upsertClass(cls);
+      // update defaults
+      const d = loadDefaults();
+      d.instructorName = cls.instructorName || d.instructorName;
+      d.instructorEmail = cls.instructorEmail || d.instructorEmail;
+      d.location = cls.location || d.location;
+      saveDefaults(d);
+      // rerender header summary text without rerendering form
+      document.getElementById("hdrTitle").textContent = "Reports";
+    }, 250);
+  };
+
+  hookField("className", v=>{ cls.name = v; debSave(); });
+  hookField("classDate", v=>{ cls.dateISO = v; debSave(); });
+  hookField("instrName", v=>{ cls.instructorName = v; debSave(); });
+  hookField("instrEmail", v=>{ cls.instructorEmail = v; debSave(); });
+  hookField("classLoc", v=>{ cls.location = v; debSave(); });
+  hookField("targetCcf", v=>{ cls.targetCcf = clampInt(v, 0, 100, 80); debSave(); });
+
+  document.getElementById("btnAddStudent").addEventListener("click", ()=>{
+    cls.students.push({ id: uid(), name:"", email:"", contact:"" });
+    upsertClass(cls);
+    renderStudents(cls, true);
   });
 
-  const rows = [...byStudent.values()].map(r => ({
-    name: r.name,
-    attempts: r.attempts,
-    avg: r.attempts ? (r.sum / r.attempts) : 0,
-    manual: String(roster.find(x => String(x?.name||"").trim()===r.name)?.score || "").trim()
-  })).sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById("btnDeleteClass").addEventListener("click", ()=>{
+    if(confirm("Delete this class? This does not delete the CPR sessions, only the class record.")){
+      deleteClass(cls.id);
+      renderList();
+    }
+  });
 
-  const classAttempts = rows.reduce((a,r)=>a+r.attempts,0);
-  const classAvg = classAttempts ? (rows.reduce((a,r)=>a+(r.avg*r.attempts),0)/classAttempts) : 0;
-  const passing = rows.filter(r => r.attempts && r.avg >= target).length;
+  document.getElementById("btnDownloadClass").addEventListener("click", ()=>{
+    downloadText(buildClassCsv(cls), safeFile(`class-${cls.name||cls.id}.csv`));
+  });
 
-  return { name, target, rows, classAvg, passing, total: rows.length };
+  document.getElementById("btnPrintClass").addEventListener("click", ()=>{
+    printClass(cls);
+  });
+
+  document.getElementById("btnEmailInstructor").addEventListener("click", ()=>{
+    emailInstructor(cls);
+  });
+
+  document.getElementById("btnEmailStudents").addEventListener("click", ()=>{
+    emailStudents(cls);
+  });
+
+  document.getElementById("btnDownloadAllSessions").addEventListener("click", ()=>{
+    downloadText(buildAssignedSessionsCsv(cls), safeFile(`sessions-${cls.name||cls.id}.csv`));
+  });
 }
 
-function mailtoDraft(to, subject, body, bcc="") {
-  const params = [];
-  if (subject) params.push(`subject=${encodeURIComponent(subject)}`);
-  if (body) params.push(`body=${encodeURIComponent(body)}`);
-  if (bcc) params.push(`bcc=${encodeURIComponent(bcc)}`);
-  const url = `mailto:${encodeURIComponent(to || "")}?${params.join("&")}`;
-  window.location.href = url;
+/* ---------- UI bits ---------- */
+function field(label, type, id, value, placeholder){
+  const wrap = el("label", { class:"field" }, [
+    el("span", { class:"fieldLabel" }, [label]),
+    el("input", { id, type, value, placeholder: placeholder||"" })
+  ]);
+  return wrap;
 }
-
-function wireExportActions(proEnabled, sessions) {
-  const btnCsv = document.getElementById("btnExportCsv");
-  const btnEmailInstr = document.getElementById("btnEmailInstructor");
-  const btnEmailStudents = document.getElementById("btnEmailStudents");
-  if (!proEnabled) return;
-
-  if (btnCsv && btnCsv.dataset.bound !== "1") {
-    btnCsv.dataset.bound = "1";
-    btnCsv.addEventListener("click", () => exportCSV());
-  }
-
-  if (btnEmailInstr && btnEmailInstr.dataset.bound !== "1") {
-    btnEmailInstr.dataset.bound = "1";
-    btnEmailInstr.addEventListener("click", () => {
-      const cls = loadClassSetup() || {};
-      const summary = buildClassSummary(cls, sessions);
-
-      let to = String(cls?.instructorEmail || "").trim();
-      if (!to) to = prompt("Instructor email (optional). Leave blank to open a draft without a recipient:", "") || "";
-
-      const subject = `CCF Class Summary - ${summary.name}`;
-      const lines = [
-        `Class: ${summary.name}`,
-        `Target: ${summary.target}%`,
-        `Class avg (assigned sessions): ${Math.round(summary.classAvg)}%`,
-        `Passing: ${summary.passing}/${summary.total}`,
-        ``,
-        `Student averages (assigned sessions):`,
-        ...summary.rows.map(r => `- ${r.name}: ${r.attempts ? Math.round(r.avg) + "%" : "—"} (${r.attempts} attempt${r.attempts===1?"":"s"})${r.manual ? ` • Manual score: ${r.manual}%` : ""}`)
-      ];
-
-      mailtoDraft(to, subject, lines.join("\n"));
-    });
-  }
-
-  if (btnEmailStudents && btnEmailStudents.dataset.bound !== "1") {
-    btnEmailStudents.dataset.bound = "1";
-    btnEmailStudents.addEventListener("click", () => {
-      const cls = loadClassSetup() || {};
-      const roster = Array.isArray(cls?.students) ? cls.students : [];
-      const emails = roster.map(s => String(s?.email||"").trim()).filter(Boolean);
-      if (!emails.length) return alert("No student emails in roster yet. Add emails in Class Setup (optional).");
-
-      const summary = buildClassSummary(cls, sessions);
-      const subject = `CCF Results - ${summary.name}`;
-      const body = [
-        `CCF results for: ${summary.name}`,
-        ``,
-        `If you have multiple attempts assigned, your average is shown.`,
-        ``,
-        `Reply to this email if you have questions.`,
-      ].join("\n");
-
-      // Use BCC so you can message everyone at once
-      const to = String(cls?.instructorEmail || "").trim();
-      mailtoDraft(to, subject, body, emails.join(","));
-    });
-  }
+function hookField(id, onChange){
+  const input = document.getElementById(id);
+  if(!input) return;
+  input.addEventListener("input", ()=> onChange(input.value));
 }
-
-
-function syncProUI(proEnabled) {
-  const upgrade = document.getElementById("upgradeCard");
-  const proBlock = document.getElementById("proBlock");
-  const debugBtn = document.getElementById("btnDebugPro");
-
-  if (upgrade) upgrade.style.display = proEnabled ? "none" : "block";
-  if (proBlock) proBlock.style.display = proEnabled ? "block" : "none";
-
-  if (debugBtn) {
-    debugBtn.style.display = "inline-flex";
-    debugBtn.addEventListener("click", () => {
-      const next = !isPro();
-      localStorage.setItem(PRO_KEY, next ? "1" : "0");
-      boot();
-    });
+function renderStudents(cls, focusNew){
+  const list = document.getElementById("studentsList");
+  if(!list) return;
+  list.innerHTML = "";
+  if(!cls.students.length){
+    list.appendChild(el("div", { class:"empty" }, ["No students yet. Tap “Add Student”."]));
+    return;
   }
+  cls.students.forEach((st, idx)=>{
+    const card = el("div", { class:"studentCard" }, [
+      el("div", { class:"studentRow" }, [
+        el("label", { class:"field", style:"margin:0; flex:1;" }, [
+          el("span", { class:"fieldLabel" }, ["Name"]),
+          el("input", { type:"text", value: st.name||"", "data-stid": st.id, "data-k":"name", placeholder:"Student name" })
+        ]),
+        el("button", { class:"ghostIconBtn", type:"button", title:"Remove student" }, ["✕"])
+      ]),
+      el("div", { class:"studentRow", style:"margin-top:8px;" }, [
+        el("label", { class:"field", style:"margin:0; flex:1;" }, [
+          el("span", { class:"fieldLabel" }, ["Email (optional)"]),
+          el("input", { type:"email", value: st.email||"", "data-stid": st.id, "data-k":"email", placeholder:"" })
+        ]),
+        el("label", { class:"field", style:"margin:0; flex:1;" }, [
+          el("span", { class:"fieldLabel" }, ["Contact (optional)"]),
+          el("input", { type:"text", value: st.contact||"", "data-stid": st.id, "data-k":"contact", placeholder:"" })
+        ])
+      ])
+    ]);
 
-  const upgradeLink = document.getElementById("btnUpgrade");
-  if (upgradeLink) {
-    upgradeLink.addEventListener("click", (e) => {
-      e.preventDefault();
-      alert("Unlock Pro in the Android/iOS app using the one-time in-app purchase. (Web version stays free.)");
-    });
-  }
-}
-
-function syncClassUI(proEnabled) {
-  if (!proEnabled) return;
-  const sel = document.getElementById("studentSelect");
-  const meta = document.getElementById("classMeta");
-  if (!sel || !meta) return;
-
-  const cls = loadClassSetup() || {};
-  meta.textContent = classSummaryLine(cls);
-
-  const roster = (cls.students || [])
-    .map((s) => String(s?.name || "").trim())
-    .filter(Boolean);
-  sel.innerHTML = ["Unassigned", ...roster]
-    .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
-    .join("");
-
-  // Populate the Class Setup form (collapsible panel)
-  const elName = document.getElementById("className");
-  const elInstr = document.getElementById("instructorName");
-  const elEmail = document.getElementById("instructorEmail");
-  const elLoc = document.getElementById("classLocation");
-  const elTarget = document.getElementById("targetCcf");
-  const elLen = document.getElementById("sessionLengthSec");
-
-// Auto-save class fields (prevents losing class name/email and avoids re-rendering while typing)
-function wireClassSetupAutoSave() {
-  const fields = [
-    ["className", "name"],
-    ["instructorName", "instructor"],
-    ["instructorEmail", "instructorEmail"],
-    ["classLocation", "location"],
-    ["targetCcf", "targetCcf"],
-    ["sessionLengthSec", "sessionLengthSec"],
-  ];
-  fields.forEach(([id, key]) => {
-    const el = document.getElementById(id);
-    if (!el || el.__autoSaveBound) return;
-    el.__autoSaveBound = true;
-    el.addEventListener("input", () => {
-      const cls = loadClassSetup() || { students: [] };
-      if (cls.locked) return; // don't mutate locked class
-      let val = el.value;
-      if (key === "targetCcf" || key === "sessionLengthSec") {
-        const n = parseInt(String(val || "").trim(), 10);
-        if (Number.isFinite(n)) cls[key] = n;
-      } else {
-        cls[key] = String(val || "");
+    // remove
+    card.querySelector(".ghostIconBtn").addEventListener("click", ()=>{
+      if(confirm("Remove this student from the class roster?")){
+        cls.students = cls.students.filter(s=>s.id!==st.id);
+        // unassign sessions for this student in this class
+        const sess = loadSessions();
+        let changed=false;
+        sess.forEach(s=>{
+          if(s.classId===cls.id && s.studentId===st.id){ s.studentId=null; changed=true; }
+        });
+        if(changed) saveSessions(sess);
+        upsertClass(cls);
+        renderStudents(cls, false);
+        renderDashboard(cls);
+        renderClassSessions(cls);
       }
-      clearTimeout(el.__saveT);
-      el.__saveT = setTimeout(() => {
-        saveClassSetup(cls);
-        // Update the collapsed subtitle line without re-rendering the whole panel
-        const meta = document.getElementById("classSetupMeta");
-        if (meta) meta.textContent = classSummaryLine(loadClassSetup() || cls);
+    });
+
+    list.appendChild(card);
+  });
+
+  // input handlers without rerender (prevents keyboard closing)
+  list.querySelectorAll("input[data-stid]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const sid = inp.getAttribute("data-stid");
+      const k = inp.getAttribute("data-k");
+      const st = cls.students.find(s=>s.id===sid);
+      if(st && k) st[k] = inp.value;
+      // debounced save
+      clearTimeout(state.debounce);
+      state.debounce = setTimeout(()=>{
+        upsertClass(cls);
       }, 250);
     });
   });
-}
-wireClassSetupAutoSave();
 
-  const elLocked = document.getElementById("classLocked");
-
-  if (elName) elName.value = cls.name || "";
-  if (elInstr) elInstr.value = cls.instructor || "";
-  if (elEmail) elEmail.value = cls.instructorEmail || "";
-  if (elLoc) elLoc.value = cls.location || "";
-  if (elTarget) elTarget.value = String(cls.targetCcf ?? "");
-  if (elLen) elLen.value = String(cls.sessionLengthSec ?? 120);
-  if (elLocked) elLocked.checked = !!cls.locked;
-
-  renderRosterEditor(cls.students || []);
-  applyClassLockUI(cls);
+  if(focusNew){
+    const last = list.querySelector('input[data-k="name"][data-stid]');
+    if(last) last.focus();
+  }
 }
 
-// --- Roster Editor (Class Setup) ---
-
-function readRosterFromEditor() {
-  const wrap = document.getElementById("rosterEditor");
-  if (!wrap) return [];
-  const rows = Array.from(wrap.querySelectorAll(".rosterRow"));
-  return rows.map((row) => {
-    const name = (row.querySelector(".roName")?.value || "").trim();
-    const email = (row.querySelector(".roEmail")?.value || "").trim();
-    const contact = (row.querySelector(".roContact")?.value || "").trim();
-    const score = (row.querySelector(".roScore")?.value || "").trim();
-    return { name, email, contact, score };
-  }).filter(r => r.name || r.email || r.contact || r.score);
+/* ---------- Sessions listing + assignment ---------- */
+function sessionTitle(s){
+  const when = s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session";
+  const ccf = (s.ccfPct!==undefined && s.ccfPct!==null) ? `${Math.round(s.ccfPct)}%` : "—";
+  const pauses = (s.pauses && Array.isArray(s.pauses)) ? s.pauses.length : (s.pauseCount ?? 0);
+  const ho = (s.handsOffSec!==undefined && s.handsOffSec!==null) ? `${Math.round(s.handsOffSec)}s hands-off` : "";
+  return `${ccf} • ${pauses} pauses • ${ho}`.trim();
 }
-function renderRosterEditor(students) {
-  const wrap = document.getElementById("rosterEditor");
-  if (!wrap) return;
-  const list = Array.isArray(students) ? students : [];
+function sessionRow(s, {mode, classId}){
+  const row = el("div", { class:"sessionRow" }, [
+    el("div", { class:"sessionLeft" }, [
+      el("div", { class:"sessionMain" }, [sessionTitle(s)]),
+      el("div", { class:"sessionSub" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : ""])
+    ]),
+    el("div", { class:"sessionActions" }, [])
+  ]);
 
-  // Build rows
-  wrap.innerHTML = list.map((s, idx) => {
-    const name = escapeHtml(String(s?.name ?? ""));
-    const email = escapeHtml(String(s?.email ?? ""));
-    const contact = escapeHtml(String(s?.contact ?? ""));
-    const score = escapeHtml(String(s?.score ?? ""));
-    return `
-      <div class="rosterRow" data-i="${idx}">
-        <div class="rosterCols">
-          <label class="field">
-            <span class="fieldLabel">Name</span>
-            <input class="roName" type="text" value="${name}" placeholder="Student name" />
-          </label>
-          <label class="field">
-            <span class="fieldLabel">Email (optional)</span>
-            <input class="roEmail" type="email" value="${email}" placeholder="name@email.com" />
-          </label>
-          <label class="field">
-            <span class="fieldLabel">Contact (optional)</span>
-            <input class="roContact" type="text" value="${contact}" placeholder="Phone / notes" />
-          </label>
-          <label class="field" style="max-width:140px;">
-            <span class="fieldLabel">Score (optional)</span>
-            <input class="roScore" type="number" inputmode="numeric" min="0" max="100" value="${score}" placeholder="—" />
-          </label>
-        </div>
-        <button class="miniDanger" type="button" data-act="remove" aria-label="Remove student">✕</button>
-      </div>
-    `;
-  }).join("") || `<div class="muted">No students yet. Use “Add Student” or “Quick Add” below.</div>`;
+  const actions = row.querySelector(".sessionActions");
 
-  // Bind events (delegated)
-  wrap.onclick = (e) => {
-    const btn = e.target && e.target.closest && e.target.closest('button[data-act="remove"]');
-    if (!btn) return;
-    const row = btn.closest(".rosterRow");
-    const i = row ? Number(row.getAttribute("data-i")) : -1;
-    if (i < 0) return;
-    const cls = loadClassSetup() || { students: [] };
-    cls.students = Array.isArray(cls.students) ? cls.students : [];
-    cls.students.splice(i, 1);
-    saveClassSetup(cls);
-    syncClassUI(true);
-    boot();
-  };
+  const btnView = el("button", { class:"secondaryBtn", type:"button" }, ["View"]);
+  btnView.addEventListener("click", ()=> showSessionModal(s, classId || null));
+  actions.appendChild(btnView);
 
-  wrap.oninput = (e) => {
-  const row = e.target && e.target.closest && e.target.closest(".rosterRow");
-  if (!row) return;
-  const i = Number(row.getAttribute("data-i"));
-  if (!Number.isFinite(i) || i < 0) return;
+  if(mode==="unassigned"){
+    const btnAssign = el("button", { class:"primaryBtn", type:"button" }, ["Assign"]);
+    btnAssign.addEventListener("click", ()=> showAssignModal(s));
+    actions.appendChild(btnAssign);
+  }
 
-  const nameEl = row.querySelector(".roName");
-  const emailEl = row.querySelector(".roEmail");
-  const contactEl = row.querySelector(".roContact");
-  const scoreEl = row.querySelector(".roScore");
+  const btnDl = el("button", { class:"secondaryBtn", type:"button" }, ["Download"]);
+  btnDl.addEventListener("click", ()=>{
+    downloadText(buildSessionTxt(s), safeFile(`ccf-${s.startedAt||Date.now()}.txt`));
+  });
+  actions.appendChild(btnDl);
 
-  // Update in-memory class setup without re-rendering (prevents iOS keyboard from closing)
-  const cls = loadClassSetup() || { students: [] };
-  cls.students = Array.isArray(cls.students) ? cls.students : [];
-  cls.students[i] = cls.students[i] || { name: "", email: "", contact: "", score: "" };
-  cls.students[i].name = String(nameEl?.value || "").trimStart();
-  cls.students[i].email = String(emailEl?.value || "").trim();
-  cls.students[i].contact = String(contactEl?.value || "").trimStart();
-  cls.students[i].score = String(scoreEl?.value || "").trim();
-
-  // Debounced save (no boot(), no syncClassUI() here)
-  clearTimeout(wrap.__saveT);
-  wrap.__saveT = setTimeout(() => {
-    saveClassSetup(cls);
-    // Keep Most Recent dropdown in sync quietly
-    const sel = document.getElementById("studentSelect");
-    if (sel) {
-      const names = (cls.students || []).map(x => String(x?.name || "").trim()).filter(Boolean);
-      sel.innerHTML = ["Unassigned", ...names].map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  const btnDel = el("button", { class:"secondaryBtn", type:"button" }, ["Delete"]);
+  btnDel.addEventListener("click", ()=>{
+    if(confirm("Delete this saved session?")){
+      const arr = loadSessions();
+      saveSessions(arr.filter(x=>x.id!==s.id));
+      boot();
     }
-  }, 250);
-};
-}
-
-
-
-
-
-const ACC_KEY = "ccf.reportsAccordion.v1";
-
-function loadAccState() {
-  const raw = safeParseJSON(localStorage.getItem(ACC_KEY) || "", null);
-  if (raw && typeof raw === "object") return raw;
-  return { classSetup: false, latest: false, classReport: false, export: false };
-}
-function saveAccState(state) {
-  try { localStorage.setItem(ACC_KEY, JSON.stringify(state)); } catch {}
-}
-
-function setAccOpen(accId, open) {
-  const sec = document.querySelector(`.accHead[data-acc="${accId}"]`)?.closest(".acc");
-  const body = document.getElementById(
-    accId === "classSetup" ? "accBodyClassSetup" :
-    accId === "latest" ? "accBodyLatest" :
-    accId === "classReport" ? "accBodyClassReport" :
-    "accBodyExport"
-  );
-  if (sec) sec.classList.toggle("open", open);
-  if (body) body.style.display = open ? "block" : "none";
-}
-
-function wireAccordions(proEnabled) {
-  // Hide premium-only accordions if not Pro
-  const accClassSetup = document.getElementById("accClassSetup");
-  const accClassReport = document.getElementById("accClassReport");
-  const accExport = document.getElementById("accExport");
-  if (!proEnabled) {
-    if (accClassSetup) accClassSetup.style.display = "none";
-    if (accClassReport) accClassReport.style.display = "none";
-    if (accExport) accExport.style.display = "none";
-  } else {
-    if (accClassSetup) accClassSetup.style.display = "block";
-    if (accClassReport) accClassReport.style.display = "block";
-    if (accExport) accExport.style.display = "block";
-  }
-
-  const state = loadAccState();
-  // Always show latest accordion (free + pro)
-  setAccOpen("classSetup", !!state.classSetup && proEnabled);
-  setAccOpen("latest", state.latest !== false);
-  setAccOpen("classReport", !!state.classReport && proEnabled);
-  setAccOpen("export", !!state.export && proEnabled);
-
-  document.querySelectorAll(".accHead[data-acc]").forEach(btn => {
-    bindOnce(btn,"click","acc",() => {
-      const id = btn.getAttribute("data-acc");
-      const s = loadAccState();
-      const now = !s[id];
-      s[id] = now;
-      saveAccState(s);
-      setAccOpen(id, now && (proEnabled || id === "latest"));
-    });
   });
+  actions.appendChild(btnDel);
+
+  return row;
 }
 
-function wireStudentModal() {
-  const overlay = document.getElementById("studentOverlay");
-  const btnClose = document.getElementById("btnCloseStudentModal");
-  if (!overlay || !btnClose) return;
-  if (btnClose.dataset.bound === "1") return;
-  btnClose.dataset.bound = "1";
-  btnClose.addEventListener("click", () => overlay.classList.remove("show"));
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) overlay.classList.remove("show");
-  });
-}
+function renderClassSessions(cls){
+  const list = document.getElementById("classSessionsList");
+  if(!list) return;
+  list.innerHTML = "";
 
-function openStudentModal(studentName, sessions) {
-  const overlay = document.getElementById("studentOverlay");
-  const title = document.getElementById("studentModalTitle");
-  const sub = document.getElementById("studentModalSub");
-  const body = document.getElementById("studentModalBody");
-  if (!overlay || !title || !sub || !body) return;
-
-  const assigned = sessions.filter(s => s.assignedTo?.student === studentName);
-  const attempts = assigned.length;
-  const avg = attempts ? assigned.reduce((a, x) => a + (x.ccfPct || 0), 0) / attempts : 0;
-  const best = attempts ? Math.max(...assigned.map(s => s.ccfPct || 0)) : 0;
-  const worst = attempts ? Math.min(...assigned.map(s => s.ccfPct || 0)) : 0;
-
-  title.textContent = studentName;
-  sub.textContent = attempts ? `${attempts} assigned session${attempts===1?"":"s"} • Avg ${Math.round(avg)}%` : "No assigned sessions yet";
-
-  body.innerHTML = `
-    <div class="dashCard" style="margin:0; padding:12px;">
-      <div class="dashKpiRow">
-        <div class="dashKpi"><div class="kLabel">Average</div><div class="kValue">${attempts ? Math.round(avg) + "%" : "—"}</div></div>
-        <div class="dashKpi"><div class="kLabel">Best</div><div class="kValue">${attempts ? Math.round(best) + "%" : "—"}</div></div>
-        <div class="dashKpi"><div class="kLabel">Worst</div><div class="kValue">${attempts ? Math.round(worst) + "%" : "—"}</div></div>
-      </div>
-      <div style="margin-top:10px; display:grid; gap:8px;">
-        ${assigned.slice(0, 20).map(s => `
-          <div class="tRow" style="grid-template-columns: 1fr 70px 90px;">
-            <div class="tName">${escapeHtml(toLocal(s.startedAt))}</div>
-            <div class="tNum">${Math.round(s.ccfPct||0)}%</div>
-            <div class="tNum">${Math.round(s.handsOffSec||0)}s off</div>
-          </div>
-        `).join("") || `<div class="emptyNote">Assign sessions from “Most Recent Score”.</div>`}
-      </div>
-    </div>
-  `;
-
-  overlay.classList.add("show");
-}
-
-function wireClassSetup(proEnabled) {
-  if (!proEnabled) return;
-  const btnSave = document.getElementById("btnSaveClass");
-  const btnClear = document.getElementById("btnClearClass");
-  const btnAddStudent = document.getElementById("btnAddStudent");
-  const btnQuickAddStudent = document.getElementById("btnQuickAddStudent");
-  const quickAddStudentName = document.getElementById("quickAddStudentName");
-  const elName = document.getElementById("className");
-  const elInstr = document.getElementById("instructorName");
-  const elEmail = document.getElementById("instructorEmail");
-  const elLoc = document.getElementById("classLocation");
-  const elTarget = document.getElementById("targetCcf");
-  const elLen = document.getElementById("sessionLengthSec");
-
-  // Prevent double-binding when boot() re-runs
-  if (btnSave && btnSave.dataset.bound !== "1") btnSave.dataset.bound = "1";
-  if (btnClear && btnClear.dataset.bound !== "1") btnClear.dataset.bound = "1";
-  if (btnAddStudent && btnAddStudent.dataset.bound !== "1") btnAddStudent.dataset.bound = "1";
-  if (btnQuickAddStudent && btnQuickAddStudent.dataset.bound !== "1") btnQuickAddStudent.dataset.bound = "1";
-
-  if (btnAddStudent && !btnAddStudent.__listenerAttached) {
-    btnAddStudent.__listenerAttached = true;
-    btnAddStudent.addEventListener("click", () => {
-      const _clsLock = loadClassSetup() || {};
-      if (_clsLock.locked) return alert("Class Setup is locked. Turn off \"Lock Class Setup\" to edit the roster.");
-      const st = readRosterFromEditor();
-      st.push({ name: "", email: "", contact: "", score: "" });
-      renderRosterEditor(st);
-      // Focus the last name field for fast data entry
-      const host = document.getElementById("rosterEditor");
-      const last = host?.querySelectorAll(".rosterRow");
-      const lastRow = last && last.length ? last[last.length - 1] : null;
-      lastRow?.querySelector(".rosterName")?.focus();
-      // Keep select list in sync
-      const sel = document.getElementById("studentSelect");
-      if (sel) {
-        const names = st.map(x => x.name).filter(Boolean);
-        sel.innerHTML = ["Unassigned", ...names].map(s => `<option value="${s}">${s}</option>`).join("");
-      }
-    });
-  }
-
-  // Quick add: adds a named student to the roster (does NOT assign a score/session)
-  if (btnQuickAddStudent && !btnQuickAddStudent.__listenerAttached) {
-    btnQuickAddStudent.__listenerAttached = true;
-    btnQuickAddStudent.addEventListener("click", () => {
-      const _clsLock = loadClassSetup() || {};
-      if (_clsLock.locked) return alert("Class Setup is locked. Turn off \"Lock Class Setup\" to edit the roster.");
-      const nm = String(quickAddStudentName?.value || "").trim();
-      if (!nm) return alert("Enter a student name.");
-
-      const clsNow = loadClassSetup() || { students: [] };
-      const st = Array.isArray(clsNow.students) ? clsNow.students : [];
-      const exists = st.some(s => String(s?.name || "").trim().toLowerCase() === nm.toLowerCase());
-      if (!exists) {
-        st.push({ name: nm, email: "", contact: "", score: "" });
-        renderRosterEditor(st);
-        const sel = document.getElementById("studentSelect");
-        if (sel) {
-          const names = st.map(x => String(x.name||"").trim()).filter(Boolean);
-          sel.innerHTML = ["Unassigned", ...names].map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
-        }
-      }
-
-      if (quickAddStudentName) quickAddStudentName.value = "";
-      clsNow.students = st;
-      saveClassSetup(clsNow);
-      syncClassUI(true);
-    });
-  }
-
-  if (btnSave && !btnSave.__listenerAttached) {
-    btnSave.__listenerAttached = true;
-    btnSave.addEventListener("click", () => {
-      const name = (elName?.value || "").trim();
-      const instructor = (elInstr?.value || "").trim();
-      const instructorEmail = (elEmail?.value || "").trim();
-      const location = (elLoc?.value || "").trim();
-      const students = readRosterFromEditor();
-
-      const targetRaw = parseInt(elTarget?.value || "", 10);
-      const targetCcf = Number.isFinite(targetRaw)
-        ? Math.min(95, Math.max(50, targetRaw))
-        : 80;
-
-      const lenRaw = parseInt(elLen?.value || "", 10);
-      const sessionLengthSec = Number.isFinite(lenRaw) ? lenRaw : 120;
-
-      saveClassSetup({ name, instructor, instructorEmail, location, students, targetCcf, sessionLengthSec });
-
-      // quick feedback
-      const old = btnSave.textContent;
-      btnSave.textContent = "Saved ✓";
-      setTimeout(() => (btnSave.textContent = old), 900);
-
-      boot();
-    });
-  }
-
-  if (btnClear) {
-    btnClear.addEventListener("click", () => {
-      if (!confirm("Clear class setup and roster?")) return;
-      clearClassSetup();
-      if (elName) elName.value = "";
-      if (elInstr) elInstr.value = "";
-      if (elLoc) elLoc.value = "";
-      if (elTarget) elTarget.value = "";
-      if (elLen) elLen.value = "120";
-      renderRosterEditor([]);
-      boot();
-    });
-  }
-}
-
-
-function renderHistoryList() {
-  const wrap = document.getElementById("historyList");
-  if (!wrap) return;
-
-  const arr = loadSessions();
-  const total = arr.length;
-  const limit = 25;
-  const list = arr.slice(0, limit);
-
-  if (!total) {
-    wrap.innerHTML = `<div class="upgradeNote">No saved sessions yet.</div>`;
+  const sessions = loadSessions().slice().reverse(); // newest first
+  const classSessions = sessions.filter(s => (s.classId===cls.id) || (!s.classId && !s.studentId));
+  if(!classSessions.length){
+    list.appendChild(el("div", { class:"empty" }, ["No saved sessions yet. Run the timer to create sessions."]));
     return;
   }
 
-  wrap.innerHTML = list.map((s, i) => {
-    const when = new Date(s.endedAt || s.startedAt || Date.now()).toLocaleString();
-    const ccf = (typeof s.ccf === "number") ? Math.round(s.ccf) + "%" : (typeof s.finalCcf === "number" ? Math.round(s.finalCcf) + "%" : "—");
-    const student = sessionDisplayName(s);
-    return `
-      <div class="historyRow" data-si="${i}">
-        <div class="historyLeft">
-          <div class="historyTitle">${escapeHtml(ccf)} • ${escapeHtml(student)}</div>
-          <div class="historyMeta">${escapeHtml(when)}</div>
-        </div>
-        <div class="historyActions">
-          <button class="secondaryBtn btnSessionView" type="button" data-si="${i}">View</button>
-          <button class="secondaryBtn btnSessionDownload" type="button" data-si="${i}">Download</button>
-          <button class="dangerBtn btnSessionDelete" type="button" data-si="${i}">Delete</button>
-        </div>
-      </div>
-    `;
-  }).join("");
+  classSessions.slice(0, 25).forEach(s=>{
+    const card = el("div", { class:"sessionAssignCard" }, [
+      el("div", { class:"sessionMain" }, [sessionTitle(s)]),
+      el("div", { class:"sessionSub" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : ""]),
+      el("div", { class:"row", style:"gap:10px; margin-top:8px; flex-wrap:wrap; align-items:flex-end;" }, [
+        el("label", { class:"field", style:"margin:0; flex:1; min-width:200px;" }, [
+          el("span", { class:"fieldLabel" }, ["Assign to student (optional)"]),
+          studentSelect(cls, s.studentId || "")
+        ]),
+        el("button", { class:"primaryBtn", type:"button" }, ["Assign to this class"]),
+        el("button", { class:"secondaryBtn", type:"button" }, ["Unassign"]),
+      ])
+    ]);
 
-  // bind via delegation
-  wrap.onclick = (e) => {
-    const t = e.target;
-    const si = t?.getAttribute?.("data-si");
-    if (si == null) return;
-    const idx = Number(si);
-    if (!Number.isFinite(idx)) return;
+    const sel = card.querySelector("select");
+    const btnAssign = card.querySelectorAll("button")[0];
+    const btnUnassign = card.querySelectorAll("button")[1];
 
-    if (t.classList.contains("btnSessionView")) {
-      openSessionModal(idx);
-    } else if (t.classList.contains("btnSessionDownload")) {
-      const s = loadSessions()[idx];
-      if (!s) return;
-      const student = sessionDisplayName(s).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
-      const stamp = new Date(s.endedAt || Date.now()).toISOString().slice(0, 10);
-      downloadReportCard(s, `${stamp}_${student}.txt`);
-    } else if (t.classList.contains("btnSessionDelete")) {
-      const arr2 = loadSessions();
-      const s = arr2[idx];
-      if (!s) return;
-      const ok = confirm("Delete this session? This cannot be undone.");
-      if (!ok) return;
-      arr2.splice(idx, 1);
-      saveSessions(arr2);
-      boot();
-    }
-  };
-}
-
-function openSessionModal(idx) {
-  const overlay = document.getElementById("sessionOverlay");
-  const title = document.getElementById("sessionModalTitle");
-  const sub = document.getElementById("sessionModalSub");
-  const body = document.getElementById("sessionModalBody");
-  const btnClose = document.getElementById("btnCloseSessionModal");
-  if (!overlay || !title || !sub || !body) return;
-
-  const sessions = loadSessions();
-  const s = sessions[idx];
-  if (!s) return;
-
-  const cls = loadClassSetup() || {};
-  const roster = Array.isArray(cls.students) ? cls.students : [];
-  const names = roster.map(r => String(r?.name || "").trim()).filter(Boolean);
-
-  const when = new Date(s.endedAt || s.startedAt || Date.now()).toLocaleString();
-  const ccf = (typeof s.ccf === "number") ? Math.round(s.ccf) : (typeof s.finalCcf === "number" ? Math.round(s.finalCcf) : null);
-  const pauses = Array.isArray(s.pauses) ? s.pauses.length : (s.pauseCount ?? 0);
-  const longest = getLongestPause(s);
-
-  title.textContent = "Session Details";
-  sub.textContent = when;
-
-  const currentStudent = (s.assignedTo && s.assignedTo.student) ? s.assignedTo.student : "";
-  const className = (cls.name || "").trim();
-
-  body.innerHTML = `
-    <div class="reportCard">
-      <div><strong>CCF:</strong> ${ccf == null ? "—" : ccf + "%"}</div>
-      <div><strong>Pauses:</strong> ${pauses}</div>
-      <div><strong>Longest pause:</strong> ${escapeHtml(longest.label)} (${fmt(longest.ms)})</div>
-      <div style="margin-top:6px;"><strong>Assigned student:</strong> ${escapeHtml(currentStudent || "Unassigned")}</div>
-      <div><strong>Class:</strong> ${escapeHtml(s.classContext?.name || className || "—")}</div>
-    </div>
-
-    <div class="divider"></div>
-
-    <div class="dashTitle">Assign</div>
-    <label class="field">
-      <span class="fieldLabel">Student</span>
-      <select id="sessionAssignSelect">
-        <option value="">Unassigned</option>
-        ${names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("")}
-      </select>
-    </label>
-
-    <div class="studentRow" style="align-items:flex-end;">
-      <label class="field" style="margin:0; flex:1;">
-        <span class="fieldLabel">Or add new student now</span>
-        <input id="sessionAssignNewName" type="text" placeholder="Student name" />
-      </label>
-      <button class="secondaryBtn" id="btnSessionAddStudent" type="button">Add</button>
-    </div>
-
-    <label class="field">
-      <span class="fieldLabel">Attach to current class</span>
-      <select id="sessionAttachClass">
-        <option value="1">Yes (${escapeHtml(className || "No class name")})</option>
-        <option value="0">No</option>
-      </select>
-    </label>
-
-    <div class="row" style="gap:10px; flex-wrap:wrap;">
-      <button class="endBtn" id="btnSessionSaveAssign" type="button">Save</button>
-      <button class="secondaryBtn" id="btnSessionDownload" type="button">Download</button>
-      <button class="dangerBtn" id="btnSessionDelete" type="button">Delete</button>
-    </div>
-  `;
-
-  // preset selection
-  const sel = document.getElementById("sessionAssignSelect");
-  if (sel) sel.value = currentStudent;
-
-  document.getElementById("btnSessionAddStudent")?.addEventListener("click", () => {
-    const nm = String(document.getElementById("sessionAssignNewName")?.value || "").trim();
-    if (!nm) return alert("Enter a student name.");
-    const cls2 = loadClassSetup() || { students: [] };
-    cls2.students = Array.isArray(cls2.students) ? cls2.students : [];
-    if (!cls2.students.some(r => String(r?.name||"").trim().toLowerCase() === nm.toLowerCase())) {
-      cls2.students.push({ name: nm, email: "", contact: "", score: "" });
-      saveClassSetup(cls2);
-    }
-    boot(); // refresh lists
-    // reopen modal to same session index
-    setTimeout(() => openSessionModal(idx), 50);
-  });
-
-  document.getElementById("btnSessionSaveAssign")?.addEventListener("click", () => {
-    const sessions2 = loadSessions();
-    const sess = sessions2[idx];
-    if (!sess) return;
-    const chosen = String(document.getElementById("sessionAssignSelect")?.value || "").trim();
-    const attach = String(document.getElementById("sessionAttachClass")?.value || "1") === "1";
-
-    if (chosen) sess.assignedTo = { student: chosen, assignedAt: Date.now() };
-    else delete sess.assignedTo;
-
-    if (attach) {
-      const cls3 = loadClassSetup() || {};
-      sess.classContext = {
-        name: (cls3.name || "").trim(),
-        instructor: (cls3.instructor || "").trim(),
-        location: (cls3.location || "").trim()
-      };
-    } else {
-      delete sess.classContext;
-    }
-
-    sessions2[idx] = sess;
-    saveSessions(sessions2);
-    overlay.style.display = "none";
-    boot();
-  });
-
-  document.getElementById("btnSessionDownload")?.addEventListener("click", () => {
-    const sess = loadSessions()[idx];
-    if (!sess) return;
-    const student = sessionDisplayName(sess).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
-    const stamp = new Date(sess.endedAt || Date.now()).toISOString().slice(0, 10);
-    downloadReportCard(sess, `${stamp}_${student}.txt`);
-  });
-
-  document.getElementById("btnSessionDelete")?.addEventListener("click", () => {
-    const sessions2 = loadSessions();
-    if (!sessions2[idx]) return;
-    const ok = confirm("Delete this session? This cannot be undone.");
-    if (!ok) return;
-    sessions2.splice(idx, 1);
-    saveSessions(sessions2);
-    overlay.style.display = "none";
-    boot();
-  });
-
-  if (btnClose && !btnClose.__listenerAttached) {
-    btnClose.__listenerAttached = true;
-    btnClose.addEventListener("click", () => { overlay.style.display = "none"; });
-  }
-
-  overlay.style.display = "flex";
-}
-
-function getLongestPause(s) {
-  let best = { ms: 0, label: "—" };
-  const pauses = Array.isArray(s.pauses) ? s.pauses : [];
-  pauses.forEach(p => {
-    const ms = p.ms ?? p.durMs ?? 0;
-    if (ms > best.ms) {
-      const reason = (p.reasons && p.reasons.length) ? p.reasons[0] : (p.reason || "Unspecified");
-      best = { ms, label: String(reason || "Unspecified") };
-    }
-  });
-  return best;
-}
-function wireProActions(proEnabled) {
-  // This section lives under "Most Recent Score"
-  const btnAssign = document.getElementById("btnAssignLatest");
-  const btnDownload = document.getElementById("btnDownloadLatest");
-  const sel = document.getElementById("studentSelect");
-
-  const quickName = document.getElementById("latestQuickAddName");
-  const btnQuick = document.getElementById("latestBtnQuickAddAssign");
-
-  // Prevent double-binding when boot() re-runs
-  if (btnAssign && btnAssign.dataset.bound === "1") return;
-  if (btnAssign) btnAssign.dataset.bound = "1";
-  if (btnDownload) btnDownload.dataset.bound = "1";
-  if (btnQuick) btnQuick.dataset.bound = "1";
-
-  // Assign latest session to selected student
-  btnAssign?.addEventListener("click", () => {
-    const arr = loadSessions();
-    const s = arr[0];
-    if (!s) return alert("No sessions to assign yet.");
-
-    const value = String(sel?.value || "").trim();
-    if (!value || value === "Unassigned") {
-      s.assignedTo = null;
-    } else {
-      s.assignedTo = { student: value, assignedAt: Date.now() };
-    }
-
-    arr[0] = s;
-    saveSessions(arr);
-    boot();
-  });
-
-  // Quick add student + assign
-  btnQuick?.addEventListener("click", () => {
-    const name = String(quickName?.value || "").trim();
-    if (!name) return alert("Enter a student name.");
-
-    const cls = loadClassSetup() || { name: "", instructor: "", instructorEmail: "", location: "", targetCcf: "", sessionLengthSec: "120", students: [] };
-    const students = Array.isArray(cls.students) ? cls.students : [];
-    const exists = students.some(st => String(st?.name || "").trim().toLowerCase() === name.toLowerCase());
-    if (!exists) {
-      students.push({ name, email: "", contact: "", score: "" });
-      cls.students = students;
-      saveClassSetup(cls);
-    }
-
-    // refresh dropdown + select
-    syncClassUI(true);
-    const sel2 = document.getElementById("studentSelect");
-    if (sel2) sel2.value = name;
-
-    // assign now
-    const arr = loadSessions();
-    const s = arr[0];
-    if (!s) return alert("No sessions to assign yet.");
-    s.assignedTo = { student: name, assignedAt: Date.now() };
-    arr[0] = s;
-    saveSessions(arr);
-
-    if (quickName) quickName.value = "";
-    boot();
-  });
-
-  btnDownload?.addEventListener("click", () => {
-    const s = loadSessions()[0];
-    if (!s) return alert("No sessions to download yet.");
-    const student = sessionDisplayName(s).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
-    const stamp = new Date(s.endedAt || Date.now()).toISOString().slice(0, 10);
-    downloadReportCard(s, `${stamp}_${student}.txt`);
-  });
-}
-
-function computeCommonIssue(sessions) {
-  // Uses pause reasons captured on sessions (s.pauses[])
-  const map = new Map();
-  sessions.forEach((s) => {
-    (s.pauses || []).forEach((p) => {
-      const reasons =
-        p.reasons && p.reasons.length ? p.reasons : [p.reason || "Unspecified"];
-      const dur = p.ms ?? p.durMs ?? 0;
-      reasons.forEach((r) => {
-        const key = String(r || "Unspecified");
-        map.set(key, (map.get(key) || 0) + dur);
-      });
+    btnAssign.addEventListener("click", ()=>{
+      const sid = sel.value || null;
+      const arr = loadSessions();
+      const idx = arr.findIndex(x=>x.id===s.id);
+      if(idx<0) return;
+      arr[idx].classId = cls.id;
+      arr[idx].studentId = sid;
+      saveSessions(arr);
+      renderDashboard(cls);
+      renderClassSessions(cls);
     });
+
+    btnUnassign.addEventListener("click", ()=>{
+      const arr = loadSessions();
+      const idx = arr.findIndex(x=>x.id===s.id);
+      if(idx<0) return;
+      arr[idx].classId = null;
+      arr[idx].studentId = null;
+      saveSessions(arr);
+      renderDashboard(cls);
+      renderClassSessions(cls);
+    });
+
+    list.appendChild(card);
   });
-  let best = "";
-  let bestMs = 0;
-  for (const [k, ms] of map.entries()) {
-    if (ms > bestMs) {
-      bestMs = ms;
-      best = k;
-    }
+}
+
+function studentSelect(cls, selectedId){
+  const sel = el("select", {}, []);
+  sel.appendChild(el("option", { value:"" }, ["— Unassigned —"]));
+  cls.students.forEach(st=>{
+    const opt = el("option", { value: st.id }, [st.name || "(Unnamed)"]);
+    if(st.id===selectedId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  return sel;
+}
+
+/* ---------- Dashboard ---------- */
+function renderDashboard(cls){
+  const wrap = document.getElementById("dashWrap");
+  if(!wrap) return;
+  const sessions = loadSessions().filter(s=>s.classId===cls.id && s.studentId);
+
+  const byStudent = new Map();
+  sessions.forEach(s=>{
+    const arr = byStudent.get(s.studentId) || [];
+    arr.push(s);
+    byStudent.set(s.studentId, arr);
+  });
+
+  const rows = cls.students.map(st=>{
+    const ss = byStudent.get(st.id) || [];
+    const attempts = ss.length;
+    const avg = attempts ? ss.reduce((a,x)=>a + (x.ccfPct||0), 0)/attempts : null;
+    const last = attempts ? ss.slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0))[0] : null;
+    return { st, attempts, avg, last };
+  });
+
+  const attempted = rows.filter(r=>r.attempts>0);
+  const classAvg = attempted.length ? attempted.reduce((a,r)=>a + r.avg, 0)/attempted.length : null;
+  const target = clampInt(cls.targetCcf ?? 80, 0, 100, 80);
+  const passing = attempted.filter(r=> (r.avg >= target)).length;
+
+  wrap.innerHTML = "";
+  wrap.appendChild(el("div", { class:"dashCard" }, [
+    el("div", { class:"dashTitle" }, ["Class summary"]),
+    el("div", { class:"dashGrid" }, [
+      stat("Avg CCF", classAvg===null ? "—" : `${Math.round(classAvg)}%`),
+      stat("Passing", `${passing}/${cls.students.length}`),
+      stat("Assigned sessions", String(sessions.length)),
+      stat("Target", `${target}%`),
+    ])
+  ]));
+
+  const roster = el("div", { class:"dashCard", style:"margin-top:12px;" }, [
+    el("div", { class:"dashTitle" }, ["Students"]),
+    el("div", { class:"dashSub" }, ["Tap a student for their report."]),
+    el("div", { class:"list", style:"margin-top:10px;" }, [])
+  ]);
+
+  const list = roster.querySelector(".list");
+  if(!cls.students.length){
+    list.appendChild(el("div", { class:"empty" }, ["No students in this class yet."]));
+  }else{
+    rows.forEach(r=>{
+      const btn = el("button", { class:"studentReportRow", type:"button" }, [
+        el("div", { class:"srLeft" }, [
+          el("div", { class:"srName" }, [r.st.name || "(Unnamed)"]),
+          el("div", { class:"srMeta" }, [`${r.attempts} attempt${r.attempts===1?"":"s"}`])
+        ]),
+        el("div", { class:"srRight" }, [
+          el("div", { class:"srScore" }, [r.avg===null ? "—" : `${Math.round(r.avg)}%`]),
+        ])
+      ]);
+      btn.addEventListener("click", ()=>showStudentModal(cls, r.st));
+      list.appendChild(btn);
+    });
   }
-  return best ? `${best} (${fmt(bestMs)})` : "";
+  wrap.appendChild(roster);
 }
 
-
-function boot() {
-    const proEnabled = isPro();
-
-  const sessions = loadSessions();
-  const reportCountEl = document.getElementById("reportCount");
-  if (reportCountEl) reportCountEl.textContent = `${sessions.length} saved`;
-
-  // Accordions + modals
-  wireAccordions(proEnabled);
-    // Force all accordions collapsed on open
-  ["classSetup","latest","classReport","export"].forEach(id=>setAccOpen(id,false));
-  saveAccState({ classSetup:false, latest:false, classReport:false, export:false });
-wireStudentModal();
-
-  // Latest card
-  if (proEnabled) renderLatestPro(sessions[0]);
-  else renderLatestFree(sessions[0]);
-
-  // Class + roster UI
-  syncClassUI(proEnabled);
-  wireClassSetup(proEnabled);
-  wireProActions(proEnabled);
-
-  // Class report dashboard
-  renderClassDashboard(sessions, proEnabled);
-
-  // Export actions
-  wireExportActions(proEnabled, sessions);
+function stat(label, value){
+  return el("div", { class:"stat" }, [
+    el("div", { class:"statLabel" }, [label]),
+    el("div", { class:"statValue" }, [value]),
+  ]);
 }
 
+/* ---------- Modals (simple) ---------- */
+function showModal(title, bodyEl){
+  const overlay = el("div", { class:"modalOverlay" }, []);
+  const card = el("div", { class:"modalCard" }, [
+    el("div", { class:"modalHdr" }, [
+      el("div", { class:"modalTitle" }, [title]),
+      el("button", { class:"ghostIconBtn", type:"button" }, ["✕"])
+    ]),
+    el("div", { class:"modalBody" }, [bodyEl])
+  ]);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
 
-window.addEventListener("DOMContentLoaded", () => { try { boot(); } catch (e) { console.error(e); alert("Reports error: " + (e?.message||e)); } });
+  const close = ()=>{ overlay.remove(); };
+  card.querySelector(".ghostIconBtn").addEventListener("click", close);
+  overlay.addEventListener("click", (e)=>{ if(e.target===overlay) close(); });
+  return { close };
+}
+
+function showStudentModal(cls, st){
+  const sess = loadSessions().filter(s=>s.classId===cls.id && s.studentId===st.id)
+    .slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0));
+  const avg = sess.length ? sess.reduce((a,x)=>a+(x.ccfPct||0),0)/sess.length : null;
+  const best = sess.length ? Math.max(...sess.map(s=>s.ccfPct||0)) : null;
+  const worst = sess.length ? Math.min(...sess.map(s=>s.ccfPct||0)) : null;
+
+  const body = el("div", {}, [
+    el("div", { class:"dashCard" }, [
+      el("div", { class:"dashTitle" }, [st.name || "Student"]),
+      el("div", { class:"dashGrid" }, [
+        stat("Avg", avg===null?"—":`${Math.round(avg)}%`),
+        stat("Best", best===null?"—":`${Math.round(best)}%`),
+        stat("Worst", worst===null?"—":`${Math.round(worst)}%`),
+        stat("Attempts", String(sess.length)),
+      ])
+    ]),
+    el("div", { class:"dashCard", style:"margin-top:12px;" }, [
+      el("div", { class:"dashTitle" }, ["Sessions"]),
+      el("div", { class:"list", style:"margin-top:10px;" }, sess.slice(0, 25).map(s=>sessionRow(s, { mode:"class", classId: cls.id })))
+    ])
+  ]);
+  showModal("Student report", body);
+}
+
+function showSessionModal(s){
+  const body = el("div", {}, [
+    el("div", { class:"dashSub" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : ""]),
+    el("div", { class:"dashCard", style:"margin-top:10px;" }, [
+      el("div", { class:"dashGrid" }, [
+        stat("CCF", s.ccfPct==null?"—":`${Math.round(s.ccfPct)}%`),
+        stat("Pauses", String((s.pauses && s.pauses.length) ? s.pauses.length : (s.pauseCount ?? 0))),
+        stat("Hands-off", s.handsOffSec==null?"—":`${Math.round(s.handsOffSec)}s`),
+        stat("Duration", s.durationSec==null?"—":`${Math.round(s.durationSec)}s`),
+      ])
+    ]),
+    el("div", { class:"dashCard", style:"margin-top:12px;" }, [
+      el("div", { class:"dashTitle" }, ["Longest pause"]),
+      el("div", { class:"dashSub" }, [longestPauseSummary(s)])
+    ])
+  ]);
+  showModal("Session", body);
+}
+
+function showAssignModal(s){
+  // pick class then student
+  const classes = loadClasses();
+  let classId = classes[0]?.id || "";
+  const classSel = el("select", {}, classes.map(c=>el("option",{value:c.id},[c.name?.trim()?c.name.trim():"(Untitled)"])));
+  classSel.value = classId;
+
+  const studentSelWrap = el("div", {}, []);
+  const rebuildStudentSel = ()=>{
+    const cls = getClassById(classSel.value);
+    studentSelWrap.innerHTML = "";
+    if(!cls){
+      studentSelWrap.appendChild(el("div",{class:"dashSub"},["No class selected."]));
+      return;
+    }
+    const sel = studentSelect(cls, "");
+    sel.id = "assignStudentSel";
+    studentSelWrap.appendChild(sel);
+  };
+  classSel.addEventListener("change", rebuildStudentSel);
+
+  const addName = el("input", { type:"text", placeholder:"Add new student name (optional)" });
+  const body = el("div", {}, [
+    el("label", { class:"field" }, [
+      el("span",{class:"fieldLabel"},["Class"]),
+      classSel
+    ]),
+    el("label", { class:"field" }, [
+      el("span",{class:"fieldLabel"},["Student (optional)"]),
+      studentSelWrap
+    ]),
+    el("label", { class:"field" }, [
+      el("span",{class:"fieldLabel"},["Or add a new student now"]),
+      addName
+    ]),
+    el("div", { class:"row", style:"gap:10px; margin-top:10px; flex-wrap:wrap;" }, [
+      el("button", { class:"primaryBtn", type:"button", id:"btnDoAssign" }, ["Assign"]),
+    ])
+  ]);
+  rebuildStudentSel();
+  const modal = showModal("Assign session", body);
+
+  body.querySelector("#btnDoAssign").addEventListener("click", ()=>{
+    const cid = classSel.value;
+    const cls = getClassById(cid);
+    if(!cls) return alert("Select a class.");
+
+    let sid = body.querySelector("#assignStudentSel").value || null;
+
+    const nm = (addName.value||"").trim();
+    if(nm){
+      const st = { id: uid(), name: nm, email:"", contact:"" };
+      cls.students = Array.isArray(cls.students) ? cls.students : [];
+      cls.students.push(st);
+      upsertClass(cls);
+      sid = st.id;
+    }
+
+    const arr = loadSessions();
+    const idx = arr.findIndex(x=>x.id===s.id);
+    if(idx<0) return;
+    arr[idx].classId = cid;
+    arr[idx].studentId = sid;
+    saveSessions(arr);
+    modal.close();
+    boot();
+  });
+}
+
+/* ---------- Export / Print / Email ---------- */
+function safeFile(name){
+  return String(name).replace(/[^\w\-\.]+/g,"_").slice(0, 80);
+}
+function downloadText(text, filename){
+  const blob = new Blob([text], {type:"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename || "export.txt";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+function buildClassCsv(cls){
+  const sessions = loadSessions().filter(s=>s.classId===cls.id);
+  const lines = [];
+  lines.push(["CLASS_NAME","DATE","INSTRUCTOR","INSTRUCTOR_EMAIL","LOCATION","STUDENT_COUNT","SESSION_COUNT"].join(","));
+  lines.push(csvRow([cls.name||"", cls.dateISO||"", cls.instructorName||"", cls.instructorEmail||"", cls.location||"", String((cls.students||[]).length), String(sessions.length)]));
+  lines.push("");
+  lines.push(["STUDENTS"].join(","));
+  lines.push(["STUDENT_ID","NAME","EMAIL","CONTACT"].join(","));
+  (cls.students||[]).forEach(st=>lines.push(csvRow([st.id, st.name||"", st.email||"", st.contact||""])));
+  lines.push("");
+  lines.push(["SESSIONS"].join(","));
+  lines.push(["SESSION_ID","STARTED_AT","CCF_PCT","PAUSE_COUNT","LONGEST_PAUSE_REASON","CLASS_ID","STUDENT_ID"].join(","));
+  sessions.slice().sort((a,b)=>(a.startedAt||0)-(b.startedAt||0)).forEach(s=>{
+    lines.push(csvRow([
+      s.id||"",
+      s.startedAt? new Date(s.startedAt).toISOString() : "",
+      s.ccfPct==null? "" : String(Math.round(s.ccfPct)),
+      String((s.pauses && s.pauses.length) ? s.pauses.length : (s.pauseCount ?? 0)),
+      longestPauseReason(s)||"",
+      s.classId||"",
+      s.studentId||"",
+    ]));
+  });
+  return lines.join("\n");
+}
+function buildAssignedSessionsCsv(cls){
+  const sessions = loadSessions().filter(s=>s.classId===cls.id);
+  const lines = [];
+  lines.push(["SESSION_ID","STARTED_AT","CCF_PCT","PAUSE_COUNT","HANDS_OFF_SEC","DURATION_SEC","STUDENT_NAME"].join(","));
+  sessions.slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0)).forEach(s=>{
+    const st = (cls.students||[]).find(x=>x.id===s.studentId);
+    lines.push(csvRow([
+      s.id||"",
+      s.startedAt? new Date(s.startedAt).toISOString() : "",
+      s.ccfPct==null? "" : String(Math.round(s.ccfPct)),
+      String((s.pauses && s.pauses.length) ? s.pauses.length : (s.pauseCount ?? 0)),
+      s.handsOffSec==null? "" : String(Math.round(s.handsOffSec)),
+      s.durationSec==null? "" : String(Math.round(s.durationSec)),
+      st?.name || ""
+    ]));
+  });
+  return lines.join("\n");
+}
+function csvRow(arr){
+  return arr.map(v=>{
+    const s = String(v??"");
+    if(/[,"\n]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+    return s;
+  }).join(",");
+}
+function buildSessionTxt(s){
+  return [
+    "CCF SESSION",
+    "----------",
+    `Date: ${s.startedAt ? new Date(s.startedAt).toLocaleString() : ""}`,
+    `CCF: ${s.ccfPct==null ? "—" : Math.round(s.ccfPct)+"%"}`,
+    `Pauses: ${(s.pauses && s.pauses.length) ? s.pauses.length : (s.pauseCount ?? 0)}`,
+    `Hands-off: ${s.handsOffSec==null ? "—" : Math.round(s.handsOffSec)+"s"}`,
+    `Duration: ${s.durationSec==null ? "—" : Math.round(s.durationSec)+"s"}`,
+    `Longest pause: ${longestPauseSummary(s)}`,
+    "",
+  ].join("\n");
+}
+function longestPauseReason(s){
+  // session may store pauses with ms + reasons
+  if(s.longestPauseReason) return s.longestPauseReason;
+  if(!Array.isArray(s.pauses)) return "";
+  let best=null;
+  s.pauses.forEach(p=>{
+    const ms = p.ms ?? p.durMs ?? 0;
+    if(!best || ms>(best.ms||0)) best = { ms, p };
+  });
+  if(!best) return "";
+  const p=best.p;
+  const reasons = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "");
+  return reasons || "";
+}
+function longestPauseSummary(s){
+  const reason = longestPauseReason(s);
+  const sec = longestPauseSeconds(s);
+  if(!sec && !reason) return "—";
+  return `${reason || "Unspecified"} (${sec ? sec+"s" : "—"})`;
+}
+function longestPauseSeconds(s){
+  if(s.longestPauseSec!=null) return Math.round(s.longestPauseSec);
+  if(!Array.isArray(s.pauses)) return 0;
+  let best=0;
+  s.pauses.forEach(p=>{
+    const ms = p.ms ?? p.durMs ?? 0;
+    if(ms>best) best=ms;
+  });
+  return best ? Math.round(best/1000) : 0;
+}
+function printClass(cls){
+  const win = window.open("", "_blank");
+  if(!win) return alert("Popup blocked. Allow popups to print.");
+  const sessions = loadSessions().filter(s=>s.classId===cls.id && s.studentId);
+  const byStudent = new Map();
+  sessions.forEach(s=>{
+    const arr=byStudent.get(s.studentId)||[];
+    arr.push(s);
+    byStudent.set(s.studentId, arr);
+  });
+  const rows = (cls.students||[]).map(st=>{
+    const ss=byStudent.get(st.id)||[];
+    const avg = ss.length ? Math.round(ss.reduce((a,x)=>a+(x.ccfPct||0),0)/ss.length) : null;
+    return { st, avg, attempts: ss.length };
+  });
+  win.document.write(`
+    <html><head><title>Class Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding:20px;}
+      h1{margin:0 0 6px 0;}
+      .meta{color:#555; margin-bottom:16px;}
+      table{width:100%; border-collapse:collapse;}
+      th,td{border:1px solid #ddd; padding:8px; text-align:left;}
+      th{background:#f4f4f4;}
+    </style></head><body>
+    <h1>${escapeHtml(cls.name||"Class")}</h1>
+    <div class="meta">${escapeHtml(cls.dateISO||"")} • ${escapeHtml(cls.instructorName||"")} • ${escapeHtml(cls.location||"")}</div>
+    <table>
+      <thead><tr><th>Student</th><th>Email</th><th>Attempts</th><th>Avg CCF</th></tr></thead>
+      <tbody>
+      ${rows.map(r=>`<tr>
+        <td>${escapeHtml(r.st.name||"")}</td>
+        <td>${escapeHtml(r.st.email||"")}</td>
+        <td>${r.attempts}</td>
+        <td>${r.avg==null?"—":(r.avg+"%")}</td>
+      </tr>`).join("")}
+      </tbody>
+    </table>
+    <script>window.print();</script>
+    </body></html>
+  `);
+  win.document.close();
+}
+function emailInstructor(cls){
+  const to = (cls.instructorEmail||"").trim();
+  if(!to) return alert("Add an instructor email in Class setup first.");
+  const subj = encodeURIComponent(`CCF Class Report: ${cls.name||"Class"} (${cls.dateISO||""})`);
+  const body = encodeURIComponent(buildInstructorEmailBody(cls));
+  window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subj}&body=${body}`;
+}
+function buildInstructorEmailBody(cls){
+  const sessions = loadSessions().filter(s=>s.classId===cls.id && s.studentId);
+  const byStudent = new Map();
+  sessions.forEach(s=>{
+    const arr=byStudent.get(s.studentId)||[];
+    arr.push(s);
+    byStudent.set(s.studentId, arr);
+  });
+  const target = clampInt(cls.targetCcf ?? 80, 0, 100, 80);
+  const rows = (cls.students||[]).map(st=>{
+    const ss=byStudent.get(st.id)||[];
+    const avg = ss.length ? Math.round(ss.reduce((a,x)=>a+(x.ccfPct||0),0)/ss.length) : null;
+    return { st, avg, attempts: ss.length };
+  });
+  const attempted = rows.filter(r=>r.attempts>0);
+  const classAvg = attempted.length ? Math.round(attempted.reduce((a,r)=>a+r.avg,0)/attempted.length) : null;
+  const passing = attempted.filter(r=>r.avg>=target).length;
+
+  return [
+    `Class: ${cls.name||""}`,
+    `Date: ${cls.dateISO||""}`,
+    `Instructor: ${cls.instructorName||""}`,
+    `Location: ${cls.location||""}`,
+    "",
+    `Target CCF: ${target}%`,
+    `Class Avg CCF: ${classAvg==null?"—":(classAvg+"%")}`,
+    `Passing: ${passing}/${rows.length}`,
+    "",
+    "Students:",
+    ...rows.map(r=>`- ${r.st.name||"(Unnamed)"}: ${r.avg==null?"—":(r.avg+"%")} (${r.attempts} attempts)`),
+    "",
+    "Sent from CCF Trainer",
+  ].join("\n");
+}
+function emailStudents(cls){
+  const emails = (cls.students||[]).map(s=>String(s.email||"").trim()).filter(Boolean);
+  if(!emails.length) return alert("No student emails in roster.");
+  const subj = encodeURIComponent(`CCF Results: ${cls.name||"Class"} (${cls.dateISO||""})`);
+  const body = encodeURIComponent("Your instructor has shared CCF results from CCF Trainer.\n\n(Results may be provided in a separate attachment or summary.)");
+  // BCC
+  window.location.href = `mailto:?bcc=${encodeURIComponent(emails.join(","))}&subject=${subj}&body=${body}`;
+}
+function escapeHtml(s){
+  return String(s??"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- Boot ---------- */
+function boot(){
+  // restore view
+  const saved = loadJson(UI_KEY, null);
+  if(saved && saved.view==="class" && saved.classId && getClassById(saved.classId)){
+    state.ui.openSections = saved.openSections || {};
+    openClass(saved.classId, false);
+  }else{
+    state.ui.openSections = (saved && saved.openSections) ? saved.openSections : {};
+    renderList();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", boot);

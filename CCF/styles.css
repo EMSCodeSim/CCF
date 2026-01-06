@@ -1538,3 +1538,112 @@ body{
   font-weight: 800;
 }
 .dangerBtn:active{ transform: scale(0.99); }
+
+
+/* ===== Reports rebuild additions (mobile-first) ===== */
+.reportsMain { padding-bottom: 90px; }
+.pad16 { padding: 16px; }
+.list { display: grid; gap: 10px; }
+.empty { opacity: 0.8; padding: 10px 0; }
+.row { display:flex; }
+.primaryBtn, .secondaryBtn, .ghostBtn { cursor:pointer; }
+.classCard{
+  width:100%;
+  text-align:left;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+  padding: 12px;
+  border-radius: 14px;
+}
+.className{ font-weight: 900; font-size: 16px; }
+.classMeta{ opacity:0.75; font-size: 12px; margin-top:4px; }
+.classStats{ opacity:0.85; font-size: 12px; margin-top:8px; }
+.accWrap{ margin-top: 12px; }
+.accHeader{
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding: 12px;
+  border-radius: 14px;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  text-align:left;
+}
+.accTitle{ font-weight: 900; }
+.accSub{ opacity:0.75; font-size: 12px; margin-top:4px; }
+.accChevron{ font-weight: 900; opacity:0.9; }
+.accBody{ margin-top:10px; }
+.formGrid{ display:grid; gap: 10px; }
+.field{ display:grid; gap:6px; }
+.fieldLabel{ font-size: 12px; opacity: 0.75; }
+.studentCard{
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  padding: 12px;
+  border-radius: 14px;
+}
+.studentRow{ display:flex; gap:10px; }
+.ghostIconBtn{
+  border:1px solid rgba(255,255,255,0.10);
+  background: transparent;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.sessionRow, .sessionAssignCard{
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  padding: 12px;
+  border-radius: 14px;
+}
+.sessionRow{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.sessionLeft{ flex: 1; }
+.sessionMain{ font-weight: 800; }
+.sessionSub{ font-size: 12px; opacity: 0.75; margin-top:4px; }
+.sessionActions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.studentReportRow{
+  width:100%;
+  text-align:left;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  padding: 12px;
+  border-radius: 14px;
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+}
+.srName{ font-weight: 900; }
+.srMeta{ font-size: 12px; opacity: 0.75; margin-top:2px; }
+.srScore{ font-weight: 900; }
+.modalOverlay{
+  position: fixed; inset:0;
+  background: rgba(0,0,0,0.6);
+  display:flex; align-items:flex-end; justify-content:center;
+  z-index: 9999;
+  padding: 12px;
+}
+.modalCard{
+  width: 100%;
+  max-width: 720px;
+  background: rgba(18,24,33,0.98);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius: 18px;
+  overflow:hidden;
+}
+.modalHdr{
+  display:flex; justify-content:space-between; align-items:center;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.modalTitle{ font-weight: 900; }
+.modalBody{ padding: 14px; max-height: 70vh; overflow:auto; }
+.stat{ border:1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.02); padding:10px; border-radius: 14px; }
+.statLabel{ font-size: 12px; opacity:0.75; }
+.statValue{ font-weight: 900; margin-top:2px; }
+.dashCard{ border:1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.02); padding:12px; border-radius: 14px; }
+.dashGrid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; margin-top:10px; }
+@media (min-width: 800px){
+  .modalOverlay{ align-items:center; }
+  .dashGrid{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+}
