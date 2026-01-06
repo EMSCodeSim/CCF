@@ -91,6 +91,8 @@ const state = {
   pauseStartMs: null,
   pauseCount: 0,
 
+
+  justEndedAt: 0,
   // Multi-select reasons for the current pause
   currentReasons: [],
 
@@ -308,7 +310,9 @@ function startPause() {
 
 function onEndPress() {
   // If a session has ended, the END button becomes RESET.
+  // Guard against a follow-up "ghost click" (pointerup + click) immediately clearing the session.
   if (state.mode === "ended" && !state.running) {
+    if (state.justEndedAt && (Date.now() - state.justEndedAt) < 900) return;
     resetSession();
     return;
   }
@@ -399,6 +403,7 @@ function endSession() {
   // Stop the loop and freeze values on screen (RESET will clear)
   state.running = false;
   state.mode = "ended";
+  state.justEndedAt = Date.now();
 
   // Update the UI: show summary + switch END -> RESET
   showEndSummary(state.lastSummary);
@@ -661,12 +666,28 @@ function init() {
     // Prevent double-binding if init() is ever re-run.
     if (el.dataset.bound === "1") return;
 
-    // Some mobile webviews will generate a "ghost" click after pointer/touch.
-    // We attach BOTH pointerup and click, and dedupe by time.
+    // Many browsers fire BOTH pointerup and click for the same press.
+    // If the handler is heavy (like END -> saving a session), the click can
+    // arrive >250ms later and slip past time-based dedupe.
+    // Strategy:
+    //  - Always bind click (desktop reliability)
+    //  - Optionally bind pointerup (touch responsiveness)
+    //  - If a pointerup happens, ignore the subsequent click for a short window
     let lastTs = 0;
+    let lastPointerUpTs = 0;
 
     const wrapped = (e) => {
       const ts = Date.now();
+
+      // Ignore the "follow-up" click that often fires after pointerup
+      if (e && e.type === "pointerup") {
+        lastPointerUpTs = ts;
+        window.__ccfLastPointerUp = { ts, id: (el && el.id) || "" };
+      } else if (e && e.type === "click") {
+        if (lastPointerUpTs && (ts - lastPointerUpTs) < 900) return;
+      }
+
+      // Generic debounce (also blocks double clicks)
       if (ts - lastTs < 250) return;
       lastTs = ts;
 
@@ -678,11 +699,16 @@ function init() {
         try { showErrorBanner(String(err?.message || err)); } catch {}
       }
     };
-
-    // Always attach click for desktop reliability.
-    el.addEventListener("click", wrapped);
-    // Attach pointerup when available to eliminate delay on touch devices.
+    // Attach pointerup when available (covers mouse + touch). This is the primary path.
     if ("PointerEvent" in window) el.addEventListener("pointerup", wrapped);
+
+    // Fallback: older browsers without Pointer Events.
+    if (!("PointerEvent" in window)) el.addEventListener("click", wrapped);
+
+    // Keyboard accessibility
+    el.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") wrapped(ev);
+    });
 
     el.dataset.bound = "1";
   }
@@ -761,6 +787,16 @@ function init() {
       if (ts - lastTs < 200) return;
       lastTs = ts;
 
+      // Ignore "follow-up" clicks that fire after pointerup (mouse/touch), otherwise
+      // actions like END can immediately trigger RESET.
+      try {
+        const lp = window.__ccfLastPointerUp;
+        if (lp && lp.ts && (ts - lp.ts) < 900) {
+          const targetBtn = (e.target && e.target.closest) ? e.target.closest("#btnCpr,#btnPause,#btnEnd,#btnSettings,#btnSettingsClose,#btnResumeFromPause") : null;
+          if (targetBtn && (targetBtn.id === lp.id)) return;
+        }
+      } catch {}
+
       const t = e.target;
       let el = null;
       if (t && t.closest) {
@@ -788,8 +824,9 @@ function init() {
       }
     };
 
+    // Delegation is a desktop safety net: use CLICK only to avoid double-fire
+    // (pointerup + click) causing END->RESET immediately.
     document.addEventListener("click", delegate, true);
-    if ("PointerEvent" in window) document.addEventListener("pointerup", delegate, true);
   }
 
   // Buttons
