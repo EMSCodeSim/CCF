@@ -406,14 +406,11 @@ function renderList(){
   });
 
   safeBind("btnAssignLatest", ()=>{
-    const classId = document.getElementById("latestClassPicker").value;
-    if(!classId) return alert("Select a class first.");
-    if(!latestSession) return alert("No sessions saved yet.");
-    const studentId = document.getElementById("latestStudentSelect").value;
-    if(!studentId) return alert("Select a student.");
-    assignSession(latestSession.id, classId, studentId);
-    renderList();
-  });
+  const classId = document.getElementById("latestClassPicker").value;
+  if(!latestSession) return alert("No sessions saved yet.");
+  if(!classId) return alert("Select a class first.");
+  showAssignModal(latestSession, { classId });
+});
 
   populateLatestStudents();
 }
@@ -1010,11 +1007,31 @@ function showSessionModal(s){
   showModal("Session", body);
 }
 
-function showAssignModal(s){
-  // pick class then student
+
+function showAssignModal(s, opts){
+  opts = opts || {};
   const classes = loadClasses();
-  let classId = classes[0]?.id || "";
-  const classSel = el("select", {}, classes.map(c=>el("option",{value:c.id},[c.name?.trim()?c.name.trim():"(Untitled)"])));
+  const suggestedClassId = opts.classId || (loadJson("ccf.currentClassId", "") || "");
+  let classId = suggestedClassId && classes.some(c=>c.id===suggestedClassId) ? suggestedClassId : (classes[0]?.id || "");
+
+  // Session report preview (full report)
+  const sessionReport = el("div", { class:"dashCard", style:"margin-bottom:12px;" }, [
+    el("div", { class:"dashTitle" }, ["Session report"]),
+    el("div", { class:"dashSub" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : ""]),
+    el("div", { class:"dashGrid", style:"margin-top:10px;" }, [
+      stat("CCF", s.ccfPct==null?"—":`${Math.round(s.ccfPct)}%`),
+      stat("Pauses", String((s.pauses && s.pauses.length) ? s.pauses.length : (s.pauseCount ?? 0))),
+      stat("Hands-off", s.handsOffSec==null?"—":`${Math.round(s.handsOffSec)}s`),
+      stat("Duration", s.durationSec==null?"—":`${Math.round(s.durationSec)}s`),
+    ]),
+    el("div", { class:"dashSub", style:"margin-top:10px;" }, ["Longest pause: " + longestPauseSummary(s)])
+  ]);
+
+  const classSel = el("select", { id:"assignClassSel" }, classes.map(c=>{
+    const label = (c.name && String(c.name).trim()) ? String(c.name).trim() : "(Untitled)";
+    const date = c.dateISO ? fmtDateISO(c.dateISO) : "";
+    return el("option",{value:c.id},[date ? `${label} • ${date}` : label]);
+  }));
   classSel.value = classId;
 
   const studentSelWrap = el("div", {}, []);
@@ -1029,26 +1046,37 @@ function showAssignModal(s){
     sel.id = "assignStudentSel";
     studentSelWrap.appendChild(sel);
   };
-  classSel.addEventListener("change", rebuildStudentSel);
+  classSel.addEventListener("change", ()=>{
+    localStorage.setItem("ccf.currentClassId", classSel.value || "");
+    rebuildStudentSel();
+  });
 
-  const addName = el("input", { type:"text", placeholder:"Add new student name (optional)" });
+  const addName = el("input", { type:"text", placeholder:"New student name (optional)" });
+
   const body = el("div", {}, [
+    sessionReport,
+
     el("label", { class:"field" }, [
-      el("span",{class:"fieldLabel"},["Class"]),
+      el("span",{class:"fieldLabel"},["Assign into class"]),
       classSel
     ]),
     el("label", { class:"field" }, [
-      el("span",{class:"fieldLabel"},["Student (optional)"]),
+      el("span",{class:"fieldLabel"},["Assign to student (optional)"]),
       studentSelWrap
     ]),
     el("label", { class:"field" }, [
       el("span",{class:"fieldLabel"},["Or add a new student now"]),
       addName
     ]),
-    el("div", { class:"row", style:"gap:10px; margin-top:10px; flex-wrap:wrap;" }, [
+
+    el("div", { class:"row", style:"gap:10px; margin-top:12px; flex-wrap:wrap; justify-content:space-between;" }, [
       el("button", { class:"primaryBtn", type:"button", id:"btnDoAssign" }, ["Assign"]),
+      el("button", { class:"secondaryBtn", type:"button", id:"btnAssignDownload" }, ["Download"]),
+      el("button", { class:"secondaryBtn", type:"button", id:"btnAssignEmail" }, ["Email"]),
+      el("button", { class:"secondaryBtn", type:"button", id:"btnAssignDelete" }, ["Delete"])
     ])
   ]);
+
   rebuildStudentSel();
   const modal = showModal("Assign session", body);
 
@@ -1057,15 +1085,18 @@ function showAssignModal(s){
     const cls = getClassById(cid);
     if(!cls) return alert("Select a class.");
 
-    let sid = body.querySelector("#assignStudentSel").value || null;
-
-    const nm = (addName.value||"").trim();
+    let sid = body.querySelector("#assignStudentSel")?.value || null;
+    const nm = String(addName.value || "").trim();
     if(nm){
       const st = { id: uid(), name: nm, email:"", contact:"" };
       cls.students = Array.isArray(cls.students) ? cls.students : [];
       cls.students.push(st);
       upsertClass(cls);
       sid = st.id;
+      // refresh student dropdown
+      rebuildStudentSel();
+      body.querySelector("#assignStudentSel").value = st.id;
+      addName.value = "";
     }
 
     const arr = loadSessions();
@@ -1074,8 +1105,26 @@ function showAssignModal(s){
     arr[idx].classId = cid;
     arr[idx].studentId = sid;
     saveSessions(arr);
+
+    localStorage.setItem("ccf.currentClassId", cid || "");
     modal.close();
     boot();
+  });
+
+  body.querySelector("#btnAssignDownload").addEventListener("click", ()=>{
+    downloadText(buildSessionTxt(s), safeFile(`ccf-${s.startedAt||Date.now()}.txt`));
+  });
+
+  body.querySelector("#btnAssignEmail").addEventListener("click", ()=>{
+    emailText("CCF Session Report", buildSessionTxt(s));
+  });
+
+  body.querySelector("#btnAssignDelete").addEventListener("click", ()=>{
+    if(confirm("Delete this session? This cannot be undone.")){
+      deleteSessionById(s.id);
+      modal.close();
+      boot();
+    }
   });
 }
 
