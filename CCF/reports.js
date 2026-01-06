@@ -7,7 +7,7 @@
 
 function bindOnce(el, evt, key, handler){
   if(!el) return;
-  const k = key || (evt + "_bound");
+  const k = "__b_" + (key || evt);
   if(el.dataset && el.dataset[k]==="1") return;
   el.addEventListener(evt, handler);
   if(el.dataset) el.dataset[k]="1";
