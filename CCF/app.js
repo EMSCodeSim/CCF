@@ -1,35 +1,45 @@
-/*
+// Small on-screen error banner (helps catch desktop-only failures)
 function showErrorBanner(msg){
-  let bar = document.getElementById("errorBanner");
-  if (!bar) {
-    bar = document.createElement("div");
-    bar.id = "errorBanner";
-    bar.style.position = "fixed";
-    bar.style.left = "12px";
-    bar.style.right = "12px";
-    bar.style.bottom = "80px";
-    bar.style.zIndex = "9999";
-    bar.style.padding = "10px 12px";
-    bar.style.borderRadius = "14px";
-    bar.style.background = "rgba(190,30,60,0.92)";
-    bar.style.color = "white";
-    bar.style.fontWeight = "800";
-    bar.style.fontSize = "13px";
-    bar.style.boxShadow = "0 12px 30px rgba(0,0,0,0.35)";
-    bar.style.pointerEvents = "auto";
-    bar.addEventListener("click", () => bar.remove());
-    document.body.appendChild(bar);
-  }
-  bar.textContent = "Error: " + msg + " (tap to dismiss)";
-  clearTimeout(bar._t);
-  bar._t = setTimeout(() => { try { bar.remove(); } catch {} }, 8000);
+  try {
+    let bar = document.getElementById("errorBanner");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "errorBanner";
+      bar.style.position = "fixed";
+      bar.style.left = "12px";
+      bar.style.right = "12px";
+      bar.style.bottom = "80px";
+      bar.style.zIndex = "9999";
+      bar.style.padding = "10px 12px";
+      bar.style.borderRadius = "14px";
+      bar.style.background = "rgba(190,30,60,0.92)";
+      bar.style.color = "white";
+      bar.style.fontWeight = "800";
+      bar.style.fontSize = "13px";
+      bar.style.boxShadow = "0 12px 30px rgba(0,0,0,0.35)";
+      bar.style.pointerEvents = "auto";
+      bar.addEventListener("click", () => bar.remove());
+      document.body.appendChild(bar);
+    }
+    bar.textContent = "Error: " + msg + " (click to dismiss)";
+    clearTimeout(bar._t);
+    bar._t = setTimeout(() => { try { bar.remove(); } catch {} }, 10000);
+  } catch {}
 }
- ===========================
+
+// Catch any runtime error so the UI never becomes "dead" without a clue.
+window.addEventListener("error", (e) => {
+  const msg = e?.message || String(e);
+  showErrorBanner(msg);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const msg = e?.reason?.message || String(e?.reason || e);
+  showErrorBanner(msg);
+});
+
+/* ===========================
    CCF CPR TIMER – app.js
-   Fix: CPR button starts timer reliably
-   + Breath bar toggles Advanced Airway
-   + Both CPR buttons reset breath bar
-   + Pause reasons modal w/ big RESUME CPR
+   Desktop click + mobile touch safe
    =========================== */
 
 const $ = (id) => document.getElementById(id);
@@ -736,6 +746,48 @@ function init() {
     btnClearPauseReasons: $("btnClearPauseReasons"),
     reasonChips: document.querySelectorAll(".reasonChip"),
   };
+
+  // ------------------------------------------------------------
+  // Desktop-safe fallback: event delegation
+  // If for any reason direct button binding fails (common when an
+  // overlay or re-render changes nodes), this ensures clicks still
+  // trigger the core actions on desktop.
+  // ------------------------------------------------------------
+  if (!document.body.dataset.ccfDelegation) {
+    document.body.dataset.ccfDelegation = "1";
+    let lastTs = 0;
+    const delegate = (e) => {
+      const ts = Date.now();
+      if (ts - lastTs < 200) return;
+      lastTs = ts;
+
+      const t = e.target;
+      const el = t && t.closest ? t.closest("#btnCpr,#btnPause,#btnEnd,#btnSettings,#btnSettingsClose,#btnResumeFromPause") : null;
+      if (!el) return;
+
+      // Prevent accidental navigation / click-through
+      try { e.preventDefault(); } catch {}
+      try { e.stopPropagation(); } catch {}
+
+      try {
+        if (el.id === "btnCpr") startCPR();
+        else if (el.id === "btnPause") startPause();
+        else if (el.id === "btnEnd") onEndPress();
+        else if (el.id === "btnSettings") { showSettings(); setSettingsTab("about"); }
+        else if (el.id === "btnSettingsClose") hideSettings();
+        else if (el.id === "btnResumeFromPause") {
+          startCPR();
+          setTimeout(() => hidePauseModal(), 0);
+        }
+      } catch (err) {
+        console.error(err);
+        showErrorBanner(String(err?.message || err));
+      }
+    };
+
+    document.addEventListener("click", delegate, true);
+    if ("PointerEvent" in window) document.addEventListener("pointerup", delegate, true);
+  }
 
   // Buttons
   onPress(UI.btnCpr, startCPR);
