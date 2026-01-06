@@ -89,19 +89,43 @@ function saveUI(){
 
 /* ---------- DOM ---------- */
 const app = () => document.getElementById("app");
-function el(tag, attrs={}, children=[]){
+function el(tag, attrs, ...children){
   const n = document.createElement(tag);
+
+  // Allow el(tag, child1, child2...) (attrs omitted)
+  const isAttrs = attrs && typeof attrs === "object" && !Array.isArray(attrs) &&
+    !(attrs instanceof Node) &&
+    !(attrs instanceof NodeList) &&
+    !(attrs instanceof HTMLCollection);
+
+  if(!isAttrs){
+    children = [attrs, ...children];
+    attrs = {};
+  }
+
   Object.entries(attrs||{}).forEach(([k,v])=>{
     if(k==="class") n.className = v;
     else if(k==="html") n.innerHTML = v;
     else if(k.startsWith("on") && typeof v==="function") n.addEventListener(k.slice(2).toLowerCase(), v);
     else if(v!==null && v!==undefined) n.setAttribute(k, String(v));
   });
-  (children||[]).forEach(ch=>{
+
+  // Normalize children: allow single node/string, arrays, NodeList, HTMLCollection
+  const flat = [];
+  const pushChild = (ch)=>{
+    if(ch===null || ch===undefined || ch===false) return;
+    if(Array.isArray(ch)) ch.forEach(pushChild);
+    else if(ch instanceof NodeList || ch instanceof HTMLCollection) Array.from(ch).forEach(pushChild);
+    else flat.push(ch);
+  };
+  children.forEach(pushChild);
+
+  flat.forEach(ch=>{
     if(ch===null || ch===undefined) return;
-    if(typeof ch==="string") n.appendChild(document.createTextNode(ch));
+    if(typeof ch==="string" || typeof ch==="number") n.appendChild(document.createTextNode(String(ch)));
     else n.appendChild(ch);
   });
+
   return n;
 }
 function fmtDateISO(iso){
