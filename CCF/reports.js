@@ -868,6 +868,43 @@ function syncClassUI(proEnabled) {
   const elLoc = document.getElementById("classLocation");
   const elTarget = document.getElementById("targetCcf");
   const elLen = document.getElementById("sessionLengthSec");
+
+// Auto-save class fields (prevents losing class name/email and avoids re-rendering while typing)
+function wireClassSetupAutoSave() {
+  const fields = [
+    ["className", "name"],
+    ["instructorName", "instructor"],
+    ["instructorEmail", "instructorEmail"],
+    ["classLocation", "location"],
+    ["targetCcf", "targetCcf"],
+    ["sessionLengthSec", "sessionLengthSec"],
+  ];
+  fields.forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (!el || el.__autoSaveBound) return;
+    el.__autoSaveBound = true;
+    el.addEventListener("input", () => {
+      const cls = loadClassSetup() || { students: [] };
+      if (cls.locked) return; // don't mutate locked class
+      let val = el.value;
+      if (key === "targetCcf" || key === "sessionLengthSec") {
+        const n = parseInt(String(val || "").trim(), 10);
+        if (Number.isFinite(n)) cls[key] = n;
+      } else {
+        cls[key] = String(val || "");
+      }
+      clearTimeout(el.__saveT);
+      el.__saveT = setTimeout(() => {
+        saveClassSetup(cls);
+        // Update the collapsed subtitle line without re-rendering the whole panel
+        const meta = document.getElementById("classSetupMeta");
+        if (meta) meta.textContent = classSummaryLine(loadClassSetup() || cls);
+      }, 250);
+    });
+  });
+}
+wireClassSetupAutoSave();
+
   const elLocked = document.getElementById("classLocked");
 
   if (elName) elName.value = cls.name || "";
@@ -948,25 +985,37 @@ function renderRosterEditor(students) {
   };
 
   wrap.oninput = (e) => {
-    const row = e.target && e.target.closest && e.target.closest(".rosterRow");
-    if (!row) return;
-    const i = Number(row.getAttribute("data-i"));
-    if (!Number.isFinite(i) || i < 0) return;
+  const row = e.target && e.target.closest && e.target.closest(".rosterRow");
+  if (!row) return;
+  const i = Number(row.getAttribute("data-i"));
+  if (!Number.isFinite(i) || i < 0) return;
 
-    const cls = loadClassSetup() || { students: [] };
-    cls.students = Array.isArray(cls.students) ? cls.students : [];
-    cls.students[i] = cls.students[i] || { name: "", email: "", contact: "", score: "" };
+  const nameEl = row.querySelector(".roName");
+  const emailEl = row.querySelector(".roEmail");
+  const contactEl = row.querySelector(".roContact");
+  const scoreEl = row.querySelector(".roScore");
 
-    const r = cls.students[i];
-    if (e.target.classList.contains("roName")) r.name = e.target.value;
-    if (e.target.classList.contains("roEmail")) r.email = e.target.value;
-    if (e.target.classList.contains("roContact")) r.contact = e.target.value;
-    if (e.target.classList.contains("roScore")) r.score = e.target.value;
+  // Update in-memory class setup without re-rendering (prevents iOS keyboard from closing)
+  const cls = loadClassSetup() || { students: [] };
+  cls.students = Array.isArray(cls.students) ? cls.students : [];
+  cls.students[i] = cls.students[i] || { name: "", email: "", contact: "", score: "" };
+  cls.students[i].name = String(nameEl?.value || "").trimStart();
+  cls.students[i].email = String(emailEl?.value || "").trim();
+  cls.students[i].contact = String(contactEl?.value || "").trimStart();
+  cls.students[i].score = String(scoreEl?.value || "").trim();
 
+  // Debounced save (no boot(), no syncClassUI() here)
+  clearTimeout(wrap.__saveT);
+  wrap.__saveT = setTimeout(() => {
     saveClassSetup(cls);
-    // Update summary line + class metrics without rebuilding entire UI each keystroke
-    syncClassUI(true);
-  };
+    // Keep Most Recent dropdown in sync quietly
+    const sel = document.getElementById("studentSelect");
+    if (sel) {
+      const names = (cls.students || []).map(x => String(x?.name || "").trim()).filter(Boolean);
+      sel.innerHTML = ["Unassigned", ...names].map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+    }
+  }, 250);
+};
 }
 
 
