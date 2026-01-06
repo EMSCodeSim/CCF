@@ -160,87 +160,154 @@ function Accordion({classId, id, title, subtitle, defaultOpen=false, bodyEl}){
 }
 
 /* ---------- Render: List view ---------- */
+
 function renderList(){
   state.view = "list";
   state.classId = null;
+
+  // On entry, default everything collapsed unless user previously opened something
+  if(!state.ui.openSections) state.ui.openSections = {};
+  const defaults = { classes:false, latest:false, unassigned:false, export:false };
+  Object.keys(defaults).forEach(k=>{
+    if(typeof state.ui.openSections[k] !== "boolean") state.ui.openSections[k] = defaults[k];
+  });
+
   saveUI();
 
-  const classes = loadClasses();
+  const classes = loadClasses().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
   const sessions = loadSessions();
+  const mostRecentClass = classes[0] || null;
+  const latestSession = sessions.length ? sessions[sessions.length-1] : null;
 
-  const unassigned = sessions.filter(s => !s.classId && !s.studentId);
+  // Unassigned = not linked to a student (may be linked to a class)
+  const unassigned = sessions.filter(s => !s.studentId).slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0));
 
-  const container = el("div", { class:"pad16" }, [
-    el("div", { class:"row", style:"justify-content:space-between; align-items:center; gap:10px;" }, [
-      el("div", {}, [
-        el("div", { class:"dashTitle" }, ["Classes"]),
-        el("div", { class:"dashSub" }, ["Create a class, add students, then assign CCF sessions."])
-      ]),
-      el("div", { class:"row", style:"gap:10px; align-items:center;" }, [
-      el("button", { class:"secondaryBtn", type:"button", id:"btnPastSessions" }, ["Past sessions"]),
-      el("button", { class:"primaryBtn", type:"button", id:"btnNewClass" }, ["+ New Class"])
-    ])
+  const container = el("div", { class:"pad16" }, []);
+
+  // + New Class stays at the top
+  container.appendChild(el("button", { class:"primaryBtn", type:"button", id:"btnNewClassTop" }, ["+ New Class"]));
+
+  // View classes button (opens classes accordion)
+  container.appendChild(el("button", { class:"secondaryBtn", type:"button", id:"btnViewClasses", style:"margin-top:10px;" }, ["View classes"]));
+
+  // Classes accordion body
+  const classesBody = el("div", {}, []);
+  if(!classes.length){
+    classesBody.appendChild(el("div", { class:"dashSub" }, ["No classes yet. Tap + New Class to start."]));
+  }else{
+    classesBody.appendChild(el("div", { class:"dashSub" }, ["All saved classes (tap to open)."]));
+    const list = el("div", { class:"stack10", style:"margin-top:10px;" }, []);
+    classes.forEach(cls => list.appendChild(classCard(cls)));
+    classesBody.appendChild(list);
+
+    classesBody.appendChild(el("div", { class:"row", style:"gap:10px; margin-top:12px; flex-wrap:wrap;" }, [
+      el("button", { class:"secondaryBtn", type:"button", id:"btnDlAllClasses" }, ["Download all classes (CSV)"]),
+      el("button", { class:"secondaryBtn", type:"button", id:"btnEmailAllClasses" }, ["Email all classes"]),
+    ]));
+  }
+
+  container.appendChild(Accordion({
+    classId:null,
+    id:"classes",
+    title:"Classes",
+    subtitle: classes.length ? `${classes.length} saved` : "None yet",
+    defaultOpen:false,
+    bodyEl: classesBody
+  }));
+
+  // Most recent session
+  const latestBody = el("div", {}, []);
+
+  latestBody.appendChild(el("div", { class:"dashSub" }, ["Most recent CPR session (assign it quickly)."]));
+
+  // Class picker defaults to most recent created class
+  const clsSel = el("select", { id:"latestClassPicker" }, [
+    el("option", { value:"" }, ["— Select class —"]),
+    ...classes.map(c => el("option", { value:c.id }, [`${(c.name||"Class")} • ${fmtDateISO(c.dateISO||todayISO())}`]))
+  ]);
+  if(mostRecentClass) clsSel.value = mostRecentClass.id;
+
+  latestBody.appendChild(el("label", { class:"field", style:"margin-top:10px;" }, [
+    el("span", { class:"fieldLabel" }, ["Assign into class"]),
+    clsSel
+  ]));
+
+  // Session preview
+  latestBody.appendChild(el("div", { class:"reportCard", id:"latestSessionCard", style:"margin-top:10px;" }, []));
+
+  latestBody.appendChild(el("div", { class:"divider", style:"margin:12px 0;" }, []));
+
+  // Student picker
+  latestBody.appendChild(el("div", { class:"dashTitle" }, ["Assign to student"]));
+  latestBody.appendChild(el("div", { class:"studentRow", style:"margin-top:10px; align-items:flex-end;" }, [
+    el("label", { class:"field", style:"margin:0; flex:1;" }, [
+      el("span", { class:"fieldLabel" }, ["Student"]),
+      el("select", { id:"latestStudentSelect" }, [ el("option", { value:"" }, ["— Select student —"]) ])
     ]),
-  ]);
+    el("button", { class:"endBtn", type:"button", id:"btnAssignLatest" }, ["Assign"])
+  ]));
 
-  // Unassigned sessions (collapsed by default)
-  const unBody = el("div", {}, [
-    unassigned.length ? el("div", { class:"dashSub" }, [`Unassigned sessions: ${unassigned.length}`]) :
-      el("div", { class:"dashSub" }, ["No unassigned sessions."]),
-    el("div", { class:"list" }, unassigned.slice().reverse().slice(0, 15).map(s => sessionRow(s, { mode:"unassigned" })))
-  ]);
+  // Add student inline (simple)
+  latestBody.appendChild(el("div", { class:"studentRow", style:"margin-top:10px; align-items:flex-end;" }, [
+    el("label", { class:"field", style:"margin:0; flex:1;" }, [
+      el("span", { class:"fieldLabel" }, ["Or add student now"]),
+      el("input", { id:"latestAddStudentName", type:"text", placeholder:"Student name" }, [])
+    ]),
+    el("button", { class:"secondaryBtn", type:"button", id:"btnLatestAddAssign" }, ["Add & Assign"])
+  ]));
+
+  latestBody.appendChild(el("div", { class:"row", style:"gap:10px; margin-top:10px; flex-wrap:wrap;" }, [
+    el("button", { class:"secondaryBtn", type:"button", id:"btnLatestOpenReport" }, ["Open report"]),
+    el("button", { class:"secondaryBtn", type:"button", id:"btnLatestDownload" }, ["Download"]),
+    el("button", { class:"secondaryBtn", type:"button", id:"btnLatestEmail" }, ["Email"]),
+    el("button", { class:"secondaryBtn", type:"button", id:"btnLatestDelete" }, ["Delete"])
+  ]));
+
+  container.appendChild(Accordion({
+    classId:null,
+    id:"latest",
+    title:"Most Recent CCF Session",
+    subtitle: latestSession ? (latestSession.startedAt ? new Date(latestSession.startedAt).toLocaleString() : "") : "No sessions yet",
+    defaultOpen:true,
+    bodyEl: latestBody
+  }));
+
+  // Unassigned sessions (timestamped)
+  const unBody = el("div", {}, []);
+  unBody.appendChild(el("div", { class:"dashSub" }, ["Unassigned sessions (no student). Assign or delete."]));
+  const unList = el("div", { class:"stack10", style:"margin-top:10px;" }, []);
+  if(!unassigned.length){
+    unList.appendChild(el("div", { class:"empty" }, ["No unassigned sessions."]));
+  }else{
+    unassigned.slice(0,50).forEach(s => unList.appendChild(sessionRow(s, { mode:"unassigned", classId:null })));
+  }
+  unBody.appendChild(unList);
+
   container.appendChild(Accordion({
     classId:null,
     id:"unassigned",
-    title:"Past sessions",
-    subtitle:"Unassigned first • assign or delete",
+    title:"Unassigned sessions",
+    subtitle: unassigned.length ? `${unassigned.length} saved` : "None",
     defaultOpen:false,
     bodyEl: unBody
   }));
 
-  
-
-// Export (collapsed by default)
-const exportBody = el("div", {}, [
-  el("div", { class:"dashSub" }, ["Export a class for the year, a single student, or everything."]),
-  el("label", { class:"field", style:"margin-top:10px;" }, [
-    el("span", { class:"fieldLabel" }, ["Export scope"]),
-    (function(){
-      const sel = el("select", { id:"exportScope" }, [
-        el("option", { value:"all" }, ["All classes (year record)"]),
-        el("option", { value:"class" }, ["One class"]),
-        el("option", { value:"student" }, ["One student"]),
-      ]);
-      return sel;
-    })()
-  ]),
-  el("div", { id:"exportPickers", style:"margin-top:10px; display:grid; gap:10px;" }, []),
-  el("div", { class:"row", style:"gap:10px; margin-top:10px; flex-wrap:wrap;" }, [
-    el("button", { class:"secondaryBtn", type:"button", id:"btnExportDownload" }, ["Download CSV"]),
-    el("button", { class:"secondaryBtn", type:"button", id:"btnExportEmail" }, ["Email CSV (draft)"]),
-  ])
-]);
-container.appendChild(Accordion({
-  classId:null,
-  id:"exportAll",
-  title:"Export",
-  subtitle:"Download / email",
-  defaultOpen:false,
-  bodyEl: exportBody
-}));
-// Class list
-  const listEl = el("div", { class:"list", style:"margin-top:12px;" }, []);
-  if(!classes.length){
-    listEl.appendChild(el("div", { class:"empty" }, ["No classes yet. Tap “New Class” to create one."]));
-  }else{
-    classes.forEach(cls => listEl.appendChild(classCard(cls)));
-  }
-  container.appendChild(listEl);
+  // Export
+  const exportBody = renderExportPanel(classes);
+  container.appendChild(Accordion({
+    classId:null,
+    id:"export",
+    title:"Export",
+    subtitle:"Download / print / email",
+    defaultOpen:false,
+    bodyEl: exportBody
+  }));
 
   app().innerHTML = "";
   app().appendChild(container);
 
-  document.getElementById("btnNewClass").addEventListener("click", ()=>{
+  // Wire buttons
+  safeBind("btnNewClassTop", ()=>{
     const d = loadDefaults();
     const cls = {
       id: uid(),
@@ -252,100 +319,81 @@ container.appendChild(Accordion({
       students: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      targetCcf: 80,
+      targetCcf: 80
     };
     upsertClass(cls);
     openClass(cls.id, true);
   });
 
-// Past sessions shortcut
-const btnPast = document.getElementById("btnPastSessions");
-if(btnPast){
-  btnPast.addEventListener("click", ()=>{
-    setOpen(null, "unassigned", true);
-    // re-render with open state applied
+  safeBind("btnViewClasses", ()=>{
+    setOpen(null, "classes", true);
     renderList();
-    setTimeout(()=>{
-      const hdr = document.querySelector('[data-acc="unassigned"]');
-      if(hdr) hdr.scrollIntoView({ behavior:"smooth", block:"start" });
-    }, 0);
+    setTimeout(()=>scrollToAcc("classes"), 0);
   });
-}
 
-// Export pickers
-const scopeSel = document.getElementById("exportScope");
-const pickWrap = document.getElementById("exportPickers");
-function renderPickers(){
-  if(!pickWrap) return;
-  pickWrap.innerHTML = "";
-  const scope = scopeSel ? scopeSel.value : "all";
-  const classesNow = loadClasses();
-  if(scope === "class" || scope === "student"){
-    const classSel = el("select", { id:"exportClassPick" }, [
-      el("option", { value:"" }, ["Select a class…"]),
-      ...classesNow.map(c=> el("option", { value:c.id }, [ (c.name||"Class") + (c.dateISO?(" • "+fmtDateISO(c.dateISO)):"") ]))
-    ]);
-    pickWrap.appendChild(el("label", { class:"field" }, [
-      el("span", { class:"fieldLabel" }, ["Class"]),
-      classSel
-    ]));
-    if(scope==="student"){
-      const stSel = el("select", { id:"exportStudentPick" }, [ el("option", { value:"" }, ["Select a student…"]) ]);
-      pickWrap.appendChild(el("label", { class:"field" }, [
-        el("span", { class:"fieldLabel" }, ["Student"]),
-        stSel
-      ]));
-      classSel.addEventListener("change", ()=>{
-        const cls = getClassById(classSel.value);
-        const st = (cls && Array.isArray(cls.students)) ? cls.students : [];
-        stSel.innerHTML = "";
-        stSel.appendChild(el("option", { value:"" }, ["Select a student…"]));
-        st.forEach(s=> stSel.appendChild(el("option", { value:s.id }, [s.name||"(Unnamed)"])));
-      });
+  safeBind("btnDlAllClasses", ()=>{
+    downloadText(exportAllClassesCSV(), safeFile("ccf-classes-all.csv"));
+  });
+
+  safeBind("btnEmailAllClasses", ()=>{
+    emailText("CCF Classes (All)", exportAllClassesCSV());
+  });
+
+  // Latest session render + bind
+  renderLatestSession(latestSession);
+
+  safeBind("latestClassPicker", ()=>{
+    populateLatestStudents();
+  }, "change");
+
+  safeBind("btnLatestOpenReport", ()=>{
+    if(!latestSession) return alert("No sessions saved yet.");
+    showSessionModal(latestSession);
+  });
+
+  safeBind("btnLatestDownload", ()=>{
+    if(!latestSession) return alert("No sessions saved yet.");
+    downloadText(buildSessionTxt(latestSession), safeFile(`ccf-${latestSession.startedAt||Date.now()}.txt`));
+  });
+
+  safeBind("btnLatestEmail", ()=>{
+    if(!latestSession) return alert("No sessions saved yet.");
+    emailText("CCF Session Report", buildSessionTxt(latestSession));
+  });
+
+  safeBind("btnLatestDelete", ()=>{
+    if(!latestSession) return alert("No sessions saved yet.");
+    if(confirm("Delete the most recent session?")){
+      deleteSessionById(latestSession.id);
+      renderList();
     }
-  }
-}
-if(scopeSel){
-  scopeSel.addEventListener("change", renderPickers);
-  renderPickers();
+  });
+
+  safeBind("btnLatestAddAssign", ()=>{
+    const classId = document.getElementById("latestClassPicker").value;
+    if(!classId) return alert("Select a class first.");
+    if(!latestSession) return alert("No sessions saved yet.");
+    const nm = String(document.getElementById("latestAddStudentName").value||"").trim();
+    if(!nm) return alert("Enter a student name.");
+    const st = addStudentToClass(classId, nm);
+    assignSession(latestSession.id, classId, st.id);
+    document.getElementById("latestAddStudentName").value = "";
+    renderList();
+  });
+
+  safeBind("btnAssignLatest", ()=>{
+    const classId = document.getElementById("latestClassPicker").value;
+    if(!classId) return alert("Select a class first.");
+    if(!latestSession) return alert("No sessions saved yet.");
+    const studentId = document.getElementById("latestStudentSelect").value;
+    if(!studentId) return alert("Select a student.");
+    assignSession(latestSession.id, classId, studentId);
+    renderList();
+  });
+
+  populateLatestStudents();
 }
 
-const btnDL = document.getElementById("btnExportDownload");
-const btnEM = document.getElementById("btnExportEmail");
-function getExportPayload(){
-  const scope = scopeSel ? scopeSel.value : "all";
-  if(scope==="all"){
-    return { filename:"ccf-all-classes.csv", csv: buildAllClassesCsv(loadClasses(), loadSessions()), emailTo: (loadDefaults().instructorEmail||"") };
-  }
-  const cId = (document.getElementById("exportClassPick")||{}).value || "";
-  const cls = cId ? getClassById(cId) : null;
-  if(!cls) return null;
-  if(scope==="class"){
-    return { filename: safeFile(`class-${cls.name||cls.id}.csv`), csv: buildClassCsv(cls), emailTo: cls.instructorEmail||loadDefaults().instructorEmail||"" };
-  }
-  const sId = (document.getElementById("exportStudentPick")||{}).value || "";
-  if(!sId) return null;
-  return { filename: safeFile(`student-${(cls.students||[]).find(x=>x.id===sId)?.name||sId}.csv`), csv: buildStudentCsv(cls, sId, loadSessions()), emailTo: (cls.students||[]).find(x=>x.id===sId)?.email||"" };
-}
-if(btnDL){
-  btnDL.addEventListener("click", ()=>{
-    const p = getExportPayload();
-    if(!p) return alert("Select an export scope/class/student first.");
-    downloadText(p.csv, p.filename);
-  });
-}
-if(btnEM){
-  btnEM.addEventListener("click", ()=>{
-    const p = getExportPayload();
-    if(!p) return alert("Select an export scope/class/student first.");
-    const to = p.emailTo || "";
-    const subj = "CCF Export";
-    const body = "CSV below:\n\n" + p.csv;
-    location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
-  });
-}
-
-}
 
 function classCard(cls){
   const students = Array.isArray(cls.students) ? cls.students : [];
@@ -1276,3 +1324,260 @@ function boot(){
 }
 
 document.addEventListener("DOMContentLoaded", boot);
+
+
+function safeBind(id, fn, evt="click"){
+  const elx = document.getElementById(id);
+  if(!elx) return;
+  const key = "__b_" + evt;
+  if(elx.dataset[key]==="1") return;
+  elx.dataset[key]="1";
+  elx.addEventListener(evt, (e)=>{
+    try{ fn(e); }catch(err){ console.error(err); alert("Reports error: " + err.message); }
+  });
+}
+
+function scrollToAcc(id){
+  const hdr = document.querySelector(`.accHeader[data-acc="${id}"]`);
+  if(hdr) hdr.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+
+function emailText(subject, body){
+  const subj = encodeURIComponent(subject||"");
+  const b = encodeURIComponent(body||"");
+  window.location.href = `mailto:?subject=${subj}&body=${b}`;
+}
+
+
+function deleteSessionById(id){
+  const arr = loadSessions();
+  saveSessions(arr.filter(s=>s.id!==id));
+}
+
+
+function addStudentToClass(classId, name){
+  const cls = getClassById(classId);
+  if(!cls) throw new Error("Class not found");
+  cls.students = Array.isArray(cls.students) ? cls.students : [];
+  const nm = String(name||"").trim();
+  if(!nm) throw new Error("Student name required");
+  const existing = cls.students.find(s=>String(s.name||"").trim().toLowerCase()===nm.toLowerCase());
+  if(existing) return existing;
+  const st = { id: uid(), name: nm, email:"", contact:"", createdAt: Date.now() };
+  cls.students.push(st);
+  cls.updatedAt = Date.now();
+  upsertClass(cls);
+  return st;
+}
+
+function assignSession(sessionId, classId, studentId){
+  const arr = loadSessions();
+  const idx = arr.findIndex(s=>s.id===sessionId);
+  if(idx<0) throw new Error("Session not found");
+  arr[idx].classId = classId || null;
+  arr[idx].studentId = studentId || null;
+  saveSessions(arr);
+  // touch class
+  if(classId){
+    const cls = getClassById(classId);
+    if(cls){ cls.updatedAt = Date.now(); upsertClass(cls); }
+  }
+}
+
+
+function renderExportPanel(classes){
+  const wrap = el("div", {}, []);
+
+  wrap.appendChild(el("div", { class:"dashSub" }, ["Choose what to export."]));
+
+  const scope = el("select", { id:"exportScope" }, [
+    el("option", { value:"all" }, ["Everything (all classes + all sessions)"]),
+    el("option", { value:"class" }, ["One class"]),
+    el("option", { value:"student" }, ["One student (within a class)"]),
+  ]);
+
+  const pick = el("div", { id:"exportPick", style:"margin-top:10px; display:grid; gap:10px;" }, []);
+  wrap.appendChild(el("label", { class:"field", style:"margin-top:10px;" }, [
+    el("span", { class:"fieldLabel" }, ["Export scope"]),
+    scope
+  ]));
+  wrap.appendChild(pick);
+
+  const btnRow = el("div", { class:"row", style:"gap:10px; margin-top:10px; flex-wrap:wrap;" }, [
+    el("button", { class:"secondaryBtn", type:"button", id:"btnExportDownload" }, ["Download CSV"]),
+    el("button", { class:"secondaryBtn", type:"button", id:"btnExportEmail" }, ["Email CSV"]),
+  ]);
+  wrap.appendChild(btnRow);
+
+  function renderPick(){
+    pick.innerHTML = "";
+    const v = scope.value;
+    if(v==="class"){
+      pick.appendChild(el("label", { class:"field" }, [
+        el("span",{class:"fieldLabel"},["Class"]),
+        el("select",{id:"exportClass"}, [
+          ...classes.map(c=>el("option",{value:c.id},[`${(c.name||"Class")} • ${fmtDateISO(c.dateISO||todayISO())}`]))
+        ])
+      ]));
+    }else if(v==="student"){
+      const classSel = el("select", { id:"exportClass" }, [
+        ...classes.map(c=>el("option",{value:c.id},[`${(c.name||"Class")} • ${fmtDateISO(c.dateISO||todayISO())}`]))
+      ]);
+      const studentSel = el("select", { id:"exportStudent" }, [ el("option",{value:""},["— Select student —"]) ]);
+      const rebuildStudents = ()=>{
+        const cls = getClassById(classSel.value);
+        studentSel.innerHTML = "";
+        studentSel.appendChild(el("option",{value:""},["— Select student —"]));
+        (cls?.students||[]).forEach(st=>{
+          studentSel.appendChild(el("option",{value:st.id},[st.name||"(Unnamed)"]));
+        });
+      };
+      classSel.addEventListener("change", rebuildStudents);
+      rebuildStudents();
+
+      pick.appendChild(el("label", { class:"field" }, [
+        el("span",{class:"fieldLabel"},["Class"]),
+        classSel
+      ]));
+      pick.appendChild(el("label", { class:"field" }, [
+        el("span",{class:"fieldLabel"},["Student"]),
+        studentSel
+      ]));
+    }else{
+      pick.appendChild(el("div", { class:"dashSub" }, ["Exports all saved classes and sessions."]));
+    }
+  }
+  renderPick();
+  scope.addEventListener("change", renderPick);
+
+  // handlers
+  setTimeout(()=>{
+    safeBind("btnExportDownload", ()=>{
+      const csv = buildExportCSV(scope.value);
+      downloadText(csv, safeFile(`ccf-export-${scope.value}.csv`));
+    });
+    safeBind("btnExportEmail", ()=>{
+      const csv = buildExportCSV(scope.value);
+      emailText("CCF Export", csv);
+    });
+  },0);
+
+  return wrap;
+}
+
+function buildExportCSV(scope){
+  const classes = loadClasses();
+  const sessions = loadSessions();
+
+  if(scope==="class"){
+    const classId = document.getElementById("exportClass")?.value;
+    return exportOneClassCSV(classId);
+  }
+  if(scope==="student"){
+    const classId = document.getElementById("exportClass")?.value;
+    const studentId = document.getElementById("exportStudent")?.value;
+    return exportOneStudentCSV(classId, studentId);
+  }
+  // all
+  return exportAllCSV();
+}
+
+function csvEscape(v){
+  const s = String(v ?? "");
+  if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+
+function exportAllClassesCSV(){
+  const classes = loadClasses().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
+  const header = ["classId","className","date","instructor","instructorEmail","location","targetCcf","studentCount","createdAt","updatedAt"].join(",");
+  const rows = classes.map(c=>[
+    c.id, c.name||"", c.dateISO||"", c.instructorName||"", c.instructorEmail||"", c.location||"", c.targetCcf??"", (c.students||[]).length, c.createdAt||"", c.updatedAt||""
+  ].map(csvEscape).join(","));
+  return [header, ...rows].join("\n");
+}
+
+function exportAllSessionsCSV(){
+  const classesById = new Map(loadClasses().map(c=>[c.id,c]));
+  const header = ["sessionId","startedAt","ccfPct","pauseCount","handsOffSec","durationSec","classId","className","studentId","studentName"].join(",");
+  const rows = loadSessions().map(s=>{
+    const cls = s.classId ? classesById.get(s.classId) : null;
+    const st = (cls && cls.students) ? cls.students.find(x=>x.id===s.studentId) : null;
+    return [
+      s.id, s.startedAt?new Date(s.startedAt).toISOString():"", s.ccfPct??"", (s.pauses&&s.pauses.length)?s.pauses.length:(s.pauseCount??""), s.handsOffSec??"", s.durationSec??"",
+      s.classId||"", cls?.name||"", s.studentId||"", st?.name||""
+    ].map(csvEscape).join(",");
+  });
+  return [header, ...rows].join("\n");
+}
+
+function exportAllCSV(){
+  return exportAllClassesCSV() + "\n\n" + exportAllSessionsCSV();
+}
+
+function exportOneClassCSV(classId){
+  if(!classId) return "No class selected";
+  const cls = getClassById(classId);
+  if(!cls) return "Class not found";
+  const sessions = loadSessions().filter(s=>s.classId===classId);
+  const header = ["className","date","instructor","instructorEmail","location","targetCcf"].join(",");
+  const classRow = [cls.name||"", cls.dateISO||"", cls.instructorName||"", cls.instructorEmail||"", cls.location||"", cls.targetCcf??""].map(csvEscape).join(",");
+  const studHeader = ["studentId","studentName","studentEmail","studentContact"].join(",");
+  const studRows = (cls.students||[]).map(st=>[st.id, st.name||"", st.email||"", st.contact||""].map(csvEscape).join(","));
+  const sessHeader = ["sessionId","startedAt","ccfPct","pauseCount","handsOffSec","durationSec","studentId","studentName"].join(",");
+  const sessRows = sessions.map(s=>{
+    const st = (cls.students||[]).find(x=>x.id===s.studentId);
+    return [s.id, s.startedAt?new Date(s.startedAt).toLocaleString():"", s.ccfPct??"", (s.pauses&&s.pauses.length)?s.pauses.length:(s.pauseCount??""), s.handsOffSec??"", s.durationSec??"", s.studentId||"", st?.name||""].map(csvEscape).join(",");
+  });
+  return [header, classRow, "", studHeader, ...studRows, "", sessHeader, ...sessRows].join("\n");
+}
+
+function exportOneStudentCSV(classId, studentId){
+  if(!classId || !studentId) return "Select class and student";
+  const cls = getClassById(classId);
+  if(!cls) return "Class not found";
+  const st = (cls.students||[]).find(x=>x.id===studentId);
+  if(!st) return "Student not found";
+  const sessions = loadSessions().filter(s=>s.classId===classId && s.studentId===studentId);
+  const header = ["studentName","studentEmail","className","classDate","attempts"].join(",");
+  const row = [st.name||"", st.email||"", cls.name||"", cls.dateISO||"", sessions.length].map(csvEscape).join(",");
+  const sessHeader = ["sessionId","startedAt","ccfPct","pauseCount","handsOffSec","durationSec","longestPause"].join(",");
+  const sessRows = sessions.map(s=>[s.id, s.startedAt?new Date(s.startedAt).toLocaleString():"", s.ccfPct??"", (s.pauses&&s.pauses.length)?s.pauses.length:(s.pauseCount??""), s.handsOffSec??"", s.durationSec??"", longestPauseSummary(s)].map(csvEscape).join(","));
+  return [header, row, "", sessHeader, ...sessRows].join("\n");
+}
+
+
+function renderLatestSession(latestSession){
+  const card = document.getElementById("latestSessionCard");
+  if(!card) return;
+  card.innerHTML = "";
+  if(!latestSession){
+    card.appendChild(el("div", { class:"dashSub" }, ["No saved sessions yet. Run a session to see it here."]));
+    return;
+  }
+  card.appendChild(el("div", { class:"dashGrid" }, [
+    stat("CCF", latestSession.ccfPct==null?"—":`${Math.round(latestSession.ccfPct)}%`),
+    stat("Pauses", String((latestSession.pauses && latestSession.pauses.length) ? latestSession.pauses.length : (latestSession.pauseCount ?? 0))),
+    stat("Hands-off", latestSession.handsOffSec==null?"—":`${Math.round(latestSession.handsOffSec)}s`),
+    stat("Duration", latestSession.durationSec==null?"—":`${Math.round(latestSession.durationSec)}s`),
+  ]));
+  card.appendChild(el("div", { class:"dashSub", style:"margin-top:10px;" }, [
+    "Longest pause: ", longestPauseSummary(latestSession)
+  ]));
+}
+
+
+function populateLatestStudents(){
+  const classId = document.getElementById("latestClassPicker")?.value || "";
+  const sel = document.getElementById("latestStudentSelect");
+  if(!sel) return;
+  sel.innerHTML = "";
+  sel.appendChild(el("option", { value:"" }, ["— Select student —"]));
+  if(!classId) return;
+  const cls = getClassById(classId);
+  if(!cls) return;
+  (cls.students||[]).forEach(st=>{
+    sel.appendChild(el("option", { value:st.id }, [st.name || "(Unnamed)"]));
+  });
+}

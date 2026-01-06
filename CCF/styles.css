@@ -1612,3 +1612,7 @@ body{
 .srRight{ flex:0 0 auto; text-align:right; }
 .srName{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 68vw; }
 @media (min-width: 480px){ .srName{ max-width: 360px; } }
+
+
+.stack10{ display:grid; gap:10px; }
+.stack12{ display:grid; gap:12px; }
