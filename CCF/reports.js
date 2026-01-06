@@ -176,7 +176,10 @@ function renderList(){
         el("div", { class:"dashTitle" }, ["Classes"]),
         el("div", { class:"dashSub" }, ["Create a class, add students, then assign CCF sessions."])
       ]),
+      el("div", { class:"row", style:"gap:10px; align-items:center;" }, [
+      el("button", { class:"secondaryBtn", type:"button", id:"btnPastSessions" }, ["Past sessions"]),
       el("button", { class:"primaryBtn", type:"button", id:"btnNewClass" }, ["+ New Class"])
+    ])
     ]),
   ]);
 
@@ -189,13 +192,43 @@ function renderList(){
   container.appendChild(Accordion({
     classId:null,
     id:"unassigned",
-    title:"Unassigned sessions",
-    subtitle:"Assign past runs to a class/student",
+    title:"Past sessions",
+    subtitle:"Unassigned first • assign or delete",
     defaultOpen:false,
     bodyEl: unBody
   }));
 
-  // Class list
+  
+
+// Export (collapsed by default)
+const exportBody = el("div", {}, [
+  el("div", { class:"dashSub" }, ["Export a class for the year, a single student, or everything."]),
+  el("label", { class:"field", style:"margin-top:10px;" }, [
+    el("span", { class:"fieldLabel" }, ["Export scope"]),
+    (function(){
+      const sel = el("select", { id:"exportScope" }, [
+        el("option", { value:"all" }, ["All classes (year record)"]),
+        el("option", { value:"class" }, ["One class"]),
+        el("option", { value:"student" }, ["One student"]),
+      ]);
+      return sel;
+    })()
+  ]),
+  el("div", { id:"exportPickers", style:"margin-top:10px; display:grid; gap:10px;" }, []),
+  el("div", { class:"row", style:"gap:10px; margin-top:10px; flex-wrap:wrap;" }, [
+    el("button", { class:"secondaryBtn", type:"button", id:"btnExportDownload" }, ["Download CSV"]),
+    el("button", { class:"secondaryBtn", type:"button", id:"btnExportEmail" }, ["Email CSV (draft)"]),
+  ])
+]);
+container.appendChild(Accordion({
+  classId:null,
+  id:"exportAll",
+  title:"Export",
+  subtitle:"Download / email",
+  defaultOpen:false,
+  bodyEl: exportBody
+}));
+// Class list
   const listEl = el("div", { class:"list", style:"margin-top:12px;" }, []);
   if(!classes.length){
     listEl.appendChild(el("div", { class:"empty" }, ["No classes yet. Tap “New Class” to create one."]));
@@ -224,6 +257,94 @@ function renderList(){
     upsertClass(cls);
     openClass(cls.id, true);
   });
+
+// Past sessions shortcut
+const btnPast = document.getElementById("btnPastSessions");
+if(btnPast){
+  btnPast.addEventListener("click", ()=>{
+    setOpen(null, "unassigned", true);
+    // re-render with open state applied
+    renderList();
+    setTimeout(()=>{
+      const hdr = document.querySelector('[data-acc="unassigned"]');
+      if(hdr) hdr.scrollIntoView({ behavior:"smooth", block:"start" });
+    }, 0);
+  });
+}
+
+// Export pickers
+const scopeSel = document.getElementById("exportScope");
+const pickWrap = document.getElementById("exportPickers");
+function renderPickers(){
+  if(!pickWrap) return;
+  pickWrap.innerHTML = "";
+  const scope = scopeSel ? scopeSel.value : "all";
+  const classesNow = loadClasses();
+  if(scope === "class" || scope === "student"){
+    const classSel = el("select", { id:"exportClassPick" }, [
+      el("option", { value:"" }, ["Select a class…"]),
+      ...classesNow.map(c=> el("option", { value:c.id }, [ (c.name||"Class") + (c.dateISO?(" • "+fmtDateISO(c.dateISO)):"") ]))
+    ]);
+    pickWrap.appendChild(el("label", { class:"field" }, [
+      el("span", { class:"fieldLabel" }, ["Class"]),
+      classSel
+    ]));
+    if(scope==="student"){
+      const stSel = el("select", { id:"exportStudentPick" }, [ el("option", { value:"" }, ["Select a student…"]) ]);
+      pickWrap.appendChild(el("label", { class:"field" }, [
+        el("span", { class:"fieldLabel" }, ["Student"]),
+        stSel
+      ]));
+      classSel.addEventListener("change", ()=>{
+        const cls = getClassById(classSel.value);
+        const st = (cls && Array.isArray(cls.students)) ? cls.students : [];
+        stSel.innerHTML = "";
+        stSel.appendChild(el("option", { value:"" }, ["Select a student…"]));
+        st.forEach(s=> stSel.appendChild(el("option", { value:s.id }, [s.name||"(Unnamed)"])));
+      });
+    }
+  }
+}
+if(scopeSel){
+  scopeSel.addEventListener("change", renderPickers);
+  renderPickers();
+}
+
+const btnDL = document.getElementById("btnExportDownload");
+const btnEM = document.getElementById("btnExportEmail");
+function getExportPayload(){
+  const scope = scopeSel ? scopeSel.value : "all";
+  if(scope==="all"){
+    return { filename:"ccf-all-classes.csv", csv: buildAllClassesCsv(loadClasses(), loadSessions()), emailTo: (loadDefaults().instructorEmail||"") };
+  }
+  const cId = (document.getElementById("exportClassPick")||{}).value || "";
+  const cls = cId ? getClassById(cId) : null;
+  if(!cls) return null;
+  if(scope==="class"){
+    return { filename: safeFile(`class-${cls.name||cls.id}.csv`), csv: buildClassCsv(cls), emailTo: cls.instructorEmail||loadDefaults().instructorEmail||"" };
+  }
+  const sId = (document.getElementById("exportStudentPick")||{}).value || "";
+  if(!sId) return null;
+  return { filename: safeFile(`student-${(cls.students||[]).find(x=>x.id===sId)?.name||sId}.csv`), csv: buildStudentCsv(cls, sId, loadSessions()), emailTo: (cls.students||[]).find(x=>x.id===sId)?.email||"" };
+}
+if(btnDL){
+  btnDL.addEventListener("click", ()=>{
+    const p = getExportPayload();
+    if(!p) return alert("Select an export scope/class/student first.");
+    downloadText(p.csv, p.filename);
+  });
+}
+if(btnEM){
+  btnEM.addEventListener("click", ()=>{
+    const p = getExportPayload();
+    if(!p) return alert("Select an export scope/class/student first.");
+    const to = p.emailTo || "";
+    const subj = "CCF Export";
+    const body = "CSV below:\n\n" + p.csv;
+    location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+  });
+}
+
 }
 
 function classCard(cls){
@@ -283,6 +404,24 @@ function renderClass(classId, isNew){
 
   // --- Class info
   const infoBody = el("div", { class:"formGrid" }, [
+
+// Class picker (switch between saved classes) + create new
+el("div", { class:"row", style:"gap:10px; flex-wrap:wrap; align-items:flex-end; grid-column:1 / -1;" }, [
+  el("label", { class:"field", style:"flex:1; min-width:220px; margin:0;" }, [
+    el("span", { class:"fieldLabel" }, ["Select saved class (optional)"]),
+    (function(){
+      const sel = el("select", { id:"classPicker" }, [
+        el("option", { value:"" }, ["— Current class —"]),
+        ...loadClasses().map(c=> el("option", { value:c.id }, [
+          `${(c.name||"Class")}${c.dateISO?(" • "+fmtDateISO(c.dateISO)):""}`
+        ]))
+      ]);
+      return sel;
+    })()
+  ]),
+  el("button", { class:"secondaryBtn", type:"button", id:"btnNewClassFromSetup" }, ["+ New class"])
+]),
+
     field("Class name (optional)", "text", "className", cls.name || "", "Ex: EMT Skills Day"),
     field("Date", "date", "classDate", cls.dateISO || todayISO(), ""),
     field("Instructor (optional)", "text", "instrName", cls.instructorName || "", ""),
@@ -378,6 +517,37 @@ function renderClass(classId, isNew){
 
   // Handlers
   document.getElementById("btnBack").addEventListener("click", renderList);
+
+// Class picker + new class (inside Class setup)
+const clsPick = document.getElementById("classPicker");
+if(clsPick){
+  clsPick.addEventListener("change", ()=>{
+    const v = clsPick.value;
+    if(v) renderClass(v, false);
+  });
+}
+const btnNewFrom = document.getElementById("btnNewClassFromSetup");
+if(btnNewFrom){
+  btnNewFrom.addEventListener("click", ()=>{
+    const d = loadDefaults();
+    const newCls = {
+      id: uid(),
+      name: "",
+      dateISO: new Date().toISOString().slice(0,10),
+      instructorName: d.instructorName || "",
+      instructorEmail: d.instructorEmail || "",
+      location: d.location || "",
+      targetCcf: 80,
+      sessionLengthSec: 120,
+      students: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    upsertClass(newCls);
+    renderClass(newCls.id, true);
+  });
+}
+
 
   // Autosave class fields (debounced)
   const debSave = ()=>{
@@ -851,6 +1021,56 @@ function downloadText(text, filename){
   document.body.appendChild(a);
   a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+
+function buildAllClassesCsv(classes, sessions){
+  classes = Array.isArray(classes) ? classes : [];
+  sessions = Array.isArray(sessions) ? sessions : [];
+  const lines = [];
+  lines.push("class_id,class_name,date,instructor,instructor_email,location,students,assigned_sessions,avg_ccf");
+  classes.forEach(c=>{
+    const stCount = (c.students||[]).filter(s=>String(s?.name||"").trim()).length;
+    const ss = sessions.filter(s=>s.classId===c.id && s.studentId);
+    const avg = ss.length ? (ss.reduce((a,x)=>a+(Number(x.ccf)||0),0)/ss.length) : null;
+    lines.push([
+      csv(c.id),
+      csv(c.name||""),
+      csv(c.dateISO||""),
+      csv(c.instructorName||""),
+      csv(c.instructorEmail||""),
+      csv(c.location||""),
+      stCount,
+      ss.length,
+      avg===null ? "" : Math.round(avg)
+    ].join(","));
+  });
+  return lines.join("\n");
+}
+
+function buildStudentCsv(cls, studentId, sessions){
+  sessions = Array.isArray(sessions) ? sessions : [];
+  const st = (cls.students||[]).find(s=>s.id===studentId);
+  const ss = sessions.filter(s=>s.classId===cls.id && s.studentId===studentId);
+  const lines = [];
+  lines.push("class_name,student_name,student_email,session_id,started_at,ccf,pause_count,longest_pause_sec,longest_pause_reason");
+  ss.forEach(s=>{
+    lines.push([
+      csv(cls.name||""),
+      csv(st?.name||""),
+      csv(st?.email||""),
+      csv(s.id||""),
+      csv(new Date(s.startedAt||0).toISOString()),
+      s.ccf ?? "",
+      s.pauseCount ?? "",
+      s.longestPauseSec ?? "",
+      csv(s.longestPauseReason||"")
+    ].join(","));
+  });
+  if(!ss.length){
+    lines.push([csv(cls.name||""),csv(st?.name||""),csv(st?.email||""),"","","","","",""].join(","));
+  }
+  return lines.join("\n");
 }
 function buildClassCsv(cls){
   const sessions = loadSessions().filter(s=>s.classId===cls.id);

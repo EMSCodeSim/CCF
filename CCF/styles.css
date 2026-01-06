@@ -1487,48 +1487,6 @@ body{
 /* Click-safety (desktop) */
 .accHead, button, a, .primaryBtn, .secondaryBtn, .endBtn { position: relative; z-index: 2; }
 
-/* --- End summary card --- */
-.endSummaryCard{
-  margin: 12px 16px 0;
-  padding: 14px 14px 12px;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.06);
-}
-.endSummaryTitle{
-  font-weight: 900;
-  letter-spacing: 0.2px;
-}
-.endSummaryGrid{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 10px;
-}
-.endSummaryItem{
-  padding: 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.12);
-}
-.endSummaryWide{
-  grid-column: 1 / -1;
-}
-.endLabel{
-  font-size: 12px;
-  opacity: 0.78;
-}
-.endValue{
-  margin-top: 4px;
-  font-size: 18px;
-  font-weight: 900;
-}
-.endSummaryHint{
-  margin-top: 10px;
-  font-size: 12px;
-  opacity: 0.85;
-}
-
 .dangerBtn{
   padding: 10px 14px;
   border-radius: 14px;
@@ -1647,3 +1605,10 @@ body{
   .modalOverlay{ align-items:center; }
   .dashGrid{ grid-template-columns: repeat(4, minmax(0,1fr)); }
 }
+
+
+/* Mobile-friendly student rows */
+.srLeft{ flex:1; min-width:0; }
+.srRight{ flex:0 0 auto; text-align:right; }
+.srName{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 68vw; }
+@media (min-width: 480px){ .srName{ max-width: 360px; } }
