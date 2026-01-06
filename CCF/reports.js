@@ -967,7 +967,7 @@ const ACC_KEY = "ccf.reportsAccordion.v1";
 function loadAccState() {
   const raw = safeParseJSON(localStorage.getItem(ACC_KEY) || "", null);
   if (raw && typeof raw === "object") return raw;
-  return { classSetup: false, latest: true, classReport: false, export: false };
+  return { classSetup: false, latest: false, classReport: false, export: false };
 }
 function saveAccState(state) {
   try { localStorage.setItem(ACC_KEY, JSON.stringify(state)); } catch {}
@@ -1287,7 +1287,10 @@ function boot() {
 
   // Accordions + modals
   wireAccordions(proEnabled);
-  wireStudentModal();
+    // Force all accordions collapsed on open
+  ["classSetup","latest","classReport","export"].forEach(id=>setAccOpen(id,false));
+  saveAccState({ classSetup:false, latest:false, classReport:false, export:false });
+wireStudentModal();
 
   // Latest card
   if (proEnabled) renderLatestPro(sessions[0]);
