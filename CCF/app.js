@@ -762,7 +762,10 @@ function init() {
       lastTs = ts;
 
       const t = e.target;
-      const el = t && t.closest ? t.closest("#btnCpr,#btnPause,#btnEnd,#btnSettings,#btnSettingsClose,#btnResumeFromPause") : null;
+      let el = null;
+      if (t && t.closest) {
+        try { el = t.closest("#btnCpr,#btnPause,#btnEnd,#btnSettings,#btnSettingsClose,#btnResumeFromPause"); } catch (err) { el = null; }
+      }
       if (!el) return;
 
       // Prevent accidental navigation / click-through
