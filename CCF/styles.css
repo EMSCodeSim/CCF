@@ -1528,3 +1528,13 @@ body{
   font-size: 12px;
   opacity: 0.85;
 }
+
+.dangerBtn{
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(220,60,60,0.35);
+  color: rgba(255,255,255,0.95);
+  font-weight: 800;
+}
+.dangerBtn:active{ transform: scale(0.99); }

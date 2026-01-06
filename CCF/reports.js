@@ -883,6 +883,19 @@ function syncClassUI(proEnabled) {
 }
 
 // --- Roster Editor (Class Setup) ---
+
+function readRosterFromEditor() {
+  const wrap = document.getElementById("rosterEditor");
+  if (!wrap) return [];
+  const rows = Array.from(wrap.querySelectorAll(".rosterRow"));
+  return rows.map((row) => {
+    const name = (row.querySelector(".roName")?.value || "").trim();
+    const email = (row.querySelector(".roEmail")?.value || "").trim();
+    const contact = (row.querySelector(".roContact")?.value || "").trim();
+    const score = (row.querySelector(".roScore")?.value || "").trim();
+    return { name, email, contact, score };
+  }).filter(r => r.name || r.email || r.contact || r.score);
+}
 function renderRosterEditor(students) {
   const wrap = document.getElementById("rosterEditor");
   if (!wrap) return;
@@ -1118,7 +1131,8 @@ function wireClassSetup(proEnabled) {
       const nm = String(quickAddStudentName?.value || "").trim();
       if (!nm) return alert("Enter a student name.");
 
-      const st = readRosterFromEditor();
+      const clsNow = loadClassSetup() || { students: [] };
+      const st = Array.isArray(clsNow.students) ? clsNow.students : [];
       const exists = st.some(s => String(s?.name || "").trim().toLowerCase() === nm.toLowerCase());
       if (!exists) {
         st.push({ name: nm, email: "", contact: "", score: "" });
@@ -1131,9 +1145,8 @@ function wireClassSetup(proEnabled) {
       }
 
       if (quickAddStudentName) quickAddStudentName.value = "";
-      const cls = loadClassSetup() || {};
-      cls.students = st;
-      saveClassSetup(cls);
+      clsNow.students = st;
+      saveClassSetup(clsNow);
       syncClassUI(true);
     });
   }
@@ -1181,6 +1194,223 @@ function wireClassSetup(proEnabled) {
   }
 }
 
+
+function renderHistoryList() {
+  const wrap = document.getElementById("historyList");
+  if (!wrap) return;
+
+  const arr = loadSessions();
+  const total = arr.length;
+  const limit = 25;
+  const list = arr.slice(0, limit);
+
+  if (!total) {
+    wrap.innerHTML = `<div class="upgradeNote">No saved sessions yet.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = list.map((s, i) => {
+    const when = new Date(s.endedAt || s.startedAt || Date.now()).toLocaleString();
+    const ccf = (typeof s.ccf === "number") ? Math.round(s.ccf) + "%" : (typeof s.finalCcf === "number" ? Math.round(s.finalCcf) + "%" : "—");
+    const student = sessionDisplayName(s);
+    return `
+      <div class="historyRow" data-si="${i}">
+        <div class="historyLeft">
+          <div class="historyTitle">${escapeHtml(ccf)} • ${escapeHtml(student)}</div>
+          <div class="historyMeta">${escapeHtml(when)}</div>
+        </div>
+        <div class="historyActions">
+          <button class="secondaryBtn btnSessionView" type="button" data-si="${i}">View</button>
+          <button class="secondaryBtn btnSessionDownload" type="button" data-si="${i}">Download</button>
+          <button class="dangerBtn btnSessionDelete" type="button" data-si="${i}">Delete</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // bind via delegation
+  wrap.onclick = (e) => {
+    const t = e.target;
+    const si = t?.getAttribute?.("data-si");
+    if (si == null) return;
+    const idx = Number(si);
+    if (!Number.isFinite(idx)) return;
+
+    if (t.classList.contains("btnSessionView")) {
+      openSessionModal(idx);
+    } else if (t.classList.contains("btnSessionDownload")) {
+      const s = loadSessions()[idx];
+      if (!s) return;
+      const student = sessionDisplayName(s).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
+      const stamp = new Date(s.endedAt || Date.now()).toISOString().slice(0, 10);
+      downloadReportCard(s, `${stamp}_${student}.txt`);
+    } else if (t.classList.contains("btnSessionDelete")) {
+      const arr2 = loadSessions();
+      const s = arr2[idx];
+      if (!s) return;
+      const ok = confirm("Delete this session? This cannot be undone.");
+      if (!ok) return;
+      arr2.splice(idx, 1);
+      saveSessions(arr2);
+      boot();
+    }
+  };
+}
+
+function openSessionModal(idx) {
+  const overlay = document.getElementById("sessionOverlay");
+  const title = document.getElementById("sessionModalTitle");
+  const sub = document.getElementById("sessionModalSub");
+  const body = document.getElementById("sessionModalBody");
+  const btnClose = document.getElementById("btnCloseSessionModal");
+  if (!overlay || !title || !sub || !body) return;
+
+  const sessions = loadSessions();
+  const s = sessions[idx];
+  if (!s) return;
+
+  const cls = loadClassSetup() || {};
+  const roster = Array.isArray(cls.students) ? cls.students : [];
+  const names = roster.map(r => String(r?.name || "").trim()).filter(Boolean);
+
+  const when = new Date(s.endedAt || s.startedAt || Date.now()).toLocaleString();
+  const ccf = (typeof s.ccf === "number") ? Math.round(s.ccf) : (typeof s.finalCcf === "number" ? Math.round(s.finalCcf) : null);
+  const pauses = Array.isArray(s.pauses) ? s.pauses.length : (s.pauseCount ?? 0);
+  const longest = getLongestPause(s);
+
+  title.textContent = "Session Details";
+  sub.textContent = when;
+
+  const currentStudent = (s.assignedTo && s.assignedTo.student) ? s.assignedTo.student : "";
+  const className = (cls.name || "").trim();
+
+  body.innerHTML = `
+    <div class="reportCard">
+      <div><strong>CCF:</strong> ${ccf == null ? "—" : ccf + "%"}</div>
+      <div><strong>Pauses:</strong> ${pauses}</div>
+      <div><strong>Longest pause:</strong> ${escapeHtml(longest.label)} (${fmt(longest.ms)})</div>
+      <div style="margin-top:6px;"><strong>Assigned student:</strong> ${escapeHtml(currentStudent || "Unassigned")}</div>
+      <div><strong>Class:</strong> ${escapeHtml(s.classContext?.name || className || "—")}</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="dashTitle">Assign</div>
+    <label class="field">
+      <span class="fieldLabel">Student</span>
+      <select id="sessionAssignSelect">
+        <option value="">Unassigned</option>
+        ${names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("")}
+      </select>
+    </label>
+
+    <div class="studentRow" style="align-items:flex-end;">
+      <label class="field" style="margin:0; flex:1;">
+        <span class="fieldLabel">Or add new student now</span>
+        <input id="sessionAssignNewName" type="text" placeholder="Student name" />
+      </label>
+      <button class="secondaryBtn" id="btnSessionAddStudent" type="button">Add</button>
+    </div>
+
+    <label class="field">
+      <span class="fieldLabel">Attach to current class</span>
+      <select id="sessionAttachClass">
+        <option value="1">Yes (${escapeHtml(className || "No class name")})</option>
+        <option value="0">No</option>
+      </select>
+    </label>
+
+    <div class="row" style="gap:10px; flex-wrap:wrap;">
+      <button class="endBtn" id="btnSessionSaveAssign" type="button">Save</button>
+      <button class="secondaryBtn" id="btnSessionDownload" type="button">Download</button>
+      <button class="dangerBtn" id="btnSessionDelete" type="button">Delete</button>
+    </div>
+  `;
+
+  // preset selection
+  const sel = document.getElementById("sessionAssignSelect");
+  if (sel) sel.value = currentStudent;
+
+  document.getElementById("btnSessionAddStudent")?.addEventListener("click", () => {
+    const nm = String(document.getElementById("sessionAssignNewName")?.value || "").trim();
+    if (!nm) return alert("Enter a student name.");
+    const cls2 = loadClassSetup() || { students: [] };
+    cls2.students = Array.isArray(cls2.students) ? cls2.students : [];
+    if (!cls2.students.some(r => String(r?.name||"").trim().toLowerCase() === nm.toLowerCase())) {
+      cls2.students.push({ name: nm, email: "", contact: "", score: "" });
+      saveClassSetup(cls2);
+    }
+    boot(); // refresh lists
+    // reopen modal to same session index
+    setTimeout(() => openSessionModal(idx), 50);
+  });
+
+  document.getElementById("btnSessionSaveAssign")?.addEventListener("click", () => {
+    const sessions2 = loadSessions();
+    const sess = sessions2[idx];
+    if (!sess) return;
+    const chosen = String(document.getElementById("sessionAssignSelect")?.value || "").trim();
+    const attach = String(document.getElementById("sessionAttachClass")?.value || "1") === "1";
+
+    if (chosen) sess.assignedTo = { student: chosen, assignedAt: Date.now() };
+    else delete sess.assignedTo;
+
+    if (attach) {
+      const cls3 = loadClassSetup() || {};
+      sess.classContext = {
+        name: (cls3.name || "").trim(),
+        instructor: (cls3.instructor || "").trim(),
+        location: (cls3.location || "").trim()
+      };
+    } else {
+      delete sess.classContext;
+    }
+
+    sessions2[idx] = sess;
+    saveSessions(sessions2);
+    overlay.style.display = "none";
+    boot();
+  });
+
+  document.getElementById("btnSessionDownload")?.addEventListener("click", () => {
+    const sess = loadSessions()[idx];
+    if (!sess) return;
+    const student = sessionDisplayName(sess).replaceAll(/[^a-z0-9 _-]/gi, "").trim() || "report";
+    const stamp = new Date(sess.endedAt || Date.now()).toISOString().slice(0, 10);
+    downloadReportCard(sess, `${stamp}_${student}.txt`);
+  });
+
+  document.getElementById("btnSessionDelete")?.addEventListener("click", () => {
+    const sessions2 = loadSessions();
+    if (!sessions2[idx]) return;
+    const ok = confirm("Delete this session? This cannot be undone.");
+    if (!ok) return;
+    sessions2.splice(idx, 1);
+    saveSessions(sessions2);
+    overlay.style.display = "none";
+    boot();
+  });
+
+  if (btnClose && !btnClose.__listenerAttached) {
+    btnClose.__listenerAttached = true;
+    btnClose.addEventListener("click", () => { overlay.style.display = "none"; });
+  }
+
+  overlay.style.display = "flex";
+}
+
+function getLongestPause(s) {
+  let best = { ms: 0, label: "—" };
+  const pauses = Array.isArray(s.pauses) ? s.pauses : [];
+  pauses.forEach(p => {
+    const ms = p.ms ?? p.durMs ?? 0;
+    if (ms > best.ms) {
+      const reason = (p.reasons && p.reasons.length) ? p.reasons[0] : (p.reason || "Unspecified");
+      best = { ms, label: String(reason || "Unspecified") };
+    }
+  });
+  return best;
+}
 function wireProActions(proEnabled) {
   // This section lives under "Most Recent Score"
   const btnAssign = document.getElementById("btnAssignLatest");

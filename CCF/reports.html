@@ -162,6 +162,28 @@
   </div>
 
 </section>
+    </section>
+
+    <section class="dashCard" id="historyCard" aria-label="Past sessions">
+      <div class="dashTitle">Past Sessions</div>
+      <div class="dashSub">View, assign, delete, or download previous CCF sessions.</div>
+      <div id="historyList" class="historyList"></div>
+    </section>
+
+    <!-- Session modal -->
+    <div class="overlay" id="sessionOverlay" style="display:none;">
+      <div class="modal">
+        <div class="modalHeader">
+          <div>
+            <div class="modalTitle" id="sessionModalTitle">Session</div>
+            <div class="modalSub" id="sessionModalSub"></div>
+          </div>
+          <button class="secondaryBtn" id="btnCloseSessionModal" type="button">Close</button>
+        </div>
+        <div class="modalBody" id="sessionModalBody"></div>
+      </div>
+    </div>
+    
 
         </div>
       </section>
