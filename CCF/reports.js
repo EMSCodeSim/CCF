@@ -52,8 +52,8 @@ function applyClassLockUI(cls) {
     "btnAddStudent",
     "btnSaveClass",
     "btnClearClass",
-    "quickAddName",
-    "btnQuickAddAssign",
+    "quickAddStudentName",
+    "btnQuickAddStudent",
   ];
   ids.forEach((id) => {
     const el = document.getElementById(id);
@@ -1069,25 +1069,28 @@ function openStudentModal(studentName, sessions) {
   overlay.classList.add("show");
 }
 
-function wireClassSetup(
-proEnabled) {
+function wireClassSetup(proEnabled) {
   if (!proEnabled) return;
   const btnSave = document.getElementById("btnSaveClass");
   const btnClear = document.getElementById("btnClearClass");
   const btnAddStudent = document.getElementById("btnAddStudent");
+  const btnQuickAddStudent = document.getElementById("btnQuickAddStudent");
+  const quickAddStudentName = document.getElementById("quickAddStudentName");
   const elName = document.getElementById("className");
   const elInstr = document.getElementById("instructorName");
+  const elEmail = document.getElementById("instructorEmail");
   const elLoc = document.getElementById("classLocation");
   const elTarget = document.getElementById("targetCcf");
   const elLen = document.getElementById("sessionLengthSec");
 
   // Prevent double-binding when boot() re-runs
-  if (btnSave && btnSave.dataset.bound === "1") return;
-  if (btnSave) btnSave.dataset.bound = "1";
-  if (btnClear) btnClear.dataset.bound = "1";
-  if (btnAddStudent) btnAddStudent.dataset.bound = "1";
+  if (btnSave && btnSave.dataset.bound !== "1") btnSave.dataset.bound = "1";
+  if (btnClear && btnClear.dataset.bound !== "1") btnClear.dataset.bound = "1";
+  if (btnAddStudent && btnAddStudent.dataset.bound !== "1") btnAddStudent.dataset.bound = "1";
+  if (btnQuickAddStudent && btnQuickAddStudent.dataset.bound !== "1") btnQuickAddStudent.dataset.bound = "1";
 
-  if (btnAddStudent) {
+  if (btnAddStudent && !btnAddStudent.__listenerAttached) {
+    btnAddStudent.__listenerAttached = true;
     btnAddStudent.addEventListener("click", () => {
       const st = readRosterFromEditor();
       st.push({ name: "", email: "", contact: "", score: "" });
@@ -1106,7 +1109,35 @@ proEnabled) {
     });
   }
 
-  if (btnSave) {
+  // Quick add: adds a named student to the roster (does NOT assign a score/session)
+  if (btnQuickAddStudent && !btnQuickAddStudent.__listenerAttached) {
+    btnQuickAddStudent.__listenerAttached = true;
+    btnQuickAddStudent.addEventListener("click", () => {
+      const nm = String(quickAddStudentName?.value || "").trim();
+      if (!nm) return alert("Enter a student name.");
+
+      const st = readRosterFromEditor();
+      const exists = st.some(s => String(s?.name || "").trim().toLowerCase() === nm.toLowerCase());
+      if (!exists) {
+        st.push({ name: nm, email: "", contact: "", score: "" });
+        renderRosterEditor(st);
+        const sel = document.getElementById("studentSelect");
+        if (sel) {
+          const names = st.map(x => String(x.name||"").trim()).filter(Boolean);
+          sel.innerHTML = ["Unassigned", ...names].map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+        }
+      }
+
+      if (quickAddStudentName) quickAddStudentName.value = "";
+      const cls = loadClassSetup() || {};
+      cls.students = st;
+      saveClassSetup(cls);
+      syncClassUI(true);
+    });
+  }
+
+  if (btnSave && !btnSave.__listenerAttached) {
+    btnSave.__listenerAttached = true;
     btnSave.addEventListener("click", () => {
       const name = (elName?.value || "").trim();
       const instructor = (elInstr?.value || "").trim();
