@@ -1323,9 +1323,40 @@ function boot(){
   }
 }
 
-document.addEventListener("DOMContentLoaded", boot);
-
-
+function __reportsFatal(err){
+  try{ console.error(err); }catch{}
+  try{
+    const root = document.getElementById("app");
+    if(root){
+      root.innerHTML = `
+        <div class="pad16">
+          <div class="dashCard">
+            <div class="dashTitle">Reports failed to load</div>
+            <div class="dashSub" style="margin-top:6px;">${(err && err.message) ? err.message : err}</div>
+            <div class="row" style="gap:10px; margin-top:12px; flex-wrap:wrap;">
+              <button class="secondaryBtn" id="btnReportsRetry" type="button">Retry</button>
+              <button class="endBtn" id="btnReportsClear" type="button">Reset Reports Data</button>
+            </div>
+            <div class="dashSub" style="margin-top:10px;">Tip: “Reset Reports Data” clears saved classes UI state (sessions are kept).</div>
+          </div>
+        </div>`;
+      const r = document.getElementById("btnReportsRetry");
+      if(r) r.onclick = ()=>{ location.reload(); };
+      const c = document.getElementById("btnReportsClear");
+      if(c) c.onclick = ()=>{
+        try{
+          localStorage.removeItem(CLASSES_KEY);
+          localStorage.removeItem(DEFAULTS_KEY);
+          localStorage.removeItem(UI_KEY);
+        }catch{}
+        location.reload();
+      };
+    }
+  }catch{}
+}
+window.addEventListener("error", (e)=>{ __reportsFatal(e.error || e.message || e); });
+window.addEventListener("unhandledrejection", (e)=>{ __reportsFatal(e.reason || e); });
+document.addEventListener("DOMContentLoaded", ()=>{ try{ boot(); }catch(err){ __reportsFatal(err); } });
 function safeBind(id, fn, evt="click"){
   const elx = document.getElementById(id);
   if(!elx) return;
