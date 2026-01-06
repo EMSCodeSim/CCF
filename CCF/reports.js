@@ -52,9 +52,7 @@ function applyClassLockUI(cls) {
     "btnAddStudent",
     "btnSaveClass",
     "btnClearClass",
-    "quickAddStudentName",
-    "btnQuickAddStudent",
-  ];
+      ];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1092,6 +1090,8 @@ function wireClassSetup(proEnabled) {
   if (btnAddStudent && !btnAddStudent.__listenerAttached) {
     btnAddStudent.__listenerAttached = true;
     btnAddStudent.addEventListener("click", () => {
+      const _clsLock = loadClassSetup() || {};
+      if (_clsLock.locked) return alert("Class Setup is locked. Turn off \"Lock Class Setup\" to edit the roster.");
       const st = readRosterFromEditor();
       st.push({ name: "", email: "", contact: "", score: "" });
       renderRosterEditor(st);
@@ -1113,6 +1113,8 @@ function wireClassSetup(proEnabled) {
   if (btnQuickAddStudent && !btnQuickAddStudent.__listenerAttached) {
     btnQuickAddStudent.__listenerAttached = true;
     btnQuickAddStudent.addEventListener("click", () => {
+      const _clsLock = loadClassSetup() || {};
+      if (_clsLock.locked) return alert("Class Setup is locked. Turn off \"Lock Class Setup\" to edit the roster.");
       const nm = String(quickAddStudentName?.value || "").trim();
       if (!nm) return alert("Enter a student name.");
 
