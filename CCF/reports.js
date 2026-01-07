@@ -128,11 +128,6 @@ function el(tag, attrs, ...children){
 
   return n;
 }
-function sessionStamp(s){
-  const t = s?.startedAt ?? s?.endedAt ?? s?.ended ?? s?.timestamp ?? null;
-  return t ? new Date(t).toLocaleString() : "";
-}
-
 function fmtDateISO(iso){
   try{
     if(!iso) return "";
@@ -273,7 +268,7 @@ function renderList(){
       el("span", { class:"fieldLabel" }, ["Student"]),
       el("select", { id:"latestStudentSelect" }, [ el("option", { value:"" }, ["— Select student —"]) ])
     ]),
-    el("button", { class:"endBtn", type:"button", id:"btnAssignLatest" }, ["Assign to student"])
+    el("button", { class:"endBtn", type:"button", id:"btnAssignLatest" }, ["Assign"])
   ]));
 
   // Add student inline (simple)
@@ -411,21 +406,10 @@ function renderList(){
   });
 
   safeBind("btnAssignLatest", ()=>{
+  const classId = document.getElementById("latestClassPicker").value;
   if(!latestSession) return alert("No sessions saved yet.");
-  const classId = document.getElementById("latestClassPicker")?.value || "";
   if(!classId) return alert("Select a class first.");
-  const studentId = document.getElementById("latestStudentSelect")?.value || "";
-  if(!studentId) return alert("Select a student (or use Add Student).");
-  const arr = loadSessions();
-  const idx = arr.findIndex(x=>x.id===latestSession.id);
-  if(idx<0) return;
-  arr[idx].classId = classId;
-  arr[idx].studentId = studentId;
-  saveSessions(arr);
-  localStorage.setItem("ccf.currentClassId", classId);
-  alert("Assigned to student.");
-  boot();
-});
+  showAssignModal(latestSession, { classId });
 });
 
   populateLatestStudents();
@@ -1674,49 +1658,15 @@ function renderLatestSession(latestSession){
     card.appendChild(el("div", { class:"dashSub" }, ["No saved sessions yet. Run a session to see it here."]));
     return;
   }
-
-  // Header
-  card.appendChild(el("div", { class:"dashTitle" }, ["Last session report"]));
-  const stamp = sessionStamp(latestSession);
-  if(stamp) card.appendChild(el("div", { class:"dashSub" }, [stamp]));
-
-  // Key stats
-  card.appendChild(el("div", { class:"dashGrid", style:"margin-top:10px;" }, [
+  card.appendChild(el("div", { class:"dashGrid" }, [
     stat("CCF", latestSession.ccfPct==null?"—":`${Math.round(latestSession.ccfPct)}%`),
     stat("Pauses", String((latestSession.pauses && latestSession.pauses.length) ? latestSession.pauses.length : (latestSession.pauseCount ?? 0))),
     stat("Hands-off", latestSession.handsOffSec==null?"—":`${Math.round(latestSession.handsOffSec)}s`),
     stat("Duration", latestSession.durationSec==null?"—":`${Math.round(latestSession.durationSec)}s`),
   ]));
-
   card.appendChild(el("div", { class:"dashSub", style:"margin-top:10px;" }, [
     "Longest pause: ", longestPauseSummary(latestSession)
   ]));
-
-  // Pause list
-  const pauses = Array.isArray(latestSession.pauses) ? latestSession.pauses : [];
-  if(!pauses.length){
-    card.appendChild(el("div", { class:"dashSub", style:"margin-top:10px; opacity:.85;" }, [
-      "No pauses recorded (pause prompt may be OFF)."
-    ]));
-    return;
-  }
-
-  card.appendChild(el("div", { class:"dashTitle", style:"margin-top:12px;" }, ["Pauses"]));
-  const list = el("div", { class:"pauseList", style:"display:grid; gap:8px; margin-top:8px;" }, []);
-  pauses.forEach((p,i)=>{
-    const reason = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
-    const ms = p.ms ?? p.durMs ?? 0;
-    // show either relative time (if startMs exists) or order
-    const rel = (p.startMs!=null) ? `@ ${fmt(p.startMs)}` : `#${i+1}`;
-    list.appendChild(el("div", { class:"pauseRow", style:"padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(0,0,0,.08);" }, [
-      el("div", { style:"display:flex; justify-content:space-between; gap:10px; align-items:baseline;" }, [
-        el("div", { style:"font-weight:800;" }, [reason]),
-        el("div", { style:"opacity:.9; font-variant-numeric: tabular-nums;" }, [fmt(ms)])
-      ]),
-      el("div", { class:"dashSub", style:"margin-top:4px; opacity:.85;" }, [rel])
-    ]));
-  });
-  card.appendChild(list);
 }
 
 
