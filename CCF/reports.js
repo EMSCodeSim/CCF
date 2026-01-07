@@ -92,8 +92,10 @@ const app = () => document.getElementById("app");
 function el(tag, attrs, ...children){
   const n = document.createElement(tag);
 
-  // Allow el(tag, child1, child2...) (attrs omitted)
-  const isAttrs = attrs && typeof attrs === "object" && !Array.isArray(attrs) &&
+  const isAttrs =
+    attrs &&
+    typeof attrs === "object" &&
+    !Array.isArray(attrs) &&
     !(attrs instanceof Node) &&
     !(attrs instanceof NodeList) &&
     !(attrs instanceof HTMLCollection);
@@ -106,28 +108,33 @@ function el(tag, attrs, ...children){
   Object.entries(attrs||{}).forEach(([k,v])=>{
     if(k==="class") n.className = v;
     else if(k==="html") n.innerHTML = v;
-    else if(k.startsWith("on") && typeof v==="function") n.addEventListener(k.slice(2).toLowerCase(), v);
-    else if(v!==null && v!==undefined) n.setAttribute(k, String(v));
+    else if(k.startsWith("on") && typeof v==="function")
+      n.addEventListener(k.slice(2).toLowerCase(), v);
+    else if(v!==null && v!==undefined)
+      n.setAttribute(k, String(v));
   });
 
-  // Normalize children: allow single node/string, arrays, NodeList, HTMLCollection
-  const flat = [];
-  const pushChild = (ch)=>{
+  const append = (ch)=>{
     if(ch===null || ch===undefined || ch===false) return;
-    if(Array.isArray(ch)) ch.forEach(pushChild);
-    else if(ch instanceof NodeList || ch instanceof HTMLCollection) Array.from(ch).forEach(pushChild);
-    else flat.push(ch);
+
+    if(Array.isArray(ch)){
+      ch.forEach(append);
+    }
+    else if(ch instanceof Node){
+      n.appendChild(ch);
+    }
+    else if(ch instanceof NodeList || ch instanceof HTMLCollection){
+      Array.from(ch).forEach(append);
+    }
+    else {
+      n.appendChild(document.createTextNode(String(ch)));
+    }
   };
-  children.forEach(pushChild);
 
-  flat.forEach(ch=>{
-    if(ch===null || ch===undefined) return;
-    if(typeof ch==="string" || typeof ch==="number") n.appendChild(document.createTextNode(String(ch)));
-    else n.appendChild(ch);
-  });
-
+  children.forEach(append);
   return n;
 }
+
 function sessionStamp(s){
   const t = s?.startedAt ?? s?.endedAt ?? s?.ended ?? s?.timestamp ?? null;
   return t ? new Date(t).toLocaleString() : "";
@@ -168,7 +175,8 @@ function setOpen(classId, sectionId, open){
 }
 function Accordion({classId, id, title, subtitle, defaultOpen=false, bodyEl}){
   const open = isOpen(classId, id) || defaultOpen;
-  const hdr = el("button", { class:"accHeader", type:"button" }, [
+  const hdr = el("button", { class:"accHeader",
+    "data-acc": id, type:"button" }, [
     el("div", { class:"accHdrLeft" }, [
       el("div", { class:"accTitle" }, [title]),
       subtitle ? el("div", { class:"accSub" }, [subtitle]) : null
