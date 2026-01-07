@@ -134,6 +134,78 @@ function ensureBadgeStyles(){
 /* ---------- DOM ---------- */
 const app = () => document.getElementById("app");
 function el(tag, attrs, ...children){
+
+function normalizeSession(raw){
+  const s = raw || {};
+  const startedAt = s.startedAt ?? s.startAt ?? s.started ?? s.timestamp ?? null;
+  const endedAt   = s.endedAt ?? s.endAt ?? s.ended ?? null;
+
+  const ccfPct = num(
+    s.ccfPct ?? s.ccf ?? s.ccfPercent ?? s.ccf_percentage ?? s.finalCcf ?? s.finalCCF ?? s.ccfScore ?? s.ccf_score
+  );
+
+  // Duration seconds (prefer stored, else compute)
+  let durationSec = num(s.durationSec ?? s.totalSec ?? s.totalSeconds ?? s.elapsedSec);
+  if(durationSec==null && startedAt && endedAt){
+    durationSec = Math.max(0, (new Date(endedAt)-new Date(startedAt))/1000);
+  }
+
+  // Pauses array
+  const pauses = Array.isArray(s.pauses) ? s.pauses : (Array.isArray(s.pauseEvents) ? s.pauseEvents : []);
+  const pauseCount = pauses.length || num(s.pauseCount ?? s.pausesCount) || 0;
+
+  // Hands-off seconds (prefer stored, else sum pauses)
+  let handsOffSec = num(s.handsOffSec ?? s.handsOffSeconds ?? s.handsOff ?? s.hands_off_sec);
+  if(handsOffSec==null && pauses.length){
+    handsOffSec = pauses.reduce((a,p)=>a + (num(p.ms ?? p.durMs ?? p.durationMs) || 0), 0)/1000;
+  }
+
+  // Longest pause
+  let longest = null;
+  if(pauses.length){
+    const best = pauses.slice().sort((a,b)=>(num(b.ms??b.durMs)??0)-(num(a.ms??a.durMs)??0))[0];
+    const ms = num(best.ms ?? best.durMs ?? best.durationMs) ?? 0;
+    const reason = (best.reasons && best.reasons.length) ? best.reasons.join(", ") : (best.reason || "Unspecified");
+    longest = { ms, reason, startMs: num(best.startMs ?? best.atMs ?? best.tMs) };
+  } else if(s.longestPauseMs || s.longestPauseSec){
+    const ms = num(s.longestPauseMs) ?? (num(s.longestPauseSec) ?? 0)*1000;
+    const reason = s.longestPauseReason ?? s.longestReason ?? "Unspecified";
+    longest = { ms, reason, startMs: null };
+  }
+
+  return {
+    ...s,
+    startedAt,
+    endedAt,
+    ccfPct,
+    durationSec,
+    pauseCount,
+    handsOffSec,
+    pauses,
+    longestPause: longest,
+  };
+}
+
+function num(v){
+  if(v===null || v===undefined || v==="") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function stamp(ts){
+  if(!ts) return "";
+  try { return new Date(ts).toLocaleString(); } catch { return ""; }
+}
+
+function fmtMs(ms){
+  ms = Math.max(0, Number(ms)||0);
+  const s = Math.round(ms/1000);
+  const mm = String(Math.floor(s/60)).padStart(2,"0");
+  const ss = String(s%60).padStart(2,"0");
+  return `${mm}:${ss}`;
+}
+
+
   const n = document.createElement(tag);
 
   // Allow el(tag, child1, child2...) (attrs omitted)
@@ -925,7 +997,7 @@ function renderClassSessions(cls){
           el("span", { class:"fieldLabel" }, ["Assign to student (optional)"]),
           studentSelect(cls, s.studentId || "")
         ]),
-        el("button", { class:"primaryBtn", type:"button" }, ["Assign to this class"]),
+        el("button", { class:"primaryBtn", type:"button" }, ["Assign to this student"]),
         el("button", { class:"secondaryBtn", type:"button" }, ["Unassign"]),
       ])
     ]);
@@ -1764,23 +1836,67 @@ function exportOneStudentCSV(classId, studentId){
 }
 
 
-function renderLatestSession(latestSession){
-  const card = document.getElementById("latestSessionCard");
-  if(!card) return;
-  card.innerHTML = "";
-  if(!latestSession){
-    card.appendChild(el("div", { class:"dashSub" }, ["No saved sessions yet. Run a session to see it here."]));
-    return;
+function renderLatestSession(latestRaw){
+  const latest = normalizeSession(latestRaw);
+  const wrap = el("div", { class:"dashCard" }, []);
+
+  if(!latestRaw){
+    wrap.appendChild(el("div",{class:"dashSub"},["No saved sessions yet. Run a session to see it here."]));
+    return wrap;
   }
-  card.appendChild(el("div", { class:"dashGrid" }, [
-    stat("CCF", latestSession.ccfPct==null?"—":`${Math.round(latestSession.ccfPct)}%`),
-    stat("Pauses", String((latestSession.pauses && latestSession.pauses.length) ? latestSession.pauses.length : (latestSession.pauseCount ?? 0))),
-    stat("Hands-off", latestSession.handsOffSec==null?"—":`${Math.round(latestSession.handsOffSec)}s`),
-    stat("Duration", latestSession.durationSec==null?"—":`${Math.round(latestSession.durationSec)}s`),
+
+  // Header
+  wrap.appendChild(el("div",{class:"dashTitle"},["Most Recent CCF Session"]));
+  wrap.appendChild(el("div",{class:"dashSub"},[stamp(latest.startedAt)]));
+
+  // Badges (Pass/Near/Below) based on target
+  const target = Number(localStorage.getItem("ccf.targetCcf") || 80);
+  const badge = scoreBadge(latest.ccfPct, target);
+  if(badge) wrap.appendChild(badge);
+
+  // Stats grid
+  wrap.appendChild(el("div",{class:"dashGrid", style:"margin-top:10px;"},[
+    stat("CCF", latest.ccfPct==null?"—":`${Math.round(latest.ccfPct)}%`),
+    stat("Pauses", String(latest.pauseCount ?? 0)),
+    stat("Hands-off", latest.handsOffSec==null?"—":`${Math.round(latest.handsOffSec)}s`),
+    stat("Duration", latest.durationSec==null?"—":`${Math.round(latest.durationSec)}s`)
   ]));
-  card.appendChild(el("div", { class:"dashSub", style:"margin-top:10px;" }, [
-    "Longest pause: ", longestPauseSummary(latestSession)
-  ]));
+
+  // Longest pause
+  if(latest.longestPause){
+    wrap.appendChild(el("div",{class:"dashSub", style:"margin-top:10px;"},[
+      "Longest pause: ",
+      `${latest.longestPause.reason} (${fmtMs(latest.longestPause.ms)})`
+    ]));
+  }
+
+  // Pause list (full)
+  const pauses = latest.pauses || [];
+  wrap.appendChild(el("div",{class:"dashTitle", style:"margin-top:12px;"},["Pause details"]));
+
+  if(!pauses.length){
+    wrap.appendChild(el("div",{class:"dashSub", style:"margin-top:6px; opacity:.85;"},[
+      "No pauses recorded (pause prompt may be OFF)."
+    ]));
+  } else {
+    const list = el("div",{class:"pauseList", style:"display:grid; gap:8px; margin-top:8px;"},[]);
+    pauses.forEach((p,i)=>{
+      const ms = Number(p.ms ?? p.durMs ?? p.durationMs ?? 0);
+      const reason = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
+      const at = (p.startMs!=null) ? `@ ${fmtMs(p.startMs)}` :
+                 (p.atMs!=null) ? `@ ${fmtMs(p.atMs)}` : `#${i+1}`;
+      list.appendChild(el("div",{class:"pauseRow", style:"padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(0,0,0,.08);"},[
+        el("div",{style:"display:flex; justify-content:space-between; gap:10px; align-items:baseline;"},[
+          el("div",{style:"font-weight:800;"},[reason]),
+          el("div",{style:"opacity:.9; font-variant-numeric: tabular-nums;"},[fmtMs(ms)])
+        ]),
+        el("div",{class:"dashSub", style:"margin-top:4px; opacity:.85;"},[at])
+      ]));
+    });
+    wrap.appendChild(list);
+  }
+
+  return wrap;
 }
 
 
