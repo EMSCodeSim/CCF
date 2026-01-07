@@ -10,108 +10,53 @@
 
 <header class="topbar">
   <div class="brand">
-    <div class="title">Reports</div>
-    <div class="modePill">BLS</div>
+    <div class="title" id="hdrTitle">Reports</div>
+    <div class="modePill" id="hdrPill">Instructor</div>
   </div>
-
   <div class="topActions">
-    <a class="endBtn ghost" href="./index.html">⬅︎ Timer</a>
+    <a class="ghostBtn" href="./index.html">Timer</a>
   </div>
 </header>
 
-<main class="app">
-  <section class="stateBar stateReady" aria-label="Reports header">
-    <div class="stateLeft">
-      <div class="stateLabel">SESSION REPORT</div>
-      <div class="stateSub" id="reportSubtitle">Most recent session</div>
-    </div>
-    <div class="stateRight">
-      <div class="stateMini" id="reportCount">0 saved</div>
-    </div>
-  </section>
-
-  <!-- Upgrade / Pro status (hidden automatically when Pro is unlocked) -->
-  <section class="upgradeCard" id="upgradeCard" aria-label="Upgrade">
-    <div class="upgradeTop">
-      <div>
-        <div class="upgradeTitle">Unlock Pro Reports</div>
-        <div class="upgradeSub">Assign reports to students, manage a class roster, and download detailed report cards.</div>
-      </div>
-      <div class="proPill">PRO</div>
-    </div>
-    <div class="upgradeBtns">
-      <a class="primaryBtn" id="btnUpgrade" href="#">Unlock in the app</a>
-      <button class="secondaryBtn" id="btnDebugPro" type="button">Debug: Toggle Pro</button>
-    </div>
-    <div class="upgradeNote">Web/free mode: shows simple CCF score and basic pause info.</div>
-  </section>
-
-  <!-- AD ZONE (free only) -->
-  <section class="adZone" id="adZone" aria-label="Ads">
-    <div class="adLabel">Ad (Reports only)</div>
-    <div class="adBox">Your ad network container goes here</div>
-  </section>
-
-  <section class="reportCard" id="latestCard" aria-label="Latest report"></section>
-
-  <!-- Pro: class + student reporting tools -->
-  <section class="proBlock" id="proBlock" aria-label="Pro tools">
-    <div class="historyTop">
-      <div>
-        <div class="historyTitle">Class & Students</div>
-        <div class="historySub" id="classMeta">No class loaded</div>
-      </div>
-      <div class="historyBtns">
-        <a class="endBtn" href="./index.html">⚙️ Edit class</a>
-      
-    <!-- Premium class dashboard -->
-    <section class="classDash" aria-label="Class dashboard">
-      <div class="dashGrid">
-        <div class="dashCard" id="classScoreCard"></div>
-        <div class="dashCard">
-          <div class="dashTitle">Class Performance</div>
-          <div class="dashSub" id="classChartSub">Average CCF by student</div>
-          <div id="classChart" class="classChart" aria-label="Class chart"></div>
-        </div>
-      </div>
-
-      <div class="dashCard" style="margin-top:12px;">
-        <div class="dashTitle">Students</div>
-        <div class="dashSub">Tap a student in History to view individual attempts (v1). Export includes per-student averages.</div>
-        <div id="studentTable" class="studentTable"></div>
-      </div>
-
-      <div class="dashHint" id="classDashHint" style="display:none;">
-        To set up a class: open <strong>Timer → ⚙️ Settings → Class Setup</strong>, add your students (one per line), then return here.
-      </div>
-    </section>
-
-</div>
-    </div>
-
-    <div class="studentRow">
-      <label class="field" style="margin:0;">
-        <span class="fieldLabel">Assign most recent session to…</span>
-        <select id="studentSelect"></select>
-      </label>
-      <button class="endBtn" id="btnAssignLatest" type="button">Assign</button>
-      <button class="endBtn" id="btnDownloadLatest" type="button">⬇︎ Download</button>
-    </div>
-  </section>
-
-  <section class="historyBlock">
-    <div class="historyTop">
-      <div class="historyTitle">History</div>
-      <div class="historyBtns">
-        <button class="endBtn" id="btnExport">⬇︎ Export CSV</button>
-        <button class="endBtn" id="btnClear">🗑 Clear</button>
-      </div>
-    </div>
-    <div id="historyList" class="historyList"></div>
-  </section>
-
+<main class="reportsMain" id="app">
+  <!-- JS renders here -->
 </main>
 
 <script src="./reports.js"></script>
+<script>
+(function(){
+  function show(msg){
+    var app = document.getElementById('app') || document.body;
+    var box = document.createElement('div');
+    box.style.maxWidth = '720px';
+    box.style.margin = '16px auto';
+    box.style.padding = '14px 16px';
+    box.style.borderRadius = '14px';
+    box.style.border = '1px solid rgba(255,255,255,0.12)';
+    box.style.background = 'rgba(0,0,0,0.35)';
+    box.style.color = '#fff';
+    box.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    box.innerHTML = '<div style="font-weight:800; margin-bottom:6px;">Reports failed to load</div>'
+      + '<div style="opacity:.9; font-size:14px;">' + msg + '</div>'
+      + '<div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">'
+      + '<button onclick="location.reload()" style="padding:10px 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.08); color:#fff;">Reload</button>'
+      + '</div>';
+    // only add if page looks blank-ish
+    var hasCards = document.querySelector('.card, .dashCard, .acc') != null;
+    if(!hasCards) app.appendChild(box);
+  }
+
+  setTimeout(function(){
+    if(!window.__REPORTS_JS_LOADED){
+      show('reports.js did not load. This usually means the script path is wrong (e.g., updating /reports.js but opening /CCF/reports.html) or the file is cached/missing in the build.');
+      return;
+    }
+    if(!window.__REPORTS_BOOTED){
+      show('reports.js loaded but did not start (boot/init did not run or crashed before rendering). Open dev console for details.');
+      return;
+    }
+  }, 900);
+})();
+</script>
 </body>
 </html>
