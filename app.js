@@ -1,9 +1,45 @@
+// Small on-screen error banner (helps catch desktop-only failures)
+function showErrorBanner(msg){
+  try {
+    let bar = document.getElementById("errorBanner");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "errorBanner";
+      bar.style.position = "fixed";
+      bar.style.left = "12px";
+      bar.style.right = "12px";
+      bar.style.bottom = "80px";
+      bar.style.zIndex = "9999";
+      bar.style.padding = "10px 12px";
+      bar.style.borderRadius = "14px";
+      bar.style.background = "rgba(190,30,60,0.92)";
+      bar.style.color = "white";
+      bar.style.fontWeight = "800";
+      bar.style.fontSize = "13px";
+      bar.style.boxShadow = "0 12px 30px rgba(0,0,0,0.35)";
+      bar.style.pointerEvents = "auto";
+      bar.addEventListener("click", () => bar.remove());
+      document.body.appendChild(bar);
+    }
+    bar.textContent = "Error: " + msg + " (click to dismiss)";
+    clearTimeout(bar._t);
+    bar._t = setTimeout(() => { try { bar.remove(); } catch {} }, 10000);
+  } catch {}
+}
+
+// Catch any runtime error so the UI never becomes "dead" without a clue.
+window.addEventListener("error", (e) => {
+  const msg = e?.message || String(e);
+  showErrorBanner(msg);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const msg = e?.reason?.message || String(e?.reason || e);
+  showErrorBanner(msg);
+});
+
 /* ===========================
    CCF CPR TIMER – app.js
-   Fix: CPR button starts timer reliably
-   + Breath bar toggles Advanced Airway
-   + Both CPR buttons reset breath bar
-   + Pause reasons modal w/ big RESUME CPR
+   Desktop click + mobile touch safe
    =========================== */
 
 const $ = (id) => document.getElementById(id);
@@ -55,6 +91,8 @@ const state = {
   pauseStartMs: null,
   pauseCount: 0,
 
+
+  justEndedAt: 0,
   // Multi-select reasons for the current pause
   currentReasons: [],
 
@@ -63,6 +101,14 @@ const state = {
 
   // Future setting: turn this off to skip the reason modal
   pauseReasonPromptEnabled: true,
+
+  // Training cues
+  breathTimerEnabled: true,
+  pulseCueEnabled: true,
+
+  // CPR profile (affects breath cue when NO advanced airway)
+  patientType: "adult", // adult | child | infant
+  rescuerCount: 1,       // 1 | 2
 
   // Breathing prompts
   breathsDue: false,
@@ -102,6 +148,24 @@ function resetBreathBox() {
   state.breathCprMs = 0;
   state.breathAdvMs = 0;
 
+  // If breath cues are disabled, hide/disable the entire breath UI.
+  if (!state.breathTimerEnabled) {
+    state.advancedAirway = false;
+    if (UI?.advAirwayState) UI.advAirwayState.textContent = "OFF";
+    if (UI?.btnAdvAirway) UI.btnAdvAirway.classList.remove("on");
+    if (UI?.breathBarBox) {
+      UI.breathBarBox.classList.add("barHidden");
+      UI.breathBarBox.classList.add("disabled");
+    }
+    return;
+  }
+
+  // Ensure breath UI is visible when enabled
+  if (UI?.breathBarBox) {
+    UI.breathBarBox.classList.remove("barHidden");
+    UI.breathBarBox.classList.remove("disabled");
+  }
+
   if (UI?.breathBar) UI.breathBar.style.width = "0%";
   if (UI?.breathBarBox) UI.breathBarBox.classList.toggle("airwayOn", state.advancedAirway);
 
@@ -110,6 +174,63 @@ function resetBreathBox() {
       ? "Advanced airway • Next breath in 00:06"
       : "No airway • Breaths in 00:17";
   }
+}
+
+
+function setEndButtonMode(mode) {
+  if (!UI?.btnEnd) return;
+  const lbl = UI.btnEnd.querySelector(".ctlLabel");
+  if (lbl) lbl.textContent = (mode === "reset") ? "RESET" : "END";
+  UI.btnEnd.classList.toggle("danger", mode !== "reset");
+}
+
+function showEndSummary(summary) {
+  if (!UI?.endSummaryCard) return;
+  UI.endSummaryCard.style.display = "block";
+  if (UI.endCcfValue) UI.endCcfValue.textContent = `${summary.finalCCF}%`;
+  if (UI.endPauseCount) UI.endPauseCount.textContent = String(summary.pauseCount);
+  if (UI.endLongestReason) UI.endLongestReason.textContent = summary.longestReason || "—";
+}
+
+function hideEndSummary() {
+  if (!UI?.endSummaryCard) return;
+  UI.endSummaryCard.style.display = "none";
+  if (UI.endCcfValue) UI.endCcfValue.textContent = "0%";
+  if (UI.endPauseCount) UI.endPauseCount.textContent = "0";
+  if (UI.endLongestReason) UI.endLongestReason.textContent = "—";
+}
+
+function resetSession() {
+  stopMetronome();
+  state.running = false;
+  state.mode = "idle";
+  state.startMs = 0;
+  state.lastMs = 0;
+  state.compMs = 0;
+  state.offMs = 0;
+  state.pauseStartMs = null;
+  state.pauseCount = 0;
+  state.currentReasons = [];
+  state.pauseEvents = [];
+  state.lastSummary = null;
+  state.breathsDue = false;
+  state.breathCprMs = 0;
+  state.breathAdvMs = 0;
+
+  // UI reset
+  hideEndSummary();
+  setEndButtonMode("end");
+
+  if (UI?.btnCpr) UI.btnCpr.disabled = false;
+  if (UI?.btnPause) UI.btnPause.disabled = false;
+
+  if (UI?.mainTimer) UI.mainTimer.textContent = "00:00";
+  if (UI?.cprOnTime) UI.cprOnTime.textContent = "00:00";
+  if (UI?.handsOffTime) UI.handsOffTime.textContent = "00:00";
+  if (UI?.ccfScoreText) UI.ccfScoreText.textContent = "0%";
+  if (UI?.statusTitle) UI.statusTitle.textContent = "READY";
+  if (UI?.statusSub) UI.statusSub.textContent = "Press CPR to start";
+  resetBreathBox();
 }
 
 function finalizePauseEvent() {
@@ -141,6 +262,8 @@ function hidePauseModal() {
 }
 
 function startCPR() {
+  if (state.mode === "ended") { alert("Press RESET to start a new session."); return; }
+
   // CPR start/resume must always start the session + animation loop
   startSession();
 
@@ -149,7 +272,10 @@ function startCPR() {
 
   // If we are resuming from a pause, finalize that pause event first.
   finalizePauseEvent();
-  hidePauseModal();
+
+  // Hide pause modal on next tick to avoid "click-through" issues on some
+  // mobile webviews (ghost click hitting underlying UI after overlay hides).
+  setTimeout(() => hidePauseModal(), 0);
 
   state.mode = "cpr";
   state.pauseStartMs = null;
@@ -161,6 +287,8 @@ function startCPR() {
 }
 
 function startPause() {
+  if (state.mode === "ended") { alert("Press RESET to start a new session."); return; }
+
   if (!state.running || state.mode === "paused") return;
 
   state.mode = "paused";
@@ -179,10 +307,21 @@ function startPause() {
   stopMetronome();
 }
 
+
+function onEndPress() {
+  // If a session has ended, the END button becomes RESET.
+  // Guard against a follow-up "ghost click" (pointerup + click) immediately clearing the session.
+  if (state.mode === "ended" && !state.running) {
+    if (state.justEndedAt && (Date.now() - state.justEndedAt) < 900) return;
+    resetSession();
+    return;
+  }
+  endSession();
+}
+
 function endSession() {
   if (!state.running) return;
 
-  if (!confirm("End this session and save a report?")) return;
   stopMetronome();
 
   // If we end while paused, capture the last pause segment.
@@ -206,6 +345,13 @@ function endSession() {
     advancedAirwayUsed: !!state.advancedAirway,
     bpm: state.bpm,
     metronomeOn: !!state.metronomeOn,
+
+    cprProfile: {
+      patientType: state.patientType,
+      rescuerCount: state.rescuerCount,
+      breathTimerEnabled: !!state.breathTimerEnabled,
+      pulseCueEnabled: !!state.pulseCueEnabled,
+    },
 
     // Keep a simple list for quick display (backward compatible with older reports.js)
     pauses: state.pauseEvents.map(p => ({
@@ -232,42 +378,51 @@ function endSession() {
   arr.unshift(session);
   // Keep the newest 200 sessions to avoid unbounded storage growth.
   if (arr.length > 200) arr.length = 200;
+
   saveSessions(arr);
 
-  // Optional: in Pro, you may later replace this with a nicer modal.
-  const msg = isPro()
-    ? `Session saved.\n\nYou can assign this report to a student in Reports.`
-    : `Session saved.\n\nUpgrade in the app to unlock student assignment and downloadable report cards.`;
-  alert(msg);
+  // Build quick summary for the main screen
+  const longestEvent = (state.pauseEvents || []).reduce((best, p) => {
+    const d = p?.durMs || 0;
+    return d > (best?.durMs || 0) ? p : best;
+  }, null);
 
-  // Stop the loop and reset for the next run.
+  const longestReason = longestEvent
+    ? ((longestEvent.reasons && longestEvent.reasons.length)
+        ? longestEvent.reasons.join(", ")
+        : (longestEvent.reason || "Unspecified"))
+    : "None";
+
+  state.lastSummary = {
+    finalCCF,
+    pauseCount: state.pauseEvents.length,
+    longestReason,
+    longestPauseMs,
+  };
+
+  // Stop the loop and freeze values on screen (RESET will clear)
   state.running = false;
-  state.mode = "idle";
-  state.startMs = 0;
-  state.lastMs = 0;
-  state.compMs = 0;
-  state.offMs = 0;
-  state.pauseStartMs = null;
-  state.pauseCount = 0;
-  state.currentReasons = [];
-  state.pauseEvents = [];
-  state.breathsDue = false;
-  state.breathCprMs = 0;
-  state.breathAdvMs = 0;
+  state.mode = "ended";
+  state.justEndedAt = Date.now();
 
-  // UI reset
-  if (UI?.mainTimer) UI.mainTimer.textContent = "00:00";
-  if (UI?.cprOnTime) UI.cprOnTime.textContent = "00:00";
-  if (UI?.handsOffTime) UI.handsOffTime.textContent = "00:00";
-  if (UI?.ccfScoreText) UI.ccfScoreText.textContent = "0%";
-  if (UI?.statusTitle) UI.statusTitle.textContent = "READY";
-  if (UI?.statusSub) UI.statusSub.textContent = "Press CPR to start";
-  resetBreathBox();
+  // Update the UI: show summary + switch END -> RESET
+  showEndSummary(state.lastSummary);
+  setEndButtonMode("reset");
+
+  if (UI?.statusTitle) UI.statusTitle.textContent = "ENDED";
+  if (UI?.statusSub) UI.statusSub.textContent = "Review summary then press RESET";
+
+  // Lock CPR / PAUSE until reset
+  if (UI?.btnCpr) UI.btnCpr.disabled = true;
+  if (UI?.btnPause) UI.btnPause.disabled = true;
+
 }
 
 /* ---------- BREATH / PULSE BARS ---------- */
 function updateBreathBar(dt) {
   if (!UI?.breathBar || !UI?.breathMeta) return;
+
+  if (!state.breathTimerEnabled) return;
 
   if (state.advancedAirway) {
     // Advanced airway: 1 breath every 6 seconds + grace window to give breath
@@ -292,8 +447,11 @@ function updateBreathBar(dt) {
     return;
   }
 
-  // No airway (BLS cue): breaths every ~17s (approx 30 compressions @ ~110 bpm)
-  const cycleMs = 17000;
+  // No airway (BLS cue): breath cue is based on compression count per cycle.
+  // Adult always uses 30:2. Child/infant uses 30:2 for 1 rescuer, 15:2 for 2 rescuers.
+  const compressionsPerCycle = getCompressionsPerCycle();
+  // Estimate time for that number of compressions at current BPM + small buffer.
+  const cycleMs = clampMs(Math.round((compressionsPerCycle / Math.max(60, state.bpm)) * 60000) + 1000, 6000, 20000);
   state.breathCprMs += dt;
 
   if (state.breathCprMs >= cycleMs) {
@@ -308,8 +466,26 @@ function updateBreathBar(dt) {
     : `No airway • Breaths in ${fmt(cycleMs - state.breathCprMs)}`;
 }
 
+function getCompressionsPerCycle() {
+  // Adult always uses 30:2.
+  if (state.patientType === "adult") return 30;
+  // Child/infant: 15:2 when 2-rescuer BLS, otherwise 30:2.
+  return state.rescuerCount === 2 ? 15 : 30;
+}
+
+function clampMs(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
 function updatePulseBar() {
   if (!UI?.pulseBar || !UI?.pulseMeta) return;
+
+  if (!state.pulseCueEnabled) {
+    if (UI?.pulseBarBox) UI.pulseBarBox.classList.add("barHidden");
+    return;
+  }
+
+  if (UI?.pulseBarBox) UI.pulseBarBox.classList.remove("barHidden");
 
   const pulseCycle = 120000;
   const t = state.compMs + state.offMs;
@@ -403,11 +579,15 @@ function handleBreathBoxToggle(e) {
 
 /* ---------- INIT / BINDINGS ---------- */
 
-/* ---------- SETTINGS (About / Metronome / Class Setup) ---------- */
+/* ---------- SETTINGS (About / Metronome) ---------- */
 const LS_KEYS = {
   bpm: "ccf.bpm",
   classSetup: "ccf.classSetup",
   pauseReason: "ccf.pauseReasonPrompt",
+  breathTimer: "ccf.breathTimer",
+  pulseCue: "ccf.pulseCue",
+  patientType: "ccf.patientType",
+  rescuerCount: "ccf.rescuerCount",
 };
 
 function safeParseJSON(str, fallback) {
@@ -423,16 +603,19 @@ function loadSettingsFromStorage() {
   if (pr === "0") state.pauseReasonPromptEnabled = false;
   if (pr === "1") state.pauseReasonPromptEnabled = true;
 
-  const cls = safeParseJSON(localStorage.getItem(LS_KEYS.classSetup) || "", null);
-  if (cls && UI?.className) {
-    UI.className.value = cls.name || "";
-    UI.classInstructor.value = cls.instructor || "";
-    UI.classLocation.value = cls.location || "";
-    UI.classStudents.value = (cls.students || []).join("
-");
-    if (UI?.classTargetCcf) UI.classTargetCcf.value = String(cls.targetCcf ?? "");
-    if (UI?.classSessionLength) UI.classSessionLength.value = String(cls.sessionLengthSec ?? 120);
-  }
+  const bt = localStorage.getItem(LS_KEYS.breathTimer);
+  if (bt === "0") state.breathTimerEnabled = false;
+  if (bt === "1") state.breathTimerEnabled = true;
+
+  const pc = localStorage.getItem(LS_KEYS.pulseCue);
+  if (pc === "0") state.pulseCueEnabled = false;
+  if (pc === "1") state.pulseCueEnabled = true;
+
+  const pt = localStorage.getItem(LS_KEYS.patientType);
+  if (pt === "adult" || pt === "child" || pt === "infant") state.patientType = pt;
+
+  const rc = localStorage.getItem(LS_KEYS.rescuerCount);
+  if (rc === "1" || rc === "2") state.rescuerCount = parseInt(rc, 10);
 }
 
 function saveBpmToStorage() {
@@ -455,7 +638,6 @@ function setSettingsTab(which) {
   const tabs = [
     { id: "about", tab: UI?.tabAbout, panel: UI?.panelAbout },
     { id: "met", tab: UI?.tabMet, panel: UI?.panelMet },
-    { id: "class", tab: UI?.tabClass, panel: UI?.panelClass },
     { id: "setup", tab: UI?.tabSetup, panel: UI?.panelSetup },
   ];
 
@@ -474,33 +656,63 @@ function syncBpmUI() {
   if (UI?.bpmSlider) UI.bpmSlider.value = String(state.bpm);
 }
 
-function saveClassSetup() {
-  const payload = {
-    name: UI?.className?.value?.trim() || "",
-    instructor: UI?.classInstructor?.value?.trim() || "",
-    location: UI?.classLocation?.value?.trim() || "",
-    students: (UI?.classStudents?.value || "")
-      .split("\n")
-      .map(s => s.trim())
-      .filter(Boolean),
-    targetCcf: (() => { const n = parseInt(UI?.classTargetCcf?.value || "", 10); return Number.isFinite(n) ? Math.min(95, Math.max(50, n)) : 80; })(),
-    sessionLengthSec: (() => { const n = parseInt(UI?.classSessionLength?.value || "", 10); return Number.isFinite(n) && n > 0 ? n : 0; })(),
-    updatedAt: Date.now(),
-  };
-  localStorage.setItem(LS_KEYS.classSetup, JSON.stringify(payload));
-}
-
-function clearClassSetup() {
-  if (UI?.className) UI.className.value = "";
-  if (UI?.classInstructor) UI.classInstructor.value = "";
-  if (UI?.classLocation) UI.classLocation.value = "";
-  if (UI?.classStudents) UI.classStudents.value = "";
-  if (UI?.classTargetCcf) UI.classTargetCcf.value = "";
-  if (UI?.classSessionLength) UI.classSessionLength.value = "120";
-  localStorage.removeItem(LS_KEYS.classSetup);
-}
-
 function init() {
+  // Robust press handler.
+  // Use Pointer Events where available (covers mouse + touch consistently).
+  // Fall back to click for older environments.
+  function onPress(el, handler) {
+    if (!el) return;
+
+    // Prevent double-binding if init() is ever re-run.
+    if (el.dataset.bound === "1") return;
+
+    // Many browsers fire BOTH pointerup and click for the same press.
+    // If the handler is heavy (like END -> saving a session), the click can
+    // arrive >250ms later and slip past time-based dedupe.
+    // Strategy:
+    //  - Always bind click (desktop reliability)
+    //  - Optionally bind pointerup (touch responsiveness)
+    //  - If a pointerup happens, ignore the subsequent click for a short window
+    let lastTs = 0;
+    let lastPointerUpTs = 0;
+
+    const wrapped = (e) => {
+      const ts = Date.now();
+
+      // Ignore the "follow-up" click that often fires after pointerup
+      if (e && e.type === "pointerup") {
+        lastPointerUpTs = ts;
+        window.__ccfLastPointerUp = { ts, id: (el && el.id) || "" };
+      } else if (e && e.type === "click") {
+        if (lastPointerUpTs && (ts - lastPointerUpTs) < 900) return;
+      }
+
+      // Generic debounce (also blocks double clicks)
+      if (ts - lastTs < 250) return;
+      lastTs = ts;
+
+      try {
+        handler(e);
+      } catch (err) {
+        console.error("Handler error:", err);
+        // Show a small banner if something goes wrong so the UI never "silently" fails.
+        try { showErrorBanner(String(err?.message || err)); } catch {}
+      }
+    };
+    // Attach pointerup when available (covers mouse + touch). This is the primary path.
+    if ("PointerEvent" in window) el.addEventListener("pointerup", wrapped);
+
+    // Fallback: older browsers without Pointer Events.
+    if (!("PointerEvent" in window)) el.addEventListener("click", wrapped);
+
+    // Keyboard accessibility
+    el.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") wrapped(ev);
+    });
+
+    el.dataset.bound = "1";
+  }
+
   UI = {
     mainTimer: $("mainTimer"),
     ccfLine: $("ccfLine"),
@@ -513,10 +725,16 @@ function init() {
     breathMeta: $("breathMetaLeft"),
     pulseMeta: $("pulseMetaLeft"),
     breathBarBox: $("breathBarBox"),
+    pulseBarBox: $("pulseBarBox"),
 
     btnCpr: $("btnCpr"),
     btnPause: $("btnPause"),
     btnEnd: $("btnEnd"),
+
+    endSummaryCard: $("endSummaryCard"),
+    endCcfValue: $("endCcfValue"),
+    endPauseCount: $("endPauseCount"),
+    endLongestReason: $("endLongestReason"),
 
     btnCCFScore: $("btnCCFScore"),
     ccfScoreText: $("ccfScoreText"),
@@ -526,22 +744,16 @@ function init() {
     btnSettingsClose: $("btnSettingsClose"),
     tabAbout: $("tabAbout"),
     tabMet: $("tabMet"),
-    tabClass: $("tabClass"),
     tabSetup: $("tabSetup"),
     panelAbout: $("panelAbout"),
     panelMet: $("panelMet"),
-    panelClass: $("panelClass"),
     panelSetup: $("panelSetup"),
     bpmSlider: $("bpmSlider"),
-    className: $("className"),
-    classInstructor: $("classInstructor"),
-    classTargetCcf: $("classTargetCcf"),
-    classSessionLength: $("classSessionLength"),
-    classLocation: $("classLocation"),
-    classStudents: $("classStudents"),
-    btnSaveClass: $("btnSaveClass"),
-    btnClearClass: $("btnClearClass"),
     pauseReasonToggle: $("pauseReasonToggle"),
+    breathTimerToggle: $("breathTimerToggle"),
+    pulseCueToggle: $("pulseCueToggle"),
+    patientTypePills: $("patientTypePills"),
+    rescuerCountPills: $("rescuerCountPills"),
 
     cprOnTime: $("cprOnTime"),
     handsOffTime: $("handsOffTime"),
@@ -561,13 +773,69 @@ function init() {
     reasonChips: document.querySelectorAll(".reasonChip"),
   };
 
+  // ------------------------------------------------------------
+  // Desktop-safe fallback: event delegation
+  // If for any reason direct button binding fails (common when an
+  // overlay or re-render changes nodes), this ensures clicks still
+  // trigger the core actions on desktop.
+  // ------------------------------------------------------------
+  if (!document.body.dataset.ccfDelegation) {
+    document.body.dataset.ccfDelegation = "1";
+    let lastTs = 0;
+    const delegate = (e) => {
+      const ts = Date.now();
+      if (ts - lastTs < 200) return;
+      lastTs = ts;
+
+      // Ignore "follow-up" clicks that fire after pointerup (mouse/touch), otherwise
+      // actions like END can immediately trigger RESET.
+      try {
+        const lp = window.__ccfLastPointerUp;
+        if (lp && lp.ts && (ts - lp.ts) < 900) {
+          const targetBtn = (e.target && e.target.closest) ? e.target.closest("#btnCpr,#btnPause,#btnEnd,#btnSettings,#btnSettingsClose,#btnResumeFromPause") : null;
+          if (targetBtn && (targetBtn.id === lp.id)) return;
+        }
+      } catch {}
+
+      const t = e.target;
+      let el = null;
+      if (t && t.closest) {
+        try { el = t.closest("#btnCpr,#btnPause,#btnEnd,#btnSettings,#btnSettingsClose,#btnResumeFromPause"); } catch (err) { el = null; }
+      }
+      if (!el) return;
+
+      // Prevent accidental navigation / click-through
+      try { e.preventDefault(); } catch {}
+      try { e.stopPropagation(); } catch {}
+
+      try {
+        if (el.id === "btnCpr") startCPR();
+        else if (el.id === "btnPause") startPause();
+        else if (el.id === "btnEnd") onEndPress();
+        else if (el.id === "btnSettings") { showSettings(); setSettingsTab("about"); }
+        else if (el.id === "btnSettingsClose") hideSettings();
+        else if (el.id === "btnResumeFromPause") {
+          startCPR();
+          setTimeout(() => hidePauseModal(), 0);
+        }
+      } catch (err) {
+        console.error(err);
+        showErrorBanner(String(err?.message || err));
+      }
+    };
+
+    // Delegation is a desktop safety net: use CLICK only to avoid double-fire
+    // (pointerup + click) causing END->RESET immediately.
+    document.addEventListener("click", delegate, true);
+  }
+
   // Buttons
-  UI.btnCpr?.addEventListener("click", startCPR);
-  UI.btnPause?.addEventListener("click", startPause);
-  UI.btnEnd?.addEventListener("click", endSession);
+  onPress(UI.btnCpr, startCPR);
+  onPress(UI.btnPause, startPause);
+  onPress(UI.btnEnd, onEndPress);
 
   // Metronome
-  UI.btnMet?.addEventListener("click", () => {
+  onPress(UI.btnMet, () => {
     if (!state.running) return;
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     state.metronomeOn = !state.metronomeOn;
@@ -575,14 +843,14 @@ function init() {
     startMetronome();
   });
 
-  UI.bpmDown?.addEventListener("click", () => {
+  onPress(UI.bpmDown, () => {
     state.bpm = Math.max(60, state.bpm - 5);
     syncBpmUI();
     saveBpmToStorage();
     startMetronome();
   });
 
-  UI.bpmUp?.addEventListener("click", () => {
+  onPress(UI.bpmUp, () => {
     state.bpm = Math.min(200, state.bpm + 5);
     syncBpmUI();
     saveBpmToStorage();
@@ -590,17 +858,17 @@ function init() {
   });
 
   // Advanced airway (optional button still present)
-  UI.btnAdvAirway?.addEventListener("click", () => setAdvancedAirway(!state.advancedAirway));
+  onPress(UI.btnAdvAirway, () => setAdvancedAirway(!state.advancedAirway));
 
   // Breath bar box is primary toggle
   if (UI.breathBarBox) {
-    UI.breathBarBox.addEventListener("click", handleBreathBoxToggle);
+    onPress(UI.breathBarBox, handleBreathBoxToggle);
     UI.breathBarBox.addEventListener("keydown", handleBreathBoxToggle);
   }
 
   // Pause reasons chips
   UI.reasonChips?.forEach((chip) => {
-    chip.addEventListener("click", () => {
+    onPress(chip, () => {
       const reason = chip.dataset.reason;
       const isPressed = chip.getAttribute("aria-pressed") === "true";
       const next = !isPressed;
@@ -609,24 +877,49 @@ function init() {
     });
   });
 
-  UI.btnClearPauseReasons?.addEventListener("click", () => {
+  onPress(UI.btnClearPauseReasons, () => {
     state.currentReasons = [];
     UI.reasonChips?.forEach((chip) => chip.setAttribute("aria-pressed", "false"));
   });
 
-  UI.btnResumePause?.addEventListener("click", () => {
-    // Start CPR first (prevents getting stuck if overlay fails to hide)
+  // RESUME CPR (inside pause modal)
+  // On iOS/webviews, hiding the overlay immediately can cause a "ghost click"
+  // to hit the underlying header (e.g., the Reports link). We block that by
+  // preventing default and stopping propagation on pointerdown/click.
+  if (UI.btnResumePause && UI.btnResumePause.dataset.blocked !== "1") {
+    UI.btnResumePause.dataset.blocked = "1";
+    const blocker = (e) => {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      } catch {}
+    };
+    UI.btnResumePause.addEventListener("pointerdown", blocker, { passive: false });
+    UI.btnResumePause.addEventListener("touchstart", blocker, { passive: false });
+  }
+
+  onPress(UI.btnResumePause, (e) => {
+    try {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      e?.stopImmediatePropagation?.();
+    } catch {}
+
+    // Resume CPR immediately
     startCPR();
-    hidePauseModal();
+
+    // Hide overlay on next tick to avoid click-through
+    setTimeout(() => hidePauseModal(), 0);
   });
 
 
   // Settings open/close
-  UI.btnSettings?.addEventListener("click", () => {
+  onPress(UI.btnSettings, () => {
     showSettings();
     setSettingsTab("about");
   });
-  UI.btnSettingsClose?.addEventListener("click", hideSettings);
+  onPress(UI.btnSettingsClose, hideSettings);
 
   // Close settings by tapping backdrop
   UI.settingsOverlay?.addEventListener("click", (e) => {
@@ -634,15 +927,75 @@ function init() {
   });
 
   // Tabs
-  UI.tabAbout?.addEventListener("click", () => setSettingsTab("about"));
-  UI.tabMet?.addEventListener("click", () => setSettingsTab("met"));
-  UI.tabClass?.addEventListener("click", () => setSettingsTab("class"));
-  UI.tabSetup?.addEventListener("click", () => setSettingsTab("setup"));
+  onPress(UI.tabAbout, () => setSettingsTab("about"));
+  onPress(UI.tabMet, () => setSettingsTab("met"));
+  onPress(UI.tabSetup, () => setSettingsTab("setup"));
 
   // Pause reason prompt toggle
   UI.pauseReasonToggle?.addEventListener("change", () => {
     state.pauseReasonPromptEnabled = !!UI.pauseReasonToggle.checked;
     localStorage.setItem(LS_KEYS.pauseReason, state.pauseReasonPromptEnabled ? "1" : "0");
+  });
+
+  // Breath timer toggle
+  UI.breathTimerToggle?.addEventListener("change", () => {
+    state.breathTimerEnabled = !!UI.breathTimerToggle.checked;
+    localStorage.setItem(LS_KEYS.breathTimer, state.breathTimerEnabled ? "1" : "0");
+    resetBreathBox();
+  });
+
+  // Pulse cue toggle
+  UI.pulseCueToggle?.addEventListener("change", () => {
+    state.pulseCueEnabled = !!UI.pulseCueToggle.checked;
+    localStorage.setItem(LS_KEYS.pulseCue, state.pulseCueEnabled ? "1" : "0");
+    updatePulseBar();
+  });
+
+
+  // CPR profile pills
+  function setActivePill(groupEl, value) {
+    if (!groupEl) return;
+    const btns = groupEl.querySelectorAll(".pillBtn");
+    btns.forEach((b) => {
+      const v = b.getAttribute("data-value");
+      if (String(v) === String(value)) b.classList.add("active");
+      else b.classList.remove("active");
+    });
+  }
+
+  function wirePillGroup(groupEl, onPick) {
+    if (!groupEl) return;
+    groupEl.querySelectorAll(".pillBtn").forEach((btn) => {
+      onPress(btn, () => {
+        const v = btn.getAttribute("data-value");
+        if (v != null) onPick(v);
+      });
+    });
+  }
+
+  wirePillGroup(UI.patientTypePills, (v) => {
+    if (v === "adult" || v === "child" || v === "infant") {
+      state.patientType = v;
+      localStorage.setItem(LS_KEYS.patientType, v);
+      setActivePill(UI.patientTypePills, v);
+
+      // Breath cue timing changes immediately
+      state.breathCprMs = 0;
+      state.breathsDue = false;
+      resetBreathBox();
+    }
+  });
+
+  wirePillGroup(UI.rescuerCountPills, (v) => {
+    if (v === "1" || v === "2") {
+      state.rescuerCount = parseInt(v, 10);
+      localStorage.setItem(LS_KEYS.rescuerCount, v);
+      setActivePill(UI.rescuerCountPills, v);
+
+      state.breathCprMs = 0;
+      state.breathsDue = false;
+      resetBreathBox();
+    }
   });
 
   // BPM slider
@@ -656,27 +1009,21 @@ function init() {
     }
   });
 
-  // Class setup save/clear
-  UI.btnSaveClass?.addEventListener("click", () => {
-    saveClassSetup();
-    // quick feedback by momentarily changing button text
-    const btn = UI.btnSaveClass;
-    const old = btn.textContent;
-    btn.textContent = "Saved ✓";
-    setTimeout(() => (btn.textContent = old), 900);
-  });
-  UI.btnClearClass?.addEventListener("click", clearClassSetup);
-
   // Initial UI
   hidePauseModal();
   hideSettings();
   loadSettingsFromStorage();
   syncBpmUI();
   if (UI?.pauseReasonToggle) UI.pauseReasonToggle.checked = !!state.pauseReasonPromptEnabled;
+  if (UI?.breathTimerToggle) UI.breathTimerToggle.checked = !!state.breathTimerEnabled;
+  if (UI?.pulseCueToggle) UI.pulseCueToggle.checked = !!state.pulseCueEnabled;
+  if (UI?.patientTypePills) setActivePill(UI.patientTypePills, state.patientType);
+  if (UI?.rescuerCountPills) setActivePill(UI.rescuerCountPills, String(state.rescuerCount));
   if (UI.bpmValue) UI.bpmValue.textContent = state.bpm;
   if (UI.metState) UI.metState.textContent = state.metronomeOn ? "ON" : "OFF";
   setAdvancedAirway(false);
   resetBreathBox();
+  updatePulseBar();
 }
 
 // Make sure DOM is ready so buttons always wire up

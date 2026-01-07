@@ -23,40 +23,5 @@
 </main>
 
 <script src="./reports.js"></script>
-<script>
-(function(){
-  function show(msg){
-    var app = document.getElementById('app') || document.body;
-    var box = document.createElement('div');
-    box.style.maxWidth = '720px';
-    box.style.margin = '16px auto';
-    box.style.padding = '14px 16px';
-    box.style.borderRadius = '14px';
-    box.style.border = '1px solid rgba(255,255,255,0.12)';
-    box.style.background = 'rgba(0,0,0,0.35)';
-    box.style.color = '#fff';
-    box.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial';
-    box.innerHTML = '<div style="font-weight:800; margin-bottom:6px;">Reports failed to load</div>'
-      + '<div style="opacity:.9; font-size:14px;">' + msg + '</div>'
-      + '<div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">'
-      + '<button onclick="location.reload()" style="padding:10px 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.08); color:#fff;">Reload</button>'
-      + '</div>';
-    // only add if page looks blank-ish
-    var hasCards = document.querySelector('.card, .dashCard, .acc') != null;
-    if(!hasCards) app.appendChild(box);
-  }
-
-  setTimeout(function(){
-    if(!window.__REPORTS_JS_LOADED){
-      show('reports.js did not load. This usually means the script path is wrong (e.g., updating /reports.js but opening /ccf/reports.html) or the file is cached/missing in the build.');
-      return;
-    }
-    if(!window.__REPORTS_BOOTED){
-      show('reports.js loaded but did not start (boot/init did not run or crashed before rendering). Open dev console for details.');
-      return;
-    }
-  }, 900);
-})();
-</script>
 </body>
 </html>

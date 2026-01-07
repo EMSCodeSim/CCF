@@ -36,10 +36,7 @@ body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(1100px 800px at 20% -10%, rgba(82,166,255,.22), transparent 55%),
-    radial-gradient(900px 700px at 90% 10%, rgba(78,194,97,.18), transparent 55%),
-    linear-gradient(180deg, var(--bg0), var(--bg1));
+  background: linear-gradient(180deg, var(--bg0), var(--bg1));
 }
 
 /* ---------- Header ---------- */
@@ -151,6 +148,13 @@ body{
   border-radius: 16px;
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(255,255,255,.08);
+}
+
+.barHidden{ display:none !important; }
+
+.breathBox.disabled{
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .barMeta{
@@ -504,6 +508,42 @@ body{
   margin-bottom: 8px;
 }
 
+/* Smaller subsection headings inside Settings */
+.sectionH.smallH{
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+/* Form rows used in Settings (CPR Profile) */
+.rowField{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.fieldLabel{
+  font-weight: 900;
+  color: rgba(255,255,255,0.85);
+}
+
+.fieldSelect{
+  min-width: 160px;
+  max-width: 220px;
+  width: 52%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.28);
+  color: rgba(255,255,255,0.92);
+  font-weight: 900;
+}
+
 .sectionP{
   color: rgba(255,255,255,.86);
   font-weight: 800;
@@ -519,6 +559,16 @@ body{
   justify-content:space-between;
   gap: 10px;
   margin-top: 10px;
+}
+
+/* Simple 2-column layout helper (Reports → Class Setup) */
+.twoCol{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 560px){
+  .twoCol{ grid-template-columns: 1fr; }
 }
 
 .smallBtn{
@@ -1254,8 +1304,15 @@ body{
   font-weight:900;
   font-size:12px;
   cursor:pointer;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action: manipulation;
 }
 .pillBtn:hover{ filter: brightness(1.08); }
+.pillBtn.active{
+  background: rgba(82,166,255,.18);
+  border-color: rgba(82,166,255,.34);
+ }
 .histActions{ display:flex; gap:8px; }
 
 @media (max-width: 520px){
@@ -1278,6 +1335,63 @@ body{
   border-radius: 16px;
   padding: 14px;
   box-shadow: var(--shadow);
+}
+
+/* Roster editor (Pro Reports) */
+.rosterEditor{
+  margin-top: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.rosterHeader{
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr .7fr 44px;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(255,255,255,.04);
+  font-weight: 1000;
+  font-size: 12px;
+  color: rgba(255,255,255,.82);
+}
+.rosterRow{
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr .7fr 44px;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  align-items: center;
+}
+.rosterRow input{
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-weight: 850;
+}
+.rosterRemove{
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 1000;
+}
+.rosterEmpty{
+  padding: 12px;
+  color: rgba(255,255,255,.75);
+  font-weight: 800;
+}
+
+@media (max-width: 720px){
+  .rosterHeader{ display:none; }
+  .rosterRow{ grid-template-columns: 1fr; }
+  .rosterRow input{ margin-top: 6px; }
+  .rosterRemove{ justify-self: end; margin-top: 8px; }
 }
 .dashTitle{ font-weight: 1000; letter-spacing: .2px; }
 .dashSub{ margin-top: 4px; color: rgba(255,255,255,.75); font-weight: 750; }
@@ -1314,3 +1428,191 @@ body{
 
 .emptyNote{ color: rgba(255,255,255,.75); font-weight: 850; padding: 10px 0; }
 .dashHint{ margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px dashed rgba(255,255,255,.20); color: rgba(255,255,255,.85); background: rgba(0,0,0,.14); font-weight: 850; }
+
+
+/* Reports accordion */
+.acc{ margin-top: 12px; }
+.accHead{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 14px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); color: inherit; text-align:left; cursor:pointer; }
+.accLeft{ display:flex; flex-direction:column; gap:2px; }
+.accTitle{ font-weight: 1000; letter-spacing:.2px; }
+.accSub{ font-size: 12px; opacity:.78; font-weight: 750; }
+.accRight{ display:flex; align-items:center; gap:10px; }
+.accMini{ font-size:12px; opacity:.8; font-weight:900; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.18); }
+.accChevron{ font-size: 18px; opacity:.9; transform: rotate(0deg); transition: transform .16s ease; }
+.acc.open .accChevron{ transform: rotate(180deg); }
+.accBody{ margin-top: 10px; }
+
+
+/* Student score input in reports table */
+.studentTable .tHead{ grid-template-columns: 1fr 60px 80px 90px 110px; }
+.studentTable .tRow{ grid-template-columns: 1fr 60px 80px 90px 110px; }
+.tNameBtn{ background: transparent; border:0; padding:0; color: inherit; font: inherit; text-align:left; cursor:pointer; font-weight:1000; }
+.tNameBtn:hover{ text-decoration: underline; }
+.scoreInput{ width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.18); color: rgba(255,255,255,.92); padding: 8px 10px; font-weight: 900; text-align:right; }
+.scoreInput::placeholder{ color: rgba(255,255,255,.45); }
+
+
+/* ===== Reports: sticky summary + score source tags ===== */
+.stickySummary{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(10,14,20,.92);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.stickyRow{ display:grid; gap:6px; }
+.stickyTitle{ font-weight: 900; }
+.stickyMeta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  font-size: 12px;
+  opacity: .92;
+}
+.srcTag{
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  opacity: .9;
+  white-space: nowrap;
+}
+/* ================================================ */
+
+
+/* Click-safety (desktop) */
+.accHead, button, a, .primaryBtn, .secondaryBtn, .endBtn { position: relative; z-index: 2; }
+
+.dangerBtn{
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(220,60,60,0.35);
+  color: rgba(255,255,255,0.95);
+  font-weight: 800;
+}
+.dangerBtn:active{ transform: scale(0.99); }
+
+
+/* ===== Reports rebuild additions (mobile-first) ===== */
+.reportsMain { padding-bottom: 90px; }
+.pad16 { padding: 16px; }
+.list { display: grid; gap: 10px; }
+.empty { opacity: 0.8; padding: 10px 0; }
+.row { display:flex; }
+.primaryBtn, .secondaryBtn, .ghostBtn { cursor:pointer; }
+.classCard{
+  width:100%;
+  text-align:left;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+  padding: 12px;
+  border-radius: 14px;
+}
+.className{ font-weight: 900; font-size: 16px; }
+.classMeta{ opacity:0.75; font-size: 12px; margin-top:4px; }
+.classStats{ opacity:0.85; font-size: 12px; margin-top:8px; }
+.accWrap{ margin-top: 12px; }
+.accHeader{
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding: 12px;
+  border-radius: 14px;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  text-align:left;
+}
+.accTitle{ font-weight: 900; }
+.accSub{ opacity:0.75; font-size: 12px; margin-top:4px; }
+.accChevron{ font-weight: 900; opacity:0.9; }
+.accBody{ margin-top:10px; }
+.formGrid{ display:grid; gap: 10px; }
+.field{ display:grid; gap:6px; }
+.fieldLabel{ font-size: 12px; opacity: 0.75; }
+.studentCard{
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  padding: 12px;
+  border-radius: 14px;
+}
+.studentRow{ display:flex; gap:10px; }
+.ghostIconBtn{
+  border:1px solid rgba(255,255,255,0.10);
+  background: transparent;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.sessionRow, .sessionAssignCard{
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  padding: 12px;
+  border-radius: 14px;
+}
+.sessionRow{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.sessionLeft{ flex: 1; }
+.sessionMain{ font-weight: 800; }
+.sessionSub{ font-size: 12px; opacity: 0.75; margin-top:4px; }
+.sessionActions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.studentReportRow{
+  width:100%;
+  text-align:left;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  padding: 12px;
+  border-radius: 14px;
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+}
+.srName{ font-weight: 900; }
+.srMeta{ font-size: 12px; opacity: 0.75; margin-top:2px; }
+.srScore{ font-weight: 900; }
+.modalOverlay{
+  position: fixed; inset:0;
+  background: rgba(0,0,0,0.6);
+  display:flex; align-items:flex-end; justify-content:center;
+  z-index: 9999;
+  padding: 12px;
+}
+.modalCard{
+  width: 100%;
+  max-width: 720px;
+  background: rgba(18,24,33,0.98);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius: 18px;
+  overflow:hidden;
+}
+.modalHdr{
+  display:flex; justify-content:space-between; align-items:center;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.modalTitle{ font-weight: 900; }
+.modalBody{ padding: 14px; max-height: 70vh; overflow:auto; }
+.stat{ border:1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.02); padding:10px; border-radius: 14px; }
+.statLabel{ font-size: 12px; opacity:0.75; }
+.statValue{ font-weight: 900; margin-top:2px; }
+.dashCard{ border:1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.02); padding:12px; border-radius: 14px; }
+.dashGrid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; margin-top:10px; }
+@media (min-width: 800px){
+  .modalOverlay{ align-items:center; }
+  .dashGrid{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+}
+
+
+/* Mobile-friendly student rows */
+.srLeft{ flex:1; min-width:0; }
+.srRight{ flex:0 0 auto; text-align:right; }
+.srName{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 68vw; }
+@media (min-width: 480px){ .srName{ max-width: 360px; } }
+
+
+.stack10{ display:grid; gap:10px; }
+.stack12{ display:grid; gap:12px; }

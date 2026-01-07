@@ -54,7 +54,7 @@
       </div>
 
       <!-- Pulse check bar -->
-      <div class="barBlock">
+      <div class="barBlock" id="pulseBarBox">
         <div class="barMeta">
           <span id="pulseMetaLeft">Next pulse check in 00:00</span>
         </div>
@@ -62,6 +62,27 @@
           <div class="barFill" id="pulseBarFill" style="width:0%"></div>
         </div>
       </div>
+    </section>
+
+
+    <!-- End-of-session quick summary (shown after END) -->
+    <section class="endSummaryCard" id="endSummaryCard" style="display:none;" aria-label="End of session summary">
+      <div class="endSummaryTitle">Session Summary</div>
+      <div class="endSummaryGrid">
+        <div class="endSummaryItem">
+          <div class="endLabel">CCF</div>
+          <div class="endValue" id="endCcfValue">0%</div>
+        </div>
+        <div class="endSummaryItem">
+          <div class="endLabel">Pauses</div>
+          <div class="endValue" id="endPauseCount">0</div>
+        </div>
+        <div class="endSummaryItem endSummaryWide">
+          <div class="endLabel">Longest pause reason</div>
+          <div class="endValue" id="endLongestReason">—</div>
+        </div>
+      </div>
+      <div class="endSummaryHint">Press <strong>RESET</strong> to clear and start a new run.</div>
     </section>
 
     <section class="actionsRow">
@@ -118,7 +139,6 @@
         <div class="settingsNav" role="tablist" aria-label="Settings sections">
           <button class="segBtn active" id="tabAbout" type="button" role="tab" aria-selected="true">About</button>
           <button class="segBtn" id="tabMet" type="button" role="tab" aria-selected="false">Metronome</button>
-          <button class="segBtn" id="tabClass" type="button" role="tab" aria-selected="false">Class Setup</button>
           <button class="segBtn" id="tabSetup" type="button" role="tab" aria-selected="false">Setup</button>
         </div>
 
@@ -134,6 +154,10 @@
               </div>
               <div class="sectionP muted">
                 Tip: Tap the Breaths bar to toggle Advanced Airway mode.
+              </div>
+
+              <div class="sectionP" style="margin-top:14px">
+                <a class="linkBtn" href="PrivacyPolicy.html" target="_blank" rel="noopener">Privacy Policy</a>
               </div>
             </div>
           </section>
@@ -160,63 +184,53 @@
 </div>
           </section>
 
-          <!-- CLASS SETUP -->
-          <section class="settingsSection" id="panelClass" role="tabpanel" aria-labelledby="tabClass">
-            <div class="sectionCard">
-              <div class="sectionH">Class Setup</div>
-
-              <label class="field">
-                <span class="fieldLabel">Class name</span>
-                <input id="className" type="text" placeholder="RC Health EMT - Skills Day" />
-              </label>
-
-              <label class="field">
-                <span class="fieldLabel">Instructor</span>
-                <input id="classInstructor" type="text" placeholder="Instructor name" />
-              </label>
-
-              <label class="field">
-                <span class="fieldLabel">Target CCF %</span>
-                <input id="classTargetCcf" type="number" min="50" max="95" step="1" placeholder="80" />
-              </label>
-
-              <label class="field">
-                <span class="fieldLabel">Session length</span>
-                <select id="classSessionLength">
-                  <option value="120">2 minutes</option>
-                  <option value="300">5 minutes</option>
-                  <option value="600">10 minutes</option>
-                  <option value="0">Custom / unknown</option>
-                </select>
-              </label>
-
-
-              <label class="field">
-                <span class="fieldLabel">Location / Notes</span>
-                <input id="classLocation" type="text" placeholder="Room / station / notes" />
-              </label>
-
-              <label class="field">
-                <span class="fieldLabel">Student list (one per line)</span>
-                <textarea id="classStudents" rows="6" placeholder="Student One&#10;Student Two&#10;Student Three"></textarea>
-              </label>
-
-              <div class="row">
-                <button class="primaryBtn" id="btnSaveClass" type="button">Save Class</button>
-                <button class="secondaryBtn" id="btnClearClass" type="button">Clear</button>
-              </div>
-
-              <div class="sectionP muted">
-                Later, Reports can assign each CPR session to a student and generate a CPR report card per student.
-              </div>
-            </div>
-          </section>
-
-
           <!-- SETUP -->
           <section class="settingsSection" id="panelSetup" role="tabpanel" aria-labelledby="tabSetup">
             <div class="sectionCard">
               <div class="sectionH">Setup</div>
+
+              <div class="sectionH smallH" style="margin-top:10px">Training Cues</div>
+
+              <div class="toggleRow">
+                <div class="toggleText">
+                  <div class="toggleTitle">Breath timer</div>
+                  <div class="toggleSub">When OFF: hides breath prompts/timer.</div>
+                </div>
+                <label class="switch" aria-label="Breath timer">
+                  <input id="breathTimerToggle" type="checkbox" checked />
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="toggleRow">
+                <div class="toggleText">
+                  <div class="toggleTitle">Pulse check cue</div>
+                  <div class="toggleSub">When OFF: hides the pulse check bar.</div>
+                </div>
+                <label class="switch" aria-label="Pulse check cue">
+                  <input id="pulseCueToggle" type="checkbox" checked />
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="sectionH smallH" style="margin-top:10px">CPR Profile</div>
+
+<div class="pillRow">
+  <div class="fieldLabel">Patient</div>
+  <div class="pillGroup" id="patientTypePills" role="group" aria-label="Patient type">
+    <button type="button" class="pillBtn" data-value="adult">Adult</button>
+    <button type="button" class="pillBtn" data-value="child">Child</button>
+    <button type="button" class="pillBtn" data-value="infant">Infant</button>
+  </div>
+</div>
+
+<div class="pillRow">
+  <div class="fieldLabel">Rescuers</div>
+  <div class="pillGroup" id="rescuerCountPills" role="group" aria-label="Rescuer count">
+    <button type="button" class="pillBtn" data-value="1">1 rescuer</button>
+    <button type="button" class="pillBtn" data-value="2">2 rescuers</button>
+  </div>
+</div>
 
               <div class="toggleRow">
                 <div class="toggleText">
@@ -230,7 +244,7 @@
               </div>
 
               <div class="sectionP muted">
-                More setup options can be added here later (theme, class defaults, report card settings).
+                Note: CPR Profile changes how the breath cue behaves (e.g., child/infant 2-rescuer uses 15:2).
               </div>
             </div>
           </section>
