@@ -35,7 +35,24 @@ function uid(){
 /* ---------- Sessions ---------- */
 function loadSessions(){
   const arr = loadJson(SESSIONS_KEY, []);
-  return Array.isArray(arr) ? arr : [];
+  const list = Array.isArray(arr) ? arr : [];
+  let changed = false;
+  const curClassId = localStorage.getItem("ccf.currentClassId") || "";
+  const norm = list.map(s=>{
+    if(!s || typeof s !== "object") return s;
+    const out = {...s};
+    if(!out.id){ out.id = uid(); changed = true; }
+    if(out.startedAt==null && out.endedAt!=null){ out.startedAt = out.endedAt; changed = true; }
+    if(out.endedAt==null && out.startedAt!=null){ out.endedAt = out.startedAt; changed = true; }
+    if(out.ccfPct==null && out.finalCCF!=null){ out.ccfPct = out.finalCCF; changed = true; }
+    if(out.durationSec==null && out.totalMs!=null){ out.durationSec = out.totalMs/1000; changed = true; }
+    if(out.handsOffSec==null && out.offMs!=null){ out.handsOffSec = out.offMs/1000; changed = true; }
+    if(out.pauseCount==null && Array.isArray(out.pauses)){ out.pauseCount = out.pauses.length; changed = true; }
+    if(!out.classId && curClassId){ out.classId = curClassId; changed = true; }
+    return out;
+  });
+  if(changed){ saveJson(SESSIONS_KEY, norm); }
+  return norm;
 }
 function saveSessions(arr){
   saveJson(SESSIONS_KEY, Array.isArray(arr) ? arr : []);
@@ -82,9 +99,36 @@ const state = {
   classId: null,    // selected class
   ui: loadJson(UI_KEY, { openSections: {} }),
   debounce: null,
+  bulkMode: false,
+  bulkSelected: {},
 };
 function saveUI(){
   saveJson(UI_KEY, { view: state.view, classId: state.classId, openSections: state.ui.openSections || {} });
+
+
+function badgeFor(pct, target){
+  const n = Number(pct);
+  const t = (typeof target==="number" && isFinite(target)) ? target : 80;
+  if(!isFinite(n)) return {label:"—", cls:"badge"};
+  if(n >= t) return {label:"PASS", cls:"badge badgePass"};
+  if(n >= (t - 5)) return {label:"NEAR", cls:"badge badgeNear"};
+  return {label:"BELOW", cls:"badge badgeBelow"};
+}
+function ensureBadgeStyles(){
+  if(document.getElementById("ccfBadgeStyles")) return;
+  const st = document.createElement("style");
+  st.id = "ccfBadgeStyles";
+  st.textContent = `
+    .badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:.06em;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06)}
+    .badgePass{background:rgba(46,204,113,.18);border-color:rgba(46,204,113,.35)}
+    .badgeNear{background:rgba(241,196,15,.18);border-color:rgba(241,196,15,.35)}
+    .badgeBelow{background:rgba(231,76,60,.18);border-color:rgba(231,76,60,.35)}
+    .bulkBar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+    .chk{transform:scale(1.15)}
+  `;
+  document.head.appendChild(st);
+}
+
 }
 
 /* ---------- DOM ---------- */
@@ -186,6 +230,7 @@ function Accordion({classId, id, title, subtitle, defaultOpen=false, bodyEl}){
 /* ---------- Render: List view ---------- */
 
 function renderList(){
+  ensureBadgeStyles();
   state.view = "list";
   state.classId = null;
 
@@ -210,6 +255,21 @@ function renderList(){
 
   // + New Class stays at the top
   container.appendChild(el("button", { class:"primaryBtn", type:"button", id:"btnNewClassTop" }, ["+ New Class"]));
+
+  // Current class (sticky)
+  const curId = localStorage.getItem("ccf.currentClassId") || "";
+  const curCls = curId ? getClassById(curId) : null;
+  const pill = el("div",{id:"currentClassPill", class:"dashCard", style:"margin-top:10px; padding:12px; display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;"},[
+    el("div",{},[
+      el("div",{style:"font-weight:900;"},["Current class"]),
+      el("div",{class:"dashSub"},[curCls ? `${(curCls.name||"(Untitled class)")}${curCls.dateISO?(" • "+fmtDateISO(curCls.dateISO)):""}` : "None selected"])
+    ]),
+    el("div",{class:"row",style:"gap:10px; flex-wrap:wrap;"},[
+      el("button",{class:"secondaryBtn", type:"button", id:"btnChangeCurrentClass"},[curCls? "Change" : "Select"]),
+      (curCls ? el("button",{class:"secondaryBtn", type:"button", id:"btnClearCurrentClass"},["Clear"]) : null)
+    ])
+  ]);
+  container.appendChild(pill);
 
   // View classes button (opens classes accordion)
   container.appendChild(el("button", { class:"secondaryBtn", type:"button", id:"btnViewClasses", style:"margin-top:10px;" }, ["View classes"]));
@@ -249,7 +309,9 @@ function renderList(){
     el("option", { value:"" }, ["— Select class —"]),
     ...classes.map(c => el("option", { value:c.id }, [`${(c.name||"Class")} • ${fmtDateISO(c.dateISO||todayISO())}`]))
   ]);
-  if(mostRecentClass) clsSel.value = mostRecentClass.id;
+  const curId2 = localStorage.getItem("ccf.currentClassId") || "";
+  if(curId2 && classes.some(c=>c.id===curId2)) clsSel.value = curId2;
+  else if(mostRecentClass) clsSel.value = mostRecentClass.id;
 
   latestBody.appendChild(el("label", { class:"field", style:"margin-top:10px;" }, [
     el("span", { class:"fieldLabel" }, ["Assign into class"]),
@@ -359,7 +421,38 @@ function renderList(){
     downloadText(exportAllClassesCSV(), safeFile("ccf-classes-all.csv"));
   });
 
-  safeBind("btnEmailAllClasses", ()=>{
+  safeBind("btnBulkToggle", ()=>{
+  state.bulkMode = !state.bulkMode;
+  if(!state.bulkMode) state.bulkSelected = {};
+  boot();
+});
+
+safeBind("btnBulkDelete", ()=>{
+  const sel = selectedSessions();
+  if(!sel.length) return alert("Select sessions first.");
+  if(!confirm(`Delete ${sel.length} sessions?`)) return;
+  const ids = new Set(sel.map(s=>s.id));
+  const arr = loadSessions().filter(s=>!ids.has(s.id));
+  saveSessions(arr);
+  state.bulkSelected = {};
+  state.bulkMode = false;
+  boot();
+});
+
+safeBind("btnBulkCSV", ()=>{
+  const sel = selectedSessions();
+  if(!sel.length) return alert("Select sessions first.");
+  downloadFile(`ccf-sessions-${todayISO()}.csv`, sessionsCsv(sel), "text/csv");
+});
+
+safeBind("btnBulkAssign", ()=>{
+  const sel = selectedSessions();
+  if(!sel.length) return alert("Select sessions first.");
+  // Assign all selected sessions via the existing assign modal using a synthetic session object
+  showBulkAssignModal(sel);
+});
+
+safeBind("btnEmailAllClasses", ()=>{
     emailText("CCF Classes (All)", exportAllClassesCSV());
   });
 
@@ -766,9 +859,15 @@ function sessionTitle(s){
   return `${ccf} • ${pauses} pauses • ${ho}`.trim();
 }
 function sessionRow(s, {mode, classId}){
-  const row = el("div", { class:"sessionRow" }, [
+  const cls = (classId ? getClassById(classId) : (s.classId ? getClassById(s.classId) : null));
+  const b = badgeFor(s.ccfPct, cls && cls.targetCcf);
+  const row = el("div", { class:"sessionRow", "data-sid": s.id }, [
+    (state.bulkMode ? el("input",{type:"checkbox", class:"chk", "data-chk": s.id, checked: !!(state.bulkSelected&&state.bulkSelected[s.id])},[]) : null),
     el("div", { class:"sessionLeft" }, [
-      el("div", { class:"sessionMain" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session"]),
+      el("div", { class:"row", style:"justify-content:space-between; gap:10px; align-items:center;" }, [
+        el("div", { class:"sessionMain" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session"]),
+        el("span", { class: b.cls }, [b.label])
+      ]),
       el("div", { class:"sessionSub" }, [sessionTitle(s)])
     ]),
     el("div", { class:"sessionActions" }, [])
@@ -910,7 +1009,12 @@ function renderDashboard(cls){
     ])
   ]));
 
-  const roster = el("div", { class:"dashCard", style:"margin-top:12px;" }, [
+  const roster = ((s.note && String(s.note).trim()) ? el("div",{class:"dashCard", style:"margin-top:12px;"},[
+      el("div",{class:"dashTitle"},["Instructor note"]),
+      el("div",{class:"dashSub"},[String(s.note)])
+    ]) : null),
+
+    el("div", { class:"dashCard", style:"margin-top:12px;" }, [
     el("div", { class:"dashTitle" }, ["Students"]),
     el("div", { class:"dashSub" }, ["Tap a student for their report."]),
     el("div", { class:"list", style:"margin-top:10px;" }, [])
@@ -980,6 +1084,11 @@ function showStudentModal(cls, st){
         stat("Attempts", String(sess.length)),
       ])
     ]),
+    ((s.note && String(s.note).trim()) ? el("div",{class:"dashCard", style:"margin-top:12px;"},[
+      el("div",{class:"dashTitle"},["Instructor note"]),
+      el("div",{class:"dashSub"},[String(s.note)])
+    ]) : null),
+
     el("div", { class:"dashCard", style:"margin-top:12px;" }, [
       el("div", { class:"dashTitle" }, ["Sessions"]),
       el("div", { class:"list", style:"margin-top:10px;" }, sess.slice(0, 25).map(s=>sessionRow(s, { mode:"class", classId: cls.id })))
@@ -999,6 +1108,11 @@ function showSessionModal(s){
         stat("Duration", s.durationSec==null?"—":`${Math.round(s.durationSec)}s`),
       ])
     ]),
+    ((s.note && String(s.note).trim()) ? el("div",{class:"dashCard", style:"margin-top:12px;"},[
+      el("div",{class:"dashTitle"},["Instructor note"]),
+      el("div",{class:"dashSub"},[String(s.note)])
+    ]) : null),
+
     el("div", { class:"dashCard", style:"margin-top:12px;" }, [
       el("div", { class:"dashTitle" }, ["Longest pause"]),
       el("div", { class:"dashSub" }, [longestPauseSummary(s)])
@@ -1681,5 +1795,113 @@ function populateLatestStudents(){
   if(!cls) return;
   (cls.students||[]).forEach(st=>{
     sel.appendChild(el("option", { value:st.id }, [st.name || "(Unnamed)"]));
+  });
+}
+
+document.addEventListener("change",(e)=>{
+  const t = e.target;
+  if(!t || !t.matches || !t.matches('input[data-chk]')) return;
+  const sid = t.getAttribute("data-chk");
+  if(!state.bulkSelected) state.bulkSelected = {};
+  if(t.checked) state.bulkSelected[sid] = true;
+  else delete state.bulkSelected[sid];
+  const bc = document.getElementById("bulkCount");
+  if(bc) bc.textContent = `${Object.keys(state.bulkSelected).length} selected`;
+});
+function selectedSessions(){
+  const ids = Object.keys(state.bulkSelected||{});
+  if(!ids.length) return [];
+  const map = new Map(loadSessions().map(s=>[s.id,s]));
+  return ids.map(id=>map.get(id)).filter(Boolean);
+}
+function sessionsCsv(arr){
+  const rows=[["timestamp","ccfPct","pauseCount","handsOffSec","durationSec","longestPause","note","classId","studentId"]];
+  arr.forEach(s=>{
+    rows.push([
+      s.startedAt?new Date(s.startedAt).toLocaleString():"",
+      s.ccfPct!=null?Math.round(s.ccfPct):"",
+      (s.pauses&&s.pauses.length)?s.pauses.length:(s.pauseCount||0),
+      s.handsOffSec!=null?Math.round(s.handsOffSec):"",
+      s.durationSec!=null?Math.round(s.durationSec):"",
+      longestPauseSummary(s),
+      (s.note||"").replace(/\n/g," "),
+      s.classId||"",
+      s.studentId||""
+    ]);
+  });
+  return rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+}
+
+function showBulkAssignModal(sel){
+  const classes = loadClasses();
+  if(!classes.length) return alert("Create a class first.");
+  const curId = localStorage.getItem("ccf.currentClassId") || "";
+  const clsDefault = curId && classes.some(c=>c.id===curId) ? curId : classes[0].id;
+
+  const body = el("div",{class:"pad16"},[
+    el("div",{class:"dashSub"},[`Assign ${sel.length} sessions to a student.`]),
+    el("label",{class:"field"},[
+      el("span",{class:"fieldLabel"},["Class"]),
+      el("select",{id:"bulkClass"},[
+        ...classes.map(c=>el("option",{value:c.id},[`${(c.name||"(Untitled class)")}${c.dateISO?(" • "+fmtDateISO(c.dateISO)):""}`]))
+      ])
+    ]),
+    el("label",{class:"field"},[
+      el("span",{class:"fieldLabel"},["Student"]),
+      el("select",{id:"bulkStudent"},[])
+    ]),
+    el("label",{class:"field"},[
+      el("span",{class:"fieldLabel"},["Instructor note (optional)"]),
+      el("textarea",{id:"bulkNote", rows:"3", placeholder:"Optional note to apply to all selected sessions"},[])
+    ]),
+    el("div",{class:"row", style:"gap:10px; margin-top:10px; flex-wrap:wrap;"},[
+      el("button",{class:"primaryBtn", type:"button", id:"btnBulkAssignConfirm"},["Assign"]),
+      el("button",{class:"secondaryBtn", type:"button", id:"btnBulkAssignCancel"},["Cancel"])
+    ])
+  ]);
+
+  showModal("Bulk assign", body);
+
+  const clsSel = body.querySelector("#bulkClass");
+  const stSel = body.querySelector("#bulkStudent");
+
+  function populateStudents(){
+    const cls = getClassById(clsSel.value);
+    const students = (cls && Array.isArray(cls.students)) ? cls.students : [];
+    stSel.innerHTML = "";
+    if(!students.length){
+      stSel.appendChild(el("option",{value:""},["(No students in class)"]));
+      stSel.disabled = true;
+    }else{
+      stSel.disabled = false;
+      students.forEach(s=> stSel.appendChild(el("option",{value:s.id},[s.name||"(Unnamed)"])));
+    }
+  }
+  clsSel.value = clsDefault;
+  populateStudents();
+  clsSel.addEventListener("change", populateStudents);
+
+  safeBind("btnBulkAssignCancel", closeModal);
+  safeBind("btnBulkAssignConfirm", ()=>{
+    const classId = clsSel.value;
+    const studentId = stSel.value;
+    if(!classId) return alert("Select a class.");
+    if(!studentId) return alert("Select a student (add students in Class setup).");
+    const note = (body.querySelector("#bulkNote")?.value||"").trim();
+    const arr = loadSessions();
+    const ids = new Set(sel.map(s=>s.id));
+    arr.forEach(s=>{
+      if(ids.has(s.id)){
+        s.classId = classId;
+        s.studentId = studentId;
+        if(note) s.note = note;
+      }
+    });
+    saveSessions(arr);
+    localStorage.setItem("ccf.currentClassId", classId);
+    state.bulkSelected = {};
+    state.bulkMode = false;
+    closeModal();
+    boot();
   });
 }
