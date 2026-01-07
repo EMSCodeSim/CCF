@@ -4,8 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CCF Reports</title>
-  <link rel="stylesheet" href="/CCF/styles.css?v=final" />
-</head>
+  </head>
 <body class="reportsPage">
 
 <header class="topbar">
@@ -22,6 +21,82 @@
   <!-- JS renders here -->
 </main>
 
-<script src="/CCF/reports.js?v=final"></script>
+<script>
+(function(){
+  var v = "final15";
+  // Candidate base folders for assets (case-safe)
+  var bases = ["/CCF", "/ccf", ""];
+  var p = (location.pathname||"").toLowerCase();
+  if(p.indexOf("/ccf/")>=0){ bases = ["/ccf","/CCF",""]; }
+  if(p.indexOf("/ccf")>=0 && p.indexOf("/ccf/")<0){ bases = ["/ccf","/CCF",""]; }
+  if(p.indexOf("/ccf")<0 && p.indexOf("/ccf/")<0 && p.indexOf("/ccf")<0 && p.indexOf("/ccf")<0 && p.indexOf("/ccf")<0 && p.indexOf("/ccf")<0){
+    // leave default
+  }
+
+  function addCss(href){
+    var l = document.createElement("link");
+    l.rel = "stylesheet";
+    l.href = href;
+    document.head.appendChild(l);
+  }
+
+  function loadScriptAt(i){
+    if(i>=bases.length){
+      showFail("reports.js did not load. Checked /CCF, /ccf, and relative paths.");
+      return;
+    }
+    var base = bases[i];
+    var src = (base ? base + "/reports.js" : "./reports.js") + "?v=" + encodeURIComponent(v);
+    // set loaded marker only when script actually executes
+    var s = document.createElement("script");
+    s.src = src;
+    s.defer = true;
+    s.onload = function(){ /* ok */ };
+    s.onerror = function(){ loadScriptAt(i+1); };
+    document.head.appendChild(s);
+  }
+
+  function showFail(msg){
+    var app = document.getElementById("app") || document.body;
+    var box = document.createElement("div");
+    box.style.maxWidth="720px";
+    box.style.margin="16px auto";
+    box.style.padding="14px 16px";
+    box.style.borderRadius="14px";
+    box.style.border="1px solid rgba(255,255,255,0.12)";
+    box.style.background="rgba(0,0,0,0.35)";
+    box.style.color="#fff";
+    box.style.fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    box.innerHTML = "<div style='font-weight:800;margin-bottom:6px;'>Reports failed to load</div>"
+      + "<div style='opacity:.9;font-size:14px;'>" + msg + "</div>"
+      + "<div style='margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;'>"
+      + "<button onclick='location.reload()' style='padding:10px 12px;border-radius:999px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.08);color:#fff;'>Reload</button>"
+      + "</div>";
+    app.appendChild(box);
+  }
+
+  // CSS: try base paths first, then relative
+  // (CSS failures aren't fatal, but try best)
+  bases.forEach(function(base){
+    var href = (base ? base + "/styles.css" : "./styles.css") + "?v=" + encodeURIComponent(v);
+    addCss(href);
+  });
+
+  // Load JS with fallback
+  loadScriptAt(0);
+
+  // Watchdog: if boot never runs, show message
+  setTimeout(function(){
+    if(!window.__REPORTS_JS_LOADED){
+      // script didn't execute; failure will be shown by loader, but just in case:
+      // showFail("reports.js did not execute (still loading or blocked).");
+      return;
+    }
+    if(!window.__REPORTS_BOOTED){
+      showFail("reports.js loaded but did not start. This is usually a runtime error before render.");
+    }
+  }, 1200);
+})();
+</script>
 </body>
 </html>

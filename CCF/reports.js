@@ -1,3 +1,4 @@
+window.__REPORTS_JS_LOADED = true;
 
 /* =========================================================
    Reports (Mobile-first)
@@ -1569,6 +1570,8 @@ function escapeHtml(s){
 
 /* ---------- Boot ---------- */
 function boot(){
+  window.__REPORTS_BOOTED = true;
+
   // restore view
   const saved = loadJson(UI_KEY, null);
   if(saved && saved.view==="class" && saved.classId && getClassById(saved.classId)){
