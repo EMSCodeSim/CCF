@@ -4,8 +4,8 @@
 /CCF/*.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 
-/reports.v15.js
+/reports.v17.js
   Cache-Control: public, max-age=31536000, immutable
 
-/CCF/reports.v15.js
+/CCF/reports.v17.js
   Cache-Control: public, max-age=31536000, immutable
