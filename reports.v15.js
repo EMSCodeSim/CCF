@@ -222,8 +222,6 @@ function renderList(){
 
   const container = el("div", { class:"pad16" }, []);
 
-  // + New Class stays at the top
-  container.appendChild(el("button", { class:"primaryBtn", type:"button", id:"btnNewClassTop" }, ["+ New Class"]));
 
   // View classes button (opens classes accordion)
   container.appendChild(el("button", { class:"secondaryBtn", type:"button", id:"btnViewClasses", style:"margin-top:10px;" }, ["View classes"]));
@@ -231,7 +229,6 @@ function renderList(){
   // Classes accordion body
   const classesBody = el("div", {}, []);
   if(!classes.length){
-    classesBody.appendChild(el("div", { class:"dashSub" }, ["No classes yet. Tap + New Class to start."]));
   }else{
     classesBody.appendChild(el("div", { class:"dashSub" }, ["All saved classes (tap to open)."]));
     const list = el("div", { class:"stack10", style:"margin-top:10px;" }, []);
@@ -362,10 +359,7 @@ function renderList(){
     upsertClass(cls);
     openClass(cls.id, true);
   });
-
-  safeBind("btnViewClasses", ()=>{
-    setOpen(null, "classes", true);
-    renderList();
+renderList();
     setTimeout(()=>scrollToAcc("classes"), 0);
   });
 
