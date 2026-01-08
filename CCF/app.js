@@ -353,7 +353,7 @@ function endSession() {
       pulseCueEnabled: !!state.pulseCueEnabled,
     },
 
-    // Keep a simple list for quick display (backward compatible with older reports.v15.js)
+    // Keep a simple list for quick display (backward compatible with older reports.v16.js)
     pauses: state.pauseEvents.map(p => ({
       reason: (p.reasons && p.reasons.length) ? p.reasons.join(", ") : "Unspecified",
       ms: p.durMs || 0,
