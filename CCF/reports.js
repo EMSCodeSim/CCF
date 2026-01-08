@@ -128,6 +128,89 @@ function el(tag, attrs, ...children){
 
   return n;
 }
+
+// --- Session normalization (matches CCF/app.js saved shape) ---
+function num(v){
+  if(v===null||v===undefined||v==="") return null;
+  if(typeof v==="string"){
+    const s=v.trim();
+    if(s.endsWith("%")){
+      const n=Number(s.slice(0,-1));
+      return Number.isFinite(n)?n:null;
+    }
+  }
+  const n=Number(v);
+  return Number.isFinite(n)?n:null;
+}
+function fmtTimeMs(ms){
+  ms = Math.max(0, Number(ms)||0);
+  const sec = Math.round(ms/1000);
+  const mm = String(Math.floor(sec/60)).padStart(2,"0");
+  const ss = String(sec%60).padStart(2,"0");
+  return `${mm}:${ss}`;
+}
+function normalizeSession(raw){
+  const s = raw || {};
+  // timestamps
+  const endedAt = s.endedAt || s.endAt || s.timestamp || null;
+
+  // duration
+  const totalMs = num(s.totalMs ?? s.elapsedMs);
+  const compMs  = num(s.compMs);
+  const offMs   = num(s.offMs);
+
+  const durationSec = (totalMs!=null) ? totalMs/1000 : (num(s.durationSec) ?? null);
+  const handsOffSec = (offMs!=null) ? offMs/1000 : (num(s.handsOffSec) ?? null);
+
+  // CCF percent
+  let ccfPct = num(s.ccfPct ?? s.ccfPercent ?? s.finalCCF ?? s.finalCcf ?? s.ccfScore);
+  if(ccfPct==null && totalMs!=null && compMs!=null && totalMs>0){
+    ccfPct = (compMs/totalMs)*100;
+  }
+
+  // pauses
+  const pauses = Array.isArray(s.pauses) ? s.pauses : [];
+  const pauseCount = (num(s.pauseCount) ?? pauses.length ?? 0);
+
+  // longest pause
+  let longestPauseMs = num(s.longestPauseMs);
+  let longestPauseReason = null;
+  if(longestPauseMs==null && pauses.length){
+    const best = pauses.reduce((best,p)=>{
+      const d = num(p.ms ?? p.durMs ?? p.durationMs) ?? 0;
+      return d > (best?.d||0) ? {p,d} : best;
+    }, null);
+    longestPauseMs = best?.d ?? 0;
+    const p = best?.p;
+    if(p){
+      longestPauseReason = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
+    }
+  } else if(pauses.length){
+    const p = pauses.find(p => (num(p.ms ?? p.durMs ?? p.durationMs) ?? 0) === longestPauseMs) || null;
+    if(p){
+      longestPauseReason = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
+    }
+  }
+
+  return {
+    ...s,
+    endedAt,
+    totalMs, compMs, offMs,
+    durationSec,
+    handsOffSec,
+    ccfPct,
+    pauseCount,
+    pauses,
+    longestPauseMs,
+    longestPauseReason
+  };
+}
+function normalizeSessions(arr){
+  return (arr||[]).map(normalizeSession);
+}
+// --- end normalization ---
+
+
 function fmtDateISO(iso){
   try{
     if(!iso) return "";
@@ -199,9 +282,10 @@ function renderList(){
   saveUI();
 
   const classes = loadClasses().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
-  const sessions = loadSessions();
+  const sessionsRaw = loadSessions();
+  const sessions = normalizeSessions(sessionsRaw);
   const mostRecentClass = classes[0] || null;
-  const latestSession = sessions.length ? sessions[sessions.length-1] : null;
+  const latestSession = sessions.length ? sessions[0] : null;
 
   // Unassigned = not linked to a student (may be linked to a class)
   const unassigned = sessions.filter(s => !s.studentId).slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0));
@@ -1570,7 +1654,8 @@ function renderExportPanel(classes){
 
 function buildExportCSV(scope){
   const classes = loadClasses();
-  const sessions = loadSessions();
+  const sessionsRaw = loadSessions();
+  const sessions = normalizeSessions(sessionsRaw);
 
   if(scope==="class"){
     const classId = document.getElementById("exportClass")?.value;
