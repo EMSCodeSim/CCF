@@ -627,7 +627,6 @@ safeBind("btnAssignLatest", ()=>{
   toast("Assigned to student.");
   renderList();
 });
-});
 
   populateLatestStudents();
 }
