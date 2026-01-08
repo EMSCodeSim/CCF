@@ -43,12 +43,31 @@ function saveSessions(arr){
 
 /* ---------- Classes ---------- */
 function loadClasses(){
-  const arr = loadJson(CLASSES_KEY, []);
+  const arr = normalizeClasses(loadJson(CLASSES_KEY, []));
   return Array.isArray(arr) ? arr : [];
 }
 function saveClasses(arr){
   saveJson(CLASSES_KEY, Array.isArray(arr) ? arr : []);
 }
+
+function normalizeClasses(list){
+  let changed = false;
+  const out = (Array.isArray(list)?list:[]).map(c=>{
+    if(!c || typeof c!=="object") return null;
+    const cc = { ...c };
+    if(!cc.id){
+      cc.id = uid();
+      changed = true;
+    }
+    if(!Array.isArray(cc.students)) cc.students = [];
+    if(!cc.date) cc.date = cc.createdAt || new Date().toISOString().slice(0,10);
+    return cc;
+  }).filter(Boolean);
+  if(changed) saveClasses(out);
+  return out;
+}
+
+
 function getClassById(id){
   return loadClasses().find(c => c.id === id);
 }
@@ -128,6 +147,34 @@ function el(tag, attrs, ...children){
 
   return n;
 }
+
+function toast(msg){
+  try{
+    const t = el("div",{style:[
+      "position:fixed",
+      "left:50%",
+      "bottom:18px",
+      "transform:translateX(-50%)",
+      "z-index:9999",
+      "max-width:90vw",
+      "padding:10px 14px",
+      "border-radius:12px",
+      "background:rgba(0,0,0,.78)",
+      "border:1px solid rgba(255,255,255,.18)",
+      "color:#fff",
+      "font-weight:800",
+      "box-shadow:0 10px 30px rgba(0,0,0,.35)",
+      "text-align:center"
+    ].join(";")},[String(msg||"")]);
+    document.body.appendChild(t);
+    setTimeout(()=>{ try{ t.remove(); }catch(e){} }, 1800);
+  }catch(e){
+    // last resort
+    alert(msg);
+  }
+}
+
+
 
 // --- Session normalization (matches CCF/app.js saved shape) ---
 function num(v){
