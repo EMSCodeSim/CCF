@@ -50,6 +50,31 @@
   <!-- JS renders here -->
 </main>
 
-<script src="/CCF/reports.js"></script>
+
+<script>
+(function(){
+  function show(msg){
+    var root=document.getElementById('app');
+    if(!root) return;
+    root.innerHTML = '<div class="pad16"><div class="dashCard"><div class="dashTitle">Reports failed to load</div><div class="dashSub" style="margin-top:6px;">'+msg+'</div><div class="row" style="gap:10px; margin-top:12px; flex-wrap:wrap;"><button class="pillBtn" onclick="location.reload()">Reload</button></div></div></div>';
+  }
+  function load(src, next){
+    var s=document.createElement('script');
+    s.src=src;
+    s.defer=true;
+    s.onload=function(){ next && next(true); };
+    s.onerror=function(){ next && next(false); };
+    document.head.appendChild(s);
+  }
+  load('/CCF/reports.js?v=17', function(ok){
+    if(ok) return;
+    load('/reports.js?v=17', function(ok2){
+      if(ok2) return;
+      show('Could not load reports script. Tried: /CCF/reports.js?v=17 and /reports.js?v=17');
+    });
+  });
+})();
+</script>
+
 </body>
 </html>
