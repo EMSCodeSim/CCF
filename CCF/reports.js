@@ -543,29 +543,66 @@ function renderList(){
 
 
 function classCard(cls){
-  const students = Array.isArray(cls.students) ? cls.students : [];
-  const sessions = loadSessions().filter(s => s.classId === cls.id);
-  const assignedToStudent = sessions.filter(s => s.studentId).length;
+      const students = Array.isArray(cls.students) ? cls.students : [];
+      const sessions = loadSessions().filter(s => s.classId === cls.id);
+      const assignedToStudent = sessions.filter(s => s.studentId).length;
 
-  const title = (cls.name && cls.name.trim()) ? cls.name.trim() : "(Untitled class)";
-  const meta = [
-    cls.dateISO ? fmtDateISO(cls.dateISO) : "",
-    cls.instructorName ? cls.instructorName : "",
-    cls.location ? cls.location : "",
-  ].filter(Boolean).join(" • ");
+      const title = (cls.name && cls.name.trim()) ? cls.name.trim() : "(Untitled class)";
+      const meta = [
+        cls.dateISO ? fmtDateISO(cls.dateISO) : "",
+        cls.instructorName ? cls.instructorName : "",
+        cls.location ? cls.location : "",
+      ].filter(Boolean).join(" • ");
 
-  const stats = `${students.length} students • ${assignedToStudent}/${sessions.length} assigned`;
+      const stats = `${students.length} students • ${assignedToStudent}/${sessions.length} assigned`;
 
-  const card = el("button", { class:"classCard", type:"button" }, [
-    el("div", { class:"classCardTop" }, [
-      el("div", { class:"className" }, [title]),
-      el("div", { class:"classMeta" }, [meta || ""])
-    ]),
-    el("div", { class:"classStats" }, [stats]),
-  ]);
-  card.addEventListener("click", ()=>openClass(cls.id, false));
-  return card;
-}
+      // Use a non-button wrapper so we can have an inner Delete button.
+      const card = el("div", { class:"classCard", role:"button", tabindex:"0" }, [
+        el("div", { class:"classCardTop", style:"display:flex; align-items:flex-start; justify-content:space-between; gap:10px;" }, [
+          el("div", { style:"min-width:0; flex:1;" }, [
+            el("div", { class:"className" }, [title]),
+            el("div", { class:"classMeta" }, [meta || ""])
+          ]),
+          el("button", { class:"dangerMiniBtn", type:"button", title:"Delete class", "aria-label":"Delete class", style:"flex:0 0 auto;" }, ["Delete"])
+        ]),
+        el("div", { class:"classStats" }, [stats]),
+      ]);
+
+      // Open class when tapping card (but not when tapping Delete)
+      card.addEventListener("click", (e)=>{
+        if(e.target && e.target.closest && e.target.closest(".dangerMiniBtn")) return;
+        openClass(cls.id, false);
+      });
+      card.addEventListener("keydown", (e)=>{
+        if(e.key==="Enter" || e.key===" "){
+          e.preventDefault();
+          openClass(cls.id, false);
+        }
+      });
+
+      // Delete behavior
+      const delBtn = card.querySelector(".dangerMiniBtn");
+      delBtn.addEventListener("click", (e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        const name = (title && title!=="(Untitled class)") ? `"${title}"` : "this class";
+        const ok = confirm(`Delete ${name}?
+
+Sessions will be kept as UNASSIGNED so you can re-assign them later.`);
+        if(!ok) return;
+        deleteClass(cls.id);
+        // If user was viewing this class, go back to list.
+        if(state.view==="class" && state.classId===cls.id){
+          state.view="list";
+          state.classId=null;
+          saveUI();
+        }
+        renderList();
+        toast("Class deleted. Sessions kept as unassigned.");
+      });
+
+      return card;
+    }
 
 /* ---------- Render: Class view ---------- */
 function openClass(classId, isNew){
