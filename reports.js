@@ -128,6 +128,131 @@ function el(tag, attrs, ...children){
 
   return n;
 }
+
+// --- Session normalization (matches CCF/app.js saved shape) ---
+function num(v){
+  if(v===null||v===undefined||v==="") return null;
+  if(typeof v==="string"){
+    const s=v.trim();
+    if(s.endsWith("%")){
+      const n=Number(s.slice(0,-1));
+      return Number.isFinite(n)?n:null;
+    }
+  }
+  const n=Number(v);
+  return Number.isFinite(n)?n:null;
+}
+function fmtTimeMs(ms){
+  ms = Math.max(0, Number(ms)||0);
+  const sec = Math.round(ms/1000);
+  const mm = String(Math.floor(sec/60)).padStart(2,"0");
+  const ss = String(sec%60).padStart(2,"0");
+  return `${mm}:${ss}`;
+}
+function normalizeSession(raw){
+  const s = raw || {};
+  // timestamps
+  const endedAt = s.endedAt || s.endAt || s.timestamp || null;
+
+  // duration
+  const totalMs = num(s.totalMs ?? s.elapsedMs);
+  const compMs  = num(s.compMs);
+  const offMs   = num(s.offMs);
+
+  const durationSec = (totalMs!=null) ? totalMs/1000 : (num(s.durationSec) ?? null);
+  const handsOffSec = (offMs!=null) ? offMs/1000 : (num(s.handsOffSec) ?? null);
+
+  // CCF percent
+  let ccfPct = num(s.ccfPct ?? s.ccfPercent ?? s.finalCCF ?? s.finalCcf ?? s.ccfScore);
+  if(ccfPct==null && totalMs!=null && compMs!=null && totalMs>0){
+    ccfPct = (compMs/totalMs)*100;
+  }
+
+  // pauses
+  const pauses = Array.isArray(s.pauses) ? s.pauses : [];
+  const pauseCount = (num(s.pauseCount) ?? pauses.length ?? 0);
+
+  // longest pause
+  let longestPauseMs = num(s.longestPauseMs);
+  let longestPauseReason = null;
+  if(longestPauseMs==null && pauses.length){
+    const best = pauses.reduce((best,p)=>{
+      const d = num(p.ms ?? p.durMs ?? p.durationMs) ?? 0;
+      return d > (best?.d||0) ? {p,d} : best;
+    }, null);
+    longestPauseMs = best?.d ?? 0;
+    const p = best?.p;
+    if(p){
+      longestPauseReason = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
+    }
+  } else if(pauses.length){
+    const p = pauses.find(p => (num(p.ms ?? p.durMs ?? p.durationMs) ?? 0) === longestPauseMs) || null;
+    if(p){
+      longestPauseReason = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
+    }
+  }
+
+  return {
+    ...s,
+    endedAt,
+    totalMs, compMs, offMs,
+    durationSec,
+    handsOffSec,
+    ccfPct,
+    pauseCount,
+    pauses,
+    longestPauseMs,
+    longestPauseReason
+  };
+}
+function normalizeSessions(arr){
+  return (arr||[]).map(normalizeSession);
+}
+// --- end normalization ---
+
+function groupPauseTimeByReason(pauses){
+  const map = new Map();
+  (pauses||[]).forEach(p=>{
+    const ms = num(p.ms ?? p.durMs ?? p.durationMs) ?? 0;
+    let reasons = [];
+    if(Array.isArray(p.reasons) && p.reasons.length) reasons = p.reasons;
+    else if(p.reason) reasons = [p.reason];
+    else reasons = ["Unspecified"];
+    reasons.forEach(r=>{
+      const key = String(r||"Unspecified");
+      map.set(key, (map.get(key)||0) + ms);
+    });
+  });
+  // return sorted array desc by ms
+  return Array.from(map.entries())
+    .map(([reason, ms])=>({reason, ms}))
+    .sort((a,b)=>b.ms-a.ms);
+}
+
+function renderPauseBreakdown(pauses){
+  const rows = groupPauseTimeByReason(pauses);
+  if(!rows.length){
+    return el("div",{class:"dashSub", style:"margin-top:8px; opacity:.85;"},["No pauses recorded."]);
+  }
+  const totalMs = rows.reduce((a,r)=>a+r.ms,0);
+  const wrap = el("div",{style:"margin-top:12px; padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,.10); background:rgba(0,0,0,.18);"},[
+    el("div",{style:"font-weight:900; margin-bottom:6px;"},["Pause time breakdown"]),
+    el("div",{class:"dashSub", style:"opacity:.85; margin-bottom:8px;"},[`Total paused time: ${fmtTimeMs(totalMs)}`])
+  ]);
+
+  rows.forEach(r=>{
+    const pct = totalMs>0 ? Math.round((r.ms/totalMs)*100) : 0;
+    wrap.appendChild(el("div",{style:"display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px solid rgba(255,255,255,.06);"},[
+      el("div",{style:"font-weight:800;"},[r.reason]),
+      el("div",{style:"opacity:.9; white-space:nowrap;"},[`${fmtTimeMs(r.ms)} (${pct}%)`])
+    ]));
+  });
+  return wrap;
+}
+
+
+
+
 function fmtDateISO(iso){
   try{
     if(!iso) return "";
@@ -199,9 +324,10 @@ function renderList(){
   saveUI();
 
   const classes = loadClasses().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
-  const sessions = loadSessions();
+  const sessionsRaw = loadSessions();
+  const sessions = normalizeSessions(sessionsRaw);
   const mostRecentClass = classes[0] || null;
-  const latestSession = sessions.length ? sessions[sessions.length-1] : null;
+  const latestSession = sessions.length ? sessions[0] : null;
 
   // Unassigned = not linked to a student (may be linked to a class)
   const unassigned = sessions.filter(s => !s.studentId).slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0));
@@ -1570,7 +1696,8 @@ function renderExportPanel(classes){
 
 function buildExportCSV(scope){
   const classes = loadClasses();
-  const sessions = loadSessions();
+  const sessionsRaw = loadSessions();
+  const sessions = normalizeSessions(sessionsRaw);
 
   if(scope==="class"){
     const classId = document.getElementById("exportClass")?.value;
