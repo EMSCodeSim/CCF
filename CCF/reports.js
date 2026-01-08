@@ -422,12 +422,37 @@ function renderList(){
     el("option", { value:"" }, ["— Select class —"]),
     ...classes.map(c => el("option", { value:c.id }, [`${(c.name||"Class")} • ${fmtDateISO(c.dateISO||todayISO())}`]))
   ]);
-  if(mostRecentClass) clsSel.value = mostRecentClass.id;
+  // Streamlined: default to Current Class, with optional change
+const currentClassId = loadJson("ccf.currentClassId", "") || "";
+const defaultClassId = (currentClassId && classes.some(c=>c.id===currentClassId)) ? currentClassId : (mostRecentClass ? mostRecentClass.id : "");
+if(defaultClassId) clsSel.value = defaultClassId;
 
-  latestBody.appendChild(el("label", { class:"field", style:"margin-top:10px;" }, [
-    el("span", { class:"fieldLabel" }, ["Assign into class"]),
+const classLabel = el("div", { id:"latestClassLabel", style:"font-weight:900;" }, []);
+function updateLatestClassLabel(){
+  const cid = document.getElementById("latestClassPicker")?.value || "";
+  const c = cid ? getClassById(cid) : null;
+  const text = c ? `${(c.name||"Class")} • ${fmtDateISO(c.dateISO||todayISO())}` : "No class selected";
+  classLabel.textContent = text;
+  if(cid) saveJson("ccf.currentClassId", cid);
+}
+
+latestBody.appendChild(el("div", { class:"row", style:"align-items:center; justify-content:space-between; gap:10px; margin-top:10px;" }, [
+  el("div", {}, [
+    el("div", { class:"fieldLabel" }, ["Current class"]),
+    classLabel
+  ]),
+  el("button", { class:"secondaryBtn", type:"button", id:"btnChangeLatestClass" }, ["Change"])
+]));
+
+latestBody.appendChild(el("div", { id:"latestClassPickerWrap", style:"display:none; margin-top:10px;" }, [
+  el("label", { class:"field", style:"margin:0;" }, [
+    el("span", { class:"fieldLabel" }, ["Select class"]),
     clsSel
-  ]));
+  ]),
+  el("div", { class:"row", style:"justify-content:flex-end; margin-top:8px;" }, [
+    el("button", { class:"secondaryBtn", type:"button", id:"btnDoneLatestClass" }, ["Done"])
+  ])
+]));
 
   // Session preview
   latestBody.appendChild(el("div", { class:"reportCard", id:"latestSessionCard", style:"margin-top:10px;" }, []));
@@ -539,8 +564,21 @@ function renderList(){
   // Latest session render + bind
   renderLatestSession(latestSession);
 
+safeBind("btnChangeLatestClass", ()=>{
+  const w = document.getElementById("latestClassPickerWrap");
+  if(w) w.style.display = (w.style.display==="none" || !w.style.display) ? "block" : "none";
+});
+
+safeBind("btnDoneLatestClass", ()=>{
+  const w = document.getElementById("latestClassPickerWrap");
+  if(w) w.style.display = "none";
+});
+
+
   safeBind("latestClassPicker", ()=>{
     populateLatestStudents();
+  updateLatestClassLabel();
+    updateLatestClassLabel();
   }, "change");
 
   safeBind("btnLatestOpenReport", ()=>{
@@ -578,11 +616,17 @@ function renderList(){
     renderList();
   });
 
-  safeBind("btnAssignLatest", ()=>{
-  const classId = document.getElementById("latestClassPicker").value;
+  
+safeBind("btnAssignLatest", ()=>{
   if(!latestSession) return alert("No sessions saved yet.");
+  const classId = document.getElementById("latestClassPicker")?.value || "";
   if(!classId) return alert("Select a class first.");
-  showAssignModal(latestSession, { classId });
+  const studentId = document.getElementById("latestStudentSelect")?.value || "";
+  if(!studentId) return alert("Select a student.");
+  assignSession(latestSession.id, classId, studentId);
+  toast("Assigned to student.");
+  renderList();
+});
 });
 
   populateLatestStudents();
