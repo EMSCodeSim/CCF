@@ -1,4 +1,5 @@
 const REPORTS_VERSION = "v17";
+window.__REPORTS_JS_LOADED = true;
 
 /* =========================================================
    Reports (Mobile-first)
@@ -172,8 +173,10 @@ function renderPauseList(pauses){
 
   const n = document.createElement(tag);
 
-  // Allow el(tag, child1, child2...) (attrs omitted)
-  const isAttrs = attrs && typeof attrs === "object" && !Array.isArray(attrs) &&
+  const isAttrs =
+    attrs &&
+    typeof attrs === "object" &&
+    !Array.isArray(attrs) &&
     !(attrs instanceof Node) &&
     !(attrs instanceof NodeList) &&
     !(attrs instanceof HTMLCollection);
@@ -186,28 +189,38 @@ function renderPauseList(pauses){
   Object.entries(attrs||{}).forEach(([k,v])=>{
     if(k==="class") n.className = v;
     else if(k==="html") n.innerHTML = v;
-    else if(k.startsWith("on") && typeof v==="function") n.addEventListener(k.slice(2).toLowerCase(), v);
-    else if(v!==null && v!==undefined) n.setAttribute(k, String(v));
+    else if(k.startsWith("on") && typeof v==="function")
+      n.addEventListener(k.slice(2).toLowerCase(), v);
+    else if(v!==null && v!==undefined)
+      n.setAttribute(k, String(v));
   });
 
-  // Normalize children: allow single node/string, arrays, NodeList, HTMLCollection
-  const flat = [];
-  const pushChild = (ch)=>{
+  const append = (ch)=>{
     if(ch===null || ch===undefined || ch===false) return;
-    if(Array.isArray(ch)) ch.forEach(pushChild);
-    else if(ch instanceof NodeList || ch instanceof HTMLCollection) Array.from(ch).forEach(pushChild);
-    else flat.push(ch);
+
+    if(Array.isArray(ch)){
+      ch.forEach(append);
+    }
+    else if(ch instanceof Node){
+      n.appendChild(ch);
+    }
+    else if(ch instanceof NodeList || ch instanceof HTMLCollection){
+      Array.from(ch).forEach(append);
+    }
+    else {
+      n.appendChild(document.createTextNode(String(ch)));
+    }
   };
-  children.forEach(pushChild);
 
-  flat.forEach(ch=>{
-    if(ch===null || ch===undefined) return;
-    if(typeof ch==="string" || typeof ch==="number") n.appendChild(document.createTextNode(String(ch)));
-    else n.appendChild(ch);
-  });
-
+  children.forEach(append);
   return n;
 }
+
+function sessionStamp(s){
+  const t = s?.startedAt ?? s?.endedAt ?? s?.ended ?? s?.timestamp ?? null;
+  return t ? new Date(t).toLocaleString() : "";
+}
+
 function fmtDateISO(iso){
   try{
     if(!iso) return "";
@@ -243,7 +256,8 @@ function setOpen(classId, sectionId, open){
 }
 function Accordion({classId, id, title, subtitle, defaultOpen=false, bodyEl}){
   const open = isOpen(classId, id) || defaultOpen;
-  const hdr = el("button", { class:"accHeader", type:"button" }, [
+  const hdr = el("button", { class:"accHeader",
+    "data-acc": id, type:"button" }, [
     el("div", { class:"accHdrLeft" }, [
       el("div", { class:"accTitle" }, [title]),
       subtitle ? el("div", { class:"accSub" }, [subtitle]) : null
@@ -348,7 +362,7 @@ function renderList(){
       el("span", { class:"fieldLabel" }, ["Student"]),
       el("select", { id:"latestStudentSelect" }, [ el("option", { value:"" }, ["— Select student —"]) ])
     ]),
-    el("button", { class:"endBtn", type:"button", id:"btnAssignLatest" }, ["Assign"])
+    el("button", { class:"endBtn", type:"button", id:"btnAssignLatest" }, ["Assign to student"])
   ]));
 
   // Add student inline (simple)
@@ -429,10 +443,8 @@ function renderList(){
     openClass(cls.id, true);
   });
 renderList();
-    setTimeout(()=>scrollToAcc("classes"), 0);
-  });
-
-  safeBind("btnDlAllClasses", ()=>{
+  setTimeout(()=>scrollToAcc("classes"), 0);
+safeBind("btnDlAllClasses", ()=>{
     downloadText(exportAllClassesCSV(), safeFile("ccf-classes-all.csv"));
   });
 
@@ -483,10 +495,20 @@ renderList();
   });
 
   safeBind("btnAssignLatest", ()=>{
-  const classId = document.getElementById("latestClassPicker").value;
   if(!latestSession) return alert("No sessions saved yet.");
+  const classId = document.getElementById("latestClassPicker")?.value || "";
   if(!classId) return alert("Select a class first.");
-  showAssignModal(latestSession, { classId });
+  const studentId = document.getElementById("latestStudentSelect")?.value || "";
+  if(!studentId) return alert("Select a student (or use Add Student).");
+  const arr = loadSessions();
+  const idx = arr.findIndex(x=>x.id===latestSession.id);
+  if(idx<0) return;
+  arr[idx].classId = classId;
+  arr[idx].studentId = studentId;
+  saveSessions(arr);
+  localStorage.setItem("ccf.currentClassId", classId);
+  alert("Assigned to student.");
+  boot();
 });
 
   populateLatestStudents();
@@ -1460,6 +1482,8 @@ function escapeHtml(s){
 
 /* ---------- Boot ---------- */
 function boot(){
+  window.__REPORTS_BOOTED = true;
+
   // restore view
   const saved = loadJson(UI_KEY, null);
   if(saved && saved.view==="class" && saved.classId && getClassById(saved.classId)){
@@ -1735,15 +1759,49 @@ function renderLatestSession(latestSession){
     card.appendChild(el("div", { class:"dashSub" }, ["No saved sessions yet. Run a session to see it here."]));
     return;
   }
-  card.appendChild(el("div", { class:"dashGrid" }, [
+
+  // Header
+  card.appendChild(el("div", { class:"dashTitle" }, ["Last session report"]));
+  const stamp = sessionStamp(latestSession);
+  if(stamp) card.appendChild(el("div", { class:"dashSub" }, [stamp]));
+
+  // Key stats
+  card.appendChild(el("div", { class:"dashGrid", style:"margin-top:10px;" }, [
     stat("CCF", latestSession.ccfPct==null?"—":`${Math.round(latestSession.ccfPct)}%`),
     stat("Pauses", String((latestSession.pauses && latestSession.pauses.length) ? latestSession.pauses.length : (latestSession.pauseCount ?? 0))),
     stat("Hands-off", latestSession.handsOffSec==null?"—":`${Math.round(latestSession.handsOffSec)}s`),
     stat("Duration", latestSession.durationSec==null?"—":`${Math.round(latestSession.durationSec)}s`),
   ]));
+
   card.appendChild(el("div", { class:"dashSub", style:"margin-top:10px;" }, [
     "Longest pause: ", longestPauseSummary(latestSession)
   ]));
+
+  // Pause list
+  const pauses = Array.isArray(latestSession.pauses) ? latestSession.pauses : [];
+  if(!pauses.length){
+    card.appendChild(el("div", { class:"dashSub", style:"margin-top:10px; opacity:.85;" }, [
+      "No pauses recorded (pause prompt may be OFF)."
+    ]));
+    return;
+  }
+
+  card.appendChild(el("div", { class:"dashTitle", style:"margin-top:12px;" }, ["Pauses"]));
+  const list = el("div", { class:"pauseList", style:"display:grid; gap:8px; margin-top:8px;" }, []);
+  pauses.forEach((p,i)=>{
+    const reason = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
+    const ms = p.ms ?? p.durMs ?? 0;
+    // show either relative time (if startMs exists) or order
+    const rel = (p.startMs!=null) ? `@ ${fmt(p.startMs)}` : `#${i+1}`;
+    list.appendChild(el("div", { class:"pauseRow", style:"padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(0,0,0,.08);" }, [
+      el("div", { style:"display:flex; justify-content:space-between; gap:10px; align-items:baseline;" }, [
+        el("div", { style:"font-weight:800;" }, [reason]),
+        el("div", { style:"opacity:.9; font-variant-numeric: tabular-nums;" }, [fmt(ms)])
+      ]),
+      el("div", { class:"dashSub", style:"margin-top:4px; opacity:.85;" }, [rel])
+    ]));
+  });
+  card.appendChild(list);
 }
 
 
