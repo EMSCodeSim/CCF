@@ -90,6 +90,85 @@ function saveUI(){
 /* ---------- DOM ---------- */
 const app = () => document.getElementById("app");
 function el(tag, attrs, ...children){
+
+function normalizeSession(raw){
+  const s = raw || {};
+  // timestamps
+  const endedAt = s.endedAt ?? s.endAt ?? s.timestamp ?? null;
+  const totalMs = toNum(s.totalMs) ?? null;
+  const startedAt = s.startedAt ?? s.startAt ?? (endedAt && totalMs!=null ? (new Date(endedAt).getTime() - totalMs) : null);
+
+  // CCF
+  const ccfPct = toNum(
+    s.ccfPct ?? s.finalCCF ?? s.finalCcf ?? s.ccf ?? s.ccfPercent ?? s.ccf_percentage ?? s.ccfScore
+  );
+
+  // pause events
+  const pauses = Array.isArray(s.pauses) ? s.pauses : (Array.isArray(s.pauseEvents) ? s.pauseEvents : []);
+  const pauseCount = pauses.length || toNum(s.pauseCount) || 0;
+
+  // hands-off
+  let handsOffSec = toNum(s.handsOffSec);
+  if(handsOffSec==null){
+    const offMs = toNum(s.offMs);
+    if(offMs!=null) handsOffSec = offMs/1000;
+  }
+  if(handsOffSec==null && pauses.length){
+    handsOffSec = pauses.reduce((a,p)=>a + (toNum(p.ms ?? p.durMs ?? p.durationMs) || 0),0)/1000;
+  }
+
+  // duration
+  let durationSec = toNum(s.durationSec);
+  if(durationSec==null){
+    if(totalMs!=null) durationSec = totalMs/1000;
+    else if(startedAt && endedAt) durationSec = Math.max(0,(new Date(endedAt)-new Date(startedAt))/1000);
+  }
+
+  // longest pause
+  let longestPause = null;
+  if(pauses.length){
+    const best = pauses.slice().sort((a,b)=>(toNum(b.ms??b.durMs)??0)-(toNum(a.ms??a.durMs)??0))[0];
+    const ms = toNum(best.ms ?? best.durMs ?? best.durationMs) ?? 0;
+    const reason = (best.reasons && best.reasons.length) ? best.reasons.join(", ") : (best.reason || "Unspecified");
+    const startMs = toNum(best.startMs ?? best.atMs ?? best.tMs);
+    longestPause = { ms, reason, startMs };
+  } else if(s.longestPauseMs || s.longestPauseSec){
+    const ms = toNum(s.longestPauseMs) ?? (toNum(s.longestPauseSec) ?? 0)*1000;
+    const reason = s.longestPauseReason ?? s.longestReason ?? "Unspecified";
+    longestPause = { ms, reason, startMs: null };
+  }
+
+  return {
+    ...s,
+    startedAt,
+    endedAt,
+    ccfPct,
+    durationSec,
+    handsOffSec,
+    pauseCount,
+    pauses,
+    longestPause,
+    totalMs,
+  };
+}
+function toNum(v){
+  if(v===null || v===undefined || v==="") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function stamp(ts){
+  if(!ts) return "";
+  try { return new Date(ts).toLocaleString(); } catch { return ""; }
+}
+function fmtMs(ms){
+  ms = Math.max(0, Number(ms)||0);
+  const s = Math.round(ms/1000);
+  const mm = String(Math.floor(s/60)).padStart(2,"0");
+  const ss = String(s%60).padStart(2,"0");
+  return `${mm}:${ss}`;
+}
+
+
   const n = document.createElement(tag);
 
   // Allow el(tag, child1, child2...) (attrs omitted)
@@ -207,14 +286,8 @@ function renderList(){
   const unassigned = sessions.filter(s => !s.studentId).slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0));
 
   const container = el("div", { class:"pad16" }, []);
-
-
-  // View classes button (opens classes accordion)
-  container.appendChild(el("button", { class:"secondaryBtn", type:"button", id:"btnViewClasses", style:"margin-top:10px;" }, ["View classes"]));
-
-  // Classes accordion body
-  const classesBody = el("div", {}, []);
   if(!classes.length){
+    classesBody.appendChild(el("div", { class:"dashSub" }, ["No classes yet. Tap + New Class to start."]));
   }else{
     classesBody.appendChild(el("div", { class:"dashSub" }, ["All saved classes (tap to open)."]));
     const list = el("div", { class:"stack10", style:"margin-top:10px;" }, []);
@@ -328,9 +401,7 @@ function renderList(){
   app().appendChild(container);
 
   // Wire buttons
-  safeBind("btnNewClassTop", ()=>{
-    const d = loadDefaults();
-    const cls = {
+const cls = {
       id: uid(),
       name: "",
       dateISO: todayISO(),
@@ -752,14 +823,18 @@ function renderStudents(cls, focusNew){
 }
 
 /* ---------- Sessions listing + assignment ---------- */
-function sessionTitle(s){
+function sessionTitle(raw){
+  const s = normalizeSession(raw);
+
   const when = s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session";
   const ccf = (s.ccfPct!==undefined && s.ccfPct!==null) ? `${Math.round(s.ccfPct)}%` : "—";
   const pauses = (s.pauses && Array.isArray(s.pauses)) ? s.pauses.length : (s.pauseCount ?? 0);
   const ho = (s.handsOffSec!==undefined && s.handsOffSec!==null) ? `${Math.round(s.handsOffSec)}s hands-off` : "";
   return `${ccf} • ${pauses} pauses • ${ho}`.trim();
 }
-function sessionRow(s, {mode, classId}){
+function sessionRow(raw, {mode, classId}){
+  const s = normalizeSession(raw);
+
   const row = el("div", { class:"sessionRow" }, [
     el("div", { class:"sessionLeft" }, [
       el("div", { class:"sessionMain" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session"]),
