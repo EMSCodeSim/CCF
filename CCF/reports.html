@@ -3,79 +3,53 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Reports</title>
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <style>
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:#082131;color:#fff}
-    .wrap{padding:18px}
-    .card{margin-top:14px;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06)}
-    .btn{display:inline-block;margin-top:10px;padding:10px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.10);color:#fff;text-decoration:none;font-weight:800}
-    pre{white-space:pre-wrap;word-break:break-word;margin:10px 0 0}
-  </style>
+  <title>CCF Reports</title>
+  <link rel="stylesheet" href="/CCF/styles.css?v=17" />
+
+<style>
+/* reports v16 */
+.timerBtn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:10px 14px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.10);
+  color:#fff !important;
+  text-decoration:none;
+  font-weight:800;
+  letter-spacing:.2px;
+}
+.timerBtn:active{ transform:scale(.99); }
+.verChip{
+  margin-left:10px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(0,0,0,.20);
+  font-size:12px;
+  opacity:.9;
+}
+</style>
+
 </head>
-<body>
-  <div class="wrap">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-      <div style="font-size:28px;font-weight:900;">Reports</div>
-      <a class="btn" href="/CCF/index.html">← Timer</a>
-    </div>
+<body class="reportsPage">
 
-    <div id="boot" class="card">
-      <div style="font-weight:900;font-size:18px;">Reports Loader v1 (CCF)</div>
-      <div style="opacity:.9;margin-top:6px">If this card is visible, the page is NOT blank and HTML is loading correctly.</div>
-      <div style="opacity:.8;margin-top:6px" id="status">Loading scripts…</div>
-    </div>
-
-    <div id="app"></div>
+<header class="topbar">
+  <div class="brand">
+    <div class="title" id="hdrTitle">Reports</div>
+    <div class="modePill" id="hdrPill">Instructor</div>
   </div>
+  <div class="topActions">
+    <a class="ghostBtn timerBtn" href="./index.html" class="timerBtn"> ← Timer</a>
+  </div>
+</header>
 
-  <script>
-    (function(){
-      const status = document.getElementById("status");
-      const boot = document.getElementById("boot");
+<main class="reportsMain" id="app">
+  <!-- JS renders here -->
+</main>
 
-      function addErr(msg){
-        const box = document.createElement("div");
-        box.className = "card";
-        box.innerHTML = "<div style='font-weight:900'>Reports failed to load</div><pre></pre>";
-        box.querySelector("pre").textContent = msg;
-        boot.insertAdjacentElement("afterend", box);
-      }
-
-      function loadScript(src){
-        return new Promise((resolve,reject)=>{
-          const s=document.createElement("script");
-          s.src=src + (src.includes("?") ? "&" : "?") + "cb=" + Date.now();
-          s.defer=true;
-          s.onload=resolve;
-          s.onerror=()=>reject(new Error("Failed to load: " + s.src));
-          document.head.appendChild(s);
-        });
-      }
-
-      const tries = [
-        "/CCF/reports.js",
-        "/reports.js"
-      ];
-
-      (async ()=>{
-        for(const t of tries){
-          try{
-            status.textContent = "Trying " + t;
-            await loadScript(t);
-            status.textContent = "Loaded " + t + " ✓";
-            return;
-          }catch(e){
-            console.warn(e);
-          }
-        }
-        status.textContent = "All script paths failed.";
-        addErr("None of these scripts loaded:\n- " + tries.join("\n- ") +
-               "\n\nThis means the JS files are missing from the deployed output OR your publish directory is wrong.");
-      })();
-    })();
-  </script>
+<script src="/CCF/reports.js"></script>
 </body>
 </html>

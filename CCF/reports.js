@@ -1,4 +1,3 @@
-const REPORTS_VERSION = "stable-v1";
 window.__REPORTS_JS_LOADED = true;
 
 /* =========================================================
@@ -328,7 +327,9 @@ function renderList(){
   const container = el("div", { class:"pad16" }, []);
 
   // + New Class stays at the top
-// Current class (sticky)
+  container.appendChild(el("button", { class:"primaryBtn", type:"button", id:"btnNewClassTop" }, ["+ New Class"]));
+
+  // Current class (sticky)
   const curId = localStorage.getItem("ccf.currentClassId") || "";
   const curCls = curId ? getClassById(curId) : null;
   const pill = el("div",{id:"currentClassPill", class:"dashCard", style:"margin-top:10px; padding:12px; display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;"},[
@@ -344,7 +345,9 @@ function renderList(){
   container.appendChild(pill);
 
   // View classes button (opens classes accordion)
-// Classes accordion body
+  container.appendChild(el("button", { class:"secondaryBtn", type:"button", id:"btnViewClasses", style:"margin-top:10px;" }, ["View classes"]));
+
+  // Classes accordion body
   const classesBody = el("div", {}, []);
   if(!classes.length){
     classesBody.appendChild(el("div", { class:"dashSub" }, ["No classes yet. Tap + New Class to start."]));
@@ -1186,8 +1189,7 @@ function showSessionModal(s){
     el("div", { class:"dashCard", style:"margin-top:12px;" }, [
       el("div", { class:"dashTitle" }, ["Longest pause"]),
       el("div", { class:"dashSub" }, [longestPauseSummary(s)])
-    ]),
-    renderPauseList(s.pauses)
+    ])
   ]);
   showModal("Session", body);
 }
