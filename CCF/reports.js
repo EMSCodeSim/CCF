@@ -210,6 +210,48 @@ function normalizeSessions(arr){
 }
 // --- end normalization ---
 
+function groupPauseTimeByReason(pauses){
+  const map = new Map();
+  (pauses||[]).forEach(p=>{
+    const ms = num(p.ms ?? p.durMs ?? p.durationMs) ?? 0;
+    let reasons = [];
+    if(Array.isArray(p.reasons) && p.reasons.length) reasons = p.reasons;
+    else if(p.reason) reasons = [p.reason];
+    else reasons = ["Unspecified"];
+    reasons.forEach(r=>{
+      const key = String(r||"Unspecified");
+      map.set(key, (map.get(key)||0) + ms);
+    });
+  });
+  // return sorted array desc by ms
+  return Array.from(map.entries())
+    .map(([reason, ms])=>({reason, ms}))
+    .sort((a,b)=>b.ms-a.ms);
+}
+
+function renderPauseBreakdown(pauses){
+  const rows = groupPauseTimeByReason(pauses);
+  if(!rows.length){
+    return el("div",{class:"dashSub", style:"margin-top:8px; opacity:.85;"},["No pauses recorded."]);
+  }
+  const totalMs = rows.reduce((a,r)=>a+r.ms,0);
+  const wrap = el("div",{style:"margin-top:12px; padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,.10); background:rgba(0,0,0,.18);"},[
+    el("div",{style:"font-weight:900; margin-bottom:6px;"},["Pause time breakdown"]),
+    el("div",{class:"dashSub", style:"opacity:.85; margin-bottom:8px;"},[`Total paused time: ${fmtTimeMs(totalMs)}`])
+  ]);
+
+  rows.forEach(r=>{
+    const pct = totalMs>0 ? Math.round((r.ms/totalMs)*100) : 0;
+    wrap.appendChild(el("div",{style:"display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px solid rgba(255,255,255,.06);"},[
+      el("div",{style:"font-weight:800;"},[r.reason]),
+      el("div",{style:"opacity:.9; white-space:nowrap;"},[`${fmtTimeMs(r.ms)} (${pct}%)`])
+    ]));
+  });
+  return wrap;
+}
+
+
+
 
 function fmtDateISO(iso){
   try{
