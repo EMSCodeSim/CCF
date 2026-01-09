@@ -4,7 +4,7 @@
   "use strict";
 
   const CLASSES_KEY = "ccf.classes";
-  const SESSIONS_KEY = "ccf.sessions";
+  const SESSIONS_KEY = "ccf_sessions_v1";
 
   const $ = (sel, root=document) => root.querySelector(sel);
 
