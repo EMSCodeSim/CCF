@@ -335,11 +335,14 @@ function endSession() {
   const classSetup = safeParseJSON(localStorage.getItem(LS_KEYS.classSetup) || "", null);
 
   const session = {
+    id: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2),
+    startedAt: now(),
     endedAt: now(),
     totalMs,
     compMs: state.compMs,
     offMs: state.offMs,
     finalCCF,
+    ccfPct: finalCCF,
     pauseCount: state.pauseEvents.length,
     longestPauseMs,
     advancedAirwayUsed: !!state.advancedAirway,
@@ -353,7 +356,7 @@ function endSession() {
       pulseCueEnabled: !!state.pulseCueEnabled,
     },
 
-    // Keep a simple list for quick display (backward compatible with older reports.v16.js)
+    // Keep a simple list for quick display (backward compatible with older reports.js)
     pauses: state.pauseEvents.map(p => ({
       reason: (p.reasons && p.reasons.length) ? p.reasons.join(", ") : "Unspecified",
       ms: p.durMs || 0,
@@ -369,6 +372,10 @@ function endSession() {
       location: classSetup.location || "",
       updatedAt: classSetup.updatedAt || null,
     } : null,
+
+    // Sticky class (set in Reports)
+    classId: (localStorage.getItem('ccf.currentClassId') || '') || null,
+    studentId: null,
 
     // Assigned later in Pro reports (or by the native app)
     assignedTo: null,
@@ -395,6 +402,7 @@ function endSession() {
 
   state.lastSummary = {
     finalCCF,
+    ccfPct: finalCCF,
     pauseCount: state.pauseEvents.length,
     longestReason,
     longestPauseMs,

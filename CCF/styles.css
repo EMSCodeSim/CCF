@@ -1618,15 +1618,44 @@ body{
 .stack12{ display:grid; gap:12px; }
 
 
-/* --- Reports: small danger button for deleting classes/sessions --- */
-.dangerMiniBtn{
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(255, 80, 80, 0.18);
-  color: rgba(255,255,255,0.95);
-  font-weight: 800;
-}
-.dangerMiniBtn:active{
-  transform: scale(0.98);
-}
+/* Reports v1 fallbacks */
+
+.modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9998;padding:14px}
+.modal{max-width:680px;width:100%;max-height:88vh;overflow:auto;border-radius:18px;background:rgba(20,20,20,.98);border:1px solid rgba(255,255,255,.12);box-shadow:0 20px 50px rgba(0,0,0,.45)}
+.modal.wide{max-width:900px}
+.modalHeader{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.modalTitle{font-weight:900}
+.modalHdrBtns{display:flex;gap:8px;align-items:center}
+.modalBody{padding:12px}
+.accordion{margin-top:12px}
+.accordionHdr{width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.18);color:inherit;font-weight:900}
+.accordionBody{padding:10px 2px}
+.list{margin-top:10px}
+.listRow{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.12);margin-top:8px}
+.listMain{flex:1}
+.listTitle{font-weight:900}
+.listSub{opacity:.85;margin-top:2px}
+.listActions{display:flex;gap:6px;flex-wrap:wrap}
+.input{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.18);color:inherit}
+.fieldLbl{display:block;margin:10px 0 6px;font-weight:900;opacity:.9}
+.btnRow{display:flex;gap:8px;flex-wrap:wrap}
+.btnCol{display:flex;flex-direction:column;gap:8px}
+.scoreBig{font-size:34px;font-weight:1000;margin:8px 0}
+.statsGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:6px}
+.stat{padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.12)}
+.statLabel{opacity:.8;font-weight:800;font-size:12px}
+.statValue{font-weight:1000;margin-top:2px}
+.assignDrawer{padding:10px 2px 2px}
+.breakdownBox{margin-top:12px;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.18)}
+.breakdownRow{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)}
+.breakdownReason{font-weight:900}
+.breakdownVal{opacity:.9;white-space:nowrap}
+.pauseList{margin-top:8px}
+.pauseRow{display:grid;grid-template-columns:64px 1fr 70px;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
+.pauseAt{opacity:.85;font-weight:800}
+.pauseReason{font-weight:900}
+.pauseDur{text-align:right;opacity:.9;font-weight:800}
+.tabRow{display:flex;gap:8px;margin:8px 0 12px}
+.tabBtn{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.18);font-weight:900}
+.tabBtn.active{background:rgba(255,255,255,.12)}
+.studentRow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px}
