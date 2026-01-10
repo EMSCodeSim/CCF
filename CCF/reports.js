@@ -3,17 +3,34 @@
 (function(){
   "use strict";
 
-  const CLASSES_KEY = "ccf.classes";
-  const SESSIONS_KEY = "ccf.sessions";
+  const CLASSES_KEY = "ccf.classes.v1";
+  const SESSIONS_KEY = "ccf_sessions_v1";
+
+
+// Migrate older storage keys to current v1 keys (keeps existing v1 data)
+function migrateStorageKey(oldKey, newKey){
+  try{
+    const oldRaw = localStorage.getItem(oldKey);
+    if(!oldRaw) return;
+    const newRaw = localStorage.getItem(newKey);
+    if(newRaw && newRaw.trim() && newRaw.trim() !== "[]") return; // prefer v1 if present
+    localStorage.setItem(newKey, oldRaw);
+  }catch(e){}
+}
+
+migrateStorageKey("ccf.classes", CLASSES_KEY);
+migrateStorageKey("ccf.sessions", SESSIONS_KEY);
 
   const $ = (sel, root=document) => root.querySelector(sel);
 
   function el(tag, attrs={}, children=[]){
     const node = document.createElement(tag);
+    // Prevent <button> default submit behavior inside forms
+    if(tag === "button" && attrs && !("type" in attrs)) attrs.type = "button";
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
-      else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
+      else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
       else if(v === true) node.setAttribute(k, k);
       else if(v !== false && v != null) node.setAttribute(k, String(v));
     }
