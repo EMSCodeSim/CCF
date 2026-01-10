@@ -3,21 +3,22 @@
 (function(){
   "use strict";
 
+  // Storage keys (keep in sync with app.js)
   const CLASSES_KEY = "ccf.classes.v1";
   const SESSIONS_KEY = "ccf_sessions_v1";
 
-  // One-time migration from legacy keys (pre-v1)
-  (function migrateLegacyStorage(){
+  // One-time migration from older storage keys (helps when Safari has old cached builds)
+  function migrateStorageKey(oldKey, newKey){
     try{
-      const legacyClasses = localStorage.getItem("ccf.classes");
-      const legacySessions = localStorage.getItem("ccf.sessions");
-      const hasV1Classes = !!localStorage.getItem(CLASSES_KEY);
-      const hasV1Sessions = !!localStorage.getItem(SESSIONS_KEY);
-
-      if(!hasV1Classes && legacyClasses) localStorage.setItem(CLASSES_KEY, legacyClasses);
-      if(!hasV1Sessions && legacySessions) localStorage.setItem(SESSIONS_KEY, legacySessions);
+      const oldRaw = localStorage.getItem(oldKey);
+      if(!oldRaw) return;
+      const newRaw = localStorage.getItem(newKey);
+      if(newRaw && newRaw.trim() && newRaw.trim() !== "[]") return; // keep existing v1
+      localStorage.setItem(newKey, oldRaw);
     }catch(e){}
-  })();
+  }
+  migrateStorageKey("ccf.classes", CLASSES_KEY);
+  migrateStorageKey("ccf.sessions", SESSIONS_KEY);
 
   const $ = (sel, root=document) => root.querySelector(sel);
 
@@ -26,6 +27,7 @@
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
+      // DOM event names are lowercase (e.g., "click", "input")
       else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
       else if(v === true) node.setAttribute(k, k);
       else if(v !== false && v != null) node.setAttribute(k, String(v));
@@ -172,8 +174,9 @@
       pauseTotalMs,
       pauseBreakdown,
       // assignment fields (normalized)
-      assignedClassId: s.assignedClassId ?? null,
-      assignedStudentId: s.assignedStudentId ?? null,
+      // Support alternate shapes used by Home screen assignment
+      assignedClassId: s.assignedClassId ?? s.classId ?? s.assignedTo?.classId ?? null,
+      assignedStudentId: s.assignedStudentId ?? s.studentId ?? s.assignedTo?.studentId ?? null,
       assignedAt: s.assignedAt ?? null,
       instructorNote: s.instructorNote ?? ""
     };
@@ -362,8 +365,8 @@
     classDetailStudentId: null,
     classEditorMode: "create",
     classEditorId: null,
-    classEditorDraft: null,
-    postModalScroll: null
+    // Holds in-progress edits so a render() call doesn't wipe unsaved changes
+    classEditorDraft: null
   };
 
   function clearApp(){
@@ -409,16 +412,14 @@
     ui.activeModal="classEditor";
     ui.classEditorMode=mode;
     ui.classEditorId=classId;
-
-    // Initialize a persistent draft so Add Student works without losing changes on re-render.
+    // Initialize draft once per open (so re-renders don't reset the form)
     const classes = loadClasses();
-    if(mode === "edit" && classId){
-      const src = classes.find(c=>c.id===classId);
-      ui.classEditorDraft = src ? JSON.parse(JSON.stringify(src)) : blankClass();
-    } else {
-      ui.classEditorDraft = blankClass();
-    }
-    ui.postModalScroll = null;
+    const existing = (mode==="edit" && classId) ? getClassById(classes, classId) : null;
+    ui.classEditorDraft = existing ? JSON.parse(JSON.stringify(existing)) : {
+      id:null, name:"", date:new Date().toISOString().slice(0,10),
+      location:"", instructor:"", instructorEmail:"", targetCCF:"",
+      students:[]
+    };
     render();
   }
   function openClassDetail(classId){
@@ -433,7 +434,6 @@
     ui.activeSessionId=null;
     ui.classEditorId=null;
     ui.classEditorDraft=null;
-    ui.postModalScroll=null;
     render();
   }
 
@@ -536,84 +536,20 @@
     ]);
   }
 
-  
-  function renderReportsHeader(app, classes, sessions){
-    const totalStudents = classes.reduce((a,c)=>a+((c.students||[]).length),0);
-    const assignedCount = sessions.filter(s=> (s.assignedStudentId||s.studentId||s.assignedTo)).length;
-    const unassignedCount = sessions.length - assignedCount;
-
-    app.appendChild(card(null,[
-      el("div",{class:"reportsHero"},[
-        el("div",{class:"reportsHeroTitle"},["Instructor Reports"]),
-        el("div",{class:"reportsHeroSub"},["Create classes and rosters, review performance by student, and export reports."])
-      ]),
-      el("div",{class:"statsRow"},[
-        stat("Classes", String(classes.length)),
-        stat("Students", String(totalStudents)),
-        stat("Sessions", String(sessions.length)),
-        stat("Unassigned", String(unassignedCount))
-      ])
-    ]));
-  }
-
-  function renderAssignedOverview(app, classes, sessions){
-    // Recent assigned sessions (quick access)
-    const recent = sessions
-      .filter(s=> (s.assignedStudentId||s.studentId||s.assignedTo))
-      .sort((a,b)=>(b.endedAt||0)-(a.endedAt||0))
-      .slice(0,8);
-
-    const rows = [];
-    if(recent.length===0){
-      rows.push(el("div",{class:"dashSub"},["No assigned sessions yet. Run a session on the Timer screen and assign it to a student."]));
-    } else {
-      const list = el("div",{class:"list"},[]);
-      recent.forEach(s=>{
-        reminderNormalizeAssignment(s);
-        const when = s.endedAt ? new Date(s.endedAt).toLocaleString() : "";
-        list.appendChild(el("div",{class:"listRow"},[
-          el("div",{class:"listMain"},[
-            el("div",{class:"listTitle"},[`${s.assignedStudentName||s.assignedTo||"Assigned"} • ${Math.round(s.ccfPct||0)}%`]),
-            el("div",{class:"listSub"},[`${s.assignedClassName||""}${s.assignedClassName&&when?" • ":""}${when}`])
-          ]),
-          el("div",{class:"listActions"},[
-            el("button",{class:"ghostBtn", type:"button", onClick:()=>openSessionModal(s.id)},["Open"])
-          ])
-        ]));
-      });
-      rows.push(list);
-    }
-
-    app.appendChild(card("Recent Assigned Sessions", rows));
-  }
-
-  function reminderNormalizeAssignment(s){
-    // Ensure legacy fields are reflected for UI labels
-    if(!s.assignedStudentId && s.studentId) s.assignedStudentId = s.studentId;
-    if(!s.assignedStudentName && s.assignedTo) s.assignedStudentName = s.assignedTo;
-    if(!s.assignedClassId && s.classId) s.assignedClassId = s.classId;
-    if(!s.assignedClassName && s.className) s.assignedClassName = s.className;
-  }
-
-
-  function renderUnassignedAccordion(app, sessions, classes, opts){
+  function renderUnassignedAccordion(app, sessions, classes){
     const unassigned = getUnassignedSessions(sessions);
     const section = el("div",{class:"accordion"},[]);
     const header = el("button",{class:"accordionHdr"},[
-      el("span",{},[`Assign Unassigned Sessions (${unassigned.length})`]),
+      el("span",{},[`Unassigned Sessions (${unassigned.length})`]),
       el("span",{class:"accordionChev"},["▸"])
     ]);
-    const body = el("div",{class:"accordionBody"},[]);
-    let open = !!(opts && opts.defaultOpen);
+    const body = el("div",{class:"accordionBody", style:"display:none;"},[]);
+    let open=false;
     header.addEventListener("click", ()=>{
       open=!open;
       body.style.display = open ? "block" : "none";
       header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
     });
-
-    // initial open/closed
-    body.style.display = open ? "block" : "none";
-    header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     if(unassigned.length===0){
       body.appendChild(el("div",{class:"dashSub", style:"padding:10px 2px;"},["No unassigned sessions."]));
@@ -709,23 +645,19 @@
     return el("div",{},[row, drawer]);
   }
 
-  function renderClassesAccordion(app, classes, opts){
+  function renderClassesAccordion(app, classes){
     const section = el("div",{class:"accordion"},[]);
     const header = el("button",{class:"accordionHdr"},[
-      el("span",{},[`Classes & Roster (${classes.length})`]),
+      el("span",{},["Classes"]),
       el("span",{class:"accordionChev"},["▸"])
     ]);
-    const body = el("div",{class:"accordionBody"},[]);
-    let open = !!(opts && opts.defaultOpen);
+    const body = el("div",{class:"accordionBody", style:"display:none;"},[]);
+    let open=false;
     header.addEventListener("click", ()=>{
       open=!open;
       body.style.display = open ? "block" : "none";
       header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
     });
-
-    // initial open/closed
-    body.style.display = open ? "block" : "none";
-    header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     body.appendChild(el("div",{class:"btnRow"},[
       el("button",{class:"primaryBtn", onClick:()=>openClassEditor("create", null)},["+ New Class"]),
@@ -924,50 +856,34 @@
     wrap.appendChild(list);
     return wrap;
   }
+
   function renderClassEditorModal(){
+    // Use the persistent draft created in openClassEditor so changes aren't lost on re-render.
+    let cls = ui.classEditorDraft;
+    if(!cls){
+      // Fallback safety: create a new draft if something cleared it unexpectedly.
+      cls = {
+        id:null, name:"", date:new Date().toISOString().slice(0,10),
+        location:"", instructor:"", instructorEmail:"", targetCCF:"",
+        students:[]
+      };
+      ui.classEditorDraft = cls;
+    }
+
     const classes = loadClasses();
-    const editingSrc = (ui.classEditorMode==="edit" && ui.classEditorId)
-      ? getClassById(classes, ui.classEditorId)
-      : null;
-    const editing = !!editingSrc;
-
-    // Initialize / refresh draft
-    if(!ui.classEditorDraft){
-      ui.classEditorDraft = editingSrc ? JSON.parse(JSON.stringify(editingSrc)) : blankClass();
-    }
-    if(editingSrc && ui.classEditorDraft && ui.classEditorDraft.id !== editingSrc.id){
-      ui.classEditorDraft = JSON.parse(JSON.stringify(editingSrc));
-    }
-    const cls = ui.classEditorDraft;
-
-    function renderStudentEditorRow(cls, idx){
-      const st = cls.students[idx];
-      return el("div",{class:"studentRow"},[
-        el("input",{class:"input", value:st.name||"", placeholder:"Student name",
-          onInput:(e)=>{ st.name=e.target.value; }}),
-        el("input",{class:"input", value:st.email||"", placeholder:"Email (optional)",
-          onInput:(e)=>{ st.email=e.target.value; }}),
-        el("button",{class:"dangerBtn", type:"button", onClick:(e)=>{ 
-          if(e){e.preventDefault(); e.stopPropagation();}
-          cls.students.splice(idx,1); 
-          render(); 
-        }},["Remove"])
-      ]);
-    }
+    const editing = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
 
     const overlay = el("div",{class:"modalOverlay"},[
       el("div",{class:"modal"},[
         el("div",{class:"modalHeader"},[
           el("div",{class:"modalTitle"},[editing ? "Edit Class" : "New Class"]),
           el("div",{class:"modalHdrBtns"},[
-            el("button",{class:"ghostBtn", type:"button", onClick:(e)=>{ if(e){e.preventDefault();} closeModal(); }},["Cancel"]),
-            el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{
-              if(e){e.preventDefault(); e.stopPropagation();}
+            el("button",{class:"ghostBtn", onClick:closeModal},["Cancel"]),
+            el("button",{class:"primaryBtn", onClick:()=>{
               const id = upsertClass(cls);
               ui.activeModal=null;
-              ui.classEditorDraft=null;
-              ui.postModalScroll=null;
               ui.activeClassId=id;
+              ui.classEditorDraft=null;
               toast("Saved");
               render();
             }},["Save"])
@@ -981,36 +897,301 @@
           field("Email (opt)", inputText(cls.instructorEmail,(v)=>cls.instructorEmail=v,"Email")),
           field("Target CCF (opt)", inputNumber(cls.targetCCF,(v)=>cls.targetCCF=v,"80")),
           el("div",{class:"dashTitle", style:"margin-top:14px;"},["Students"]),
-          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{ 
-            if(e){e.preventDefault(); e.stopPropagation();}
-            if(!Array.isArray(cls.students)) cls.students=[];
-            cls.students.push({id:uid("stu"), name:"", email:""}); 
-            ui.postModalScroll="studentsBottom"; 
-            render(); 
+          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{
+            try{ e && e.preventDefault && e.preventDefault(); }catch(_){ }
+            const newId = uid("stu");
+            cls.students.push({id:newId, name:"", email:""});
+            // After re-render, scroll/focus the newly-added row so it doesn't "jump to top".
+            ui._scrollToStudentId = newId;
+            render();
           }},["+ Add student"]),
           el("div",{style:"margin-top:10px;"},[
-            ...(Array.isArray(cls.students)?cls.students:[]).map((st, idx)=>renderStudentEditorRow(cls, idx))
+            ...cls.students.map((st, idx)=>renderStudentEditorRow(cls, idx))
           ])
         ])
       ])
     ]);
 
-    // Keep the editor from jumping to the top after Add Student
-    setTimeout(()=>{
-      try{
-        if(ui.postModalScroll==="studentsBottom"){
-          const body = document.querySelector(".modalOverlay .modalBody");
-          if(body) body.scrollTop = body.scrollHeight;
-          const rows = document.querySelectorAll(".modalOverlay .studentRow");
-          const last = rows && rows.length ? rows[rows.length-1] : null;
-          const inp = last ? last.querySelector("input") : null;
-          inp && inp.focus && inp.focus();
-          ui.postModalScroll=null;
-        }
-      }catch(e){}
-    },0);
-
     return overlay;
+
+    function renderStudentEditorRow(cls, idx){
+      const st = cls.students[idx];
+      return el("div",{class:"studentRow", "data-student-id": st.id},[
+        el("input",{class:"input", value:st.name, placeholder:"Student name", onInput:(e)=>{ st.name=e.target.value; }}),
+        el("input",{class:"input", value:st.email, placeholder:"Email (optional)", onInput:(e)=>{ st.email=e.target.value; }}),
+        el("button",{class:"dangerBtn", onClick:()=>{ cls.students.splice(idx,1); render(); }},["Remove"])
+      ]);
+    }
   }
 
-  function field(
+  function field(label, inputNode){
+    return el("div",{class:"field"},[
+      el("label",{class:"fieldLbl"},[label]),
+      inputNode
+    ]);
+  }
+  function inputText(val, onSet, ph){
+    return el("input",{class:"input", value:val||"", placeholder:ph||"", onInput:(e)=>onSet(e.target.value)});
+  }
+  function inputDate(val, onSet){
+    return el("input",{class:"input", type:"date", value:val||"", onInput:(e)=>onSet(e.target.value)});
+  }
+  function inputNumber(val, onSet, ph){
+    return el("input",{class:"input", type:"number", value:val||"", placeholder:ph||"", onInput:(e)=>onSet(e.target.value)});
+  }
+
+  function renderClassDetailModal(){
+    const classes = loadClasses();
+    const sessions = loadSessions();
+    const c = getClassById(classes, ui.activeClassId);
+    if(!c) return null;
+
+    const classSessions = sessions.filter(s=>s.assignedClassId===c.id)
+      .sort((a,b)=>(b.endedAt||0)-(a.endedAt||0));
+
+    // student panel
+    const showingStudent = ui.classDetailStudentId
+      ? (c.students||[]).find(s=>s.id===ui.classDetailStudentId)
+      : null;
+
+    const overlay = el("div",{class:"modalOverlay"},[
+      el("div",{class:"modal wide"},[
+        el("div",{class:"modalHeader"},[
+          el("div",{class:"modalTitle"},[`Class: ${c.name||"Untitled"} • ${c.date||""}`]),
+          el("div",{class:"modalHdrBtns"},[
+            el("button",{class:"ghostBtn", onClick:closeModal},["Close"]),
+            el("button",{class:"ghostBtn", onClick:()=>exportClassCsv(c.id)},["Export"]),
+            el("button",{class:"dangerBtn", onClick:()=>confirmDialog("Delete class?","This will delete the class and roster. Sessions will return to Unassigned.",()=>{ deleteClass(c.id); closeModal(); })},["Delete class"])
+          ])
+        ]),
+        el("div",{class:"modalBody"},[
+          renderTabs(),
+          ui.classDetailTab==="roster" ? renderRosterTab() :
+          ui.classDetailTab==="sessions" ? renderSessionsTab() :
+          renderSummaryTab()
+        ])
+      ])
+    ]);
+
+    return overlay;
+
+    function renderTabs(){
+      const tabs = [
+        ["roster","Roster"],
+        ["sessions","Sessions"],
+        ["summary","Summary"]
+      ];
+      return el("div",{class:"tabRow"}, tabs.map(([key,label])=>{
+        return el("button",{class: ui.classDetailTab===key ? "tabBtn active" : "tabBtn", onClick:()=>{ ui.classDetailTab=key; ui.classDetailStudentId=null; render(); }},[label]);
+      }));
+    }
+
+    function renderRosterTab(){
+      if(showingStudent){
+        const studentSessions = classSessions.filter(s=>s.assignedStudentId===showingStudent.id);
+        const avg = studentSessions.length ? Math.round(studentSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/studentSessions.length) : null;
+        return el("div",{},[
+          el("button",{class:"ghostBtn", onClick:()=>{ ui.classDetailStudentId=null; render(); }},["← Back to roster"]),
+          el("div",{class:"dashTitle", style:"margin-top:8px;"},[`Student: ${showingStudent.name}`]),
+          el("div",{class:"dashSub"},[`Sessions: ${studentSessions.length}${avg!=null ? ` • Avg CCF ${avg}%` : ""}`]),
+          studentSessions.length ? el("div",{class:"list"}, studentSessions.map(s=>sessionRowOpen(s))) :
+            el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No sessions assigned yet."])
+        ]);
+      }
+
+      const roster = (c.students||[]);
+      return el("div",{},[
+        el("div",{class:"btnRow"},[
+          el("button",{class:"primaryBtn", onClick:()=>openClassEditor("edit", c.id)},["Edit class / roster"])
+        ]),
+        roster.length ? el("div",{class:"list"}, roster.map(st=>{
+          const stSessions = classSessions.filter(s=>s.assignedStudentId===st.id);
+          const avg = stSessions.length ? Math.round(stSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/stSessions.length) : null;
+          return el("div",{class:"listRow"},[
+            el("div",{class:"listMain"},[
+              el("div",{class:"listTitle"},[st.name]),
+              el("div",{class:"listSub"},[`${stSessions.length} sessions${avg!=null ? ` • Avg ${avg}%` : ""}`])
+            ]),
+            el("div",{class:"listActions"},[
+              el("button",{class:"ghostBtn", onClick:()=>{ ui.classDetailStudentId=st.id; render(); }},["Open"])
+            ])
+          ]);
+        })) : el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No students yet. Use Edit class / roster to add students."])
+      ]);
+    }
+
+    function renderSessionsTab(){
+      if(!classSessions.length){
+        return el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No sessions assigned to this class yet."]);
+      }
+      // grouped by student
+      const byStu = new Map();
+      classSessions.forEach(s=>{
+        const key = s.assignedStudentId || "unknown";
+        if(!byStu.has(key)) byStu.set(key, []);
+        byStu.get(key).push(s);
+      });
+
+      const blocks = [];
+      byStu.forEach((arr, stuId)=>{
+        const st = (c.students||[]).find(x=>x.id===stuId);
+        blocks.push(el("div",{style:"margin-top:10px;"},[
+          el("div",{class:"dashTitle"},[st ? st.name : "Unknown student"]),
+          el("div",{class:"list"}, arr.map(s=>sessionRowOpen(s)))
+        ]));
+      });
+      return el("div",{},blocks);
+    }
+
+    function renderSummaryTab(){
+      const avg = classSessions.length ? Math.round(classSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/classSessions.length) : null;
+
+      // aggregate pause breakdown
+      const agg = new Map();
+      classSessions.forEach(s=>{
+        (s.pauseBreakdown||[]).forEach(r=>{
+          agg.set(r.reason, (agg.get(r.reason)||0) + r.ms);
+        });
+      });
+      const top = Array.from(agg.entries()).map(([reason,ms])=>({reason,ms})).sort((a,b)=>b.ms-a.ms).slice(0,6);
+
+      return el("div",{},[
+        el("div",{class:"dashTitle"},["Class summary"]),
+        el("div",{class:"dashSub"},[
+          `${classSessions.length} sessions${avg!=null ? ` • Avg CCF ${avg}%` : ""}`
+        ]),
+        top.length ? el("div",{class:"breakdownBox", style:"margin-top:12px;"},[
+          el("div",{class:"dashTitle"},["Top pause reasons (total time)"]),
+          ...top.map(r=>el("div",{class:"breakdownRow"},[
+            el("div",{class:"breakdownReason"},[r.reason]),
+            el("div",{class:"breakdownVal"},[fmtTimeMs(r.ms)])
+          ]))
+        ]) : el("div",{class:"dashSub", style:"opacity:.85; margin-top:10px;"},["No pauses recorded across class sessions yet."])
+      ]);
+    }
+
+    function sessionRowOpen(s){
+      return el("div",{class:"listRow"},[
+        el("div",{class:"listMain"},[
+          el("div",{class:"listTitle"},[`${fmtDateOnly(s.endedAt)} ${fmtTimeOnly(s.endedAt)} • CCF ${s.ccfPct!=null ? Math.round(s.ccfPct) : "—"}%`]),
+          el("div",{class:"listSub"},[
+            s.longestPauseMs ? `Longest ${s.longestPauseReason||"Unspecified"} ${fmtTimeMs(s.longestPauseMs)}` : "No pauses"
+          ])
+        ]),
+        el("div",{class:"listActions"},[
+          el("button",{class:"ghostBtn", onClick:()=>openSessionModal(s.id)},["Open"])
+        ])
+      ]);
+    }
+  }
+
+  function exportClassCsv(classId){
+    const classes = loadClasses();
+    const sessions = loadSessions();
+    const c = getClassById(classes, classId);
+    if(!c){ toast("Class not found"); return; }
+    const classSessions = sessions.filter(s=>s.assignedClassId===classId)
+      .sort((a,b)=>(b.endedAt||0)-(a.endedAt||0));
+    const rows = classSessions.map(s=>{
+      const row = sessionToRow(s, classes);
+      return {
+        class_id: c.id,
+        class_name: c.name||"",
+        class_date: c.date||"",
+        instructor: c.instructor||"",
+        location: c.location||"",
+        target_ccf: c.targetCCF||"",
+        ...row
+      };
+    });
+    downloadText(`ccf_class_${(c.name||"class").replace(/\s+/g,"_")}_${Date.now()}.csv`, toCsv(rows));
+  }
+
+  function render(){
+    clearApp();
+    const app = $("#app");
+    if(!app) return;
+    const classes = loadClasses();
+    const sessions = loadSessions();
+
+    // Home sections
+    renderMostRecentUnassigned(app, sessions, classes);
+    renderUnassignedAccordion(app, sessions, classes);
+    renderClassesAccordion(app, classes);
+    renderExportAccordion(app);
+
+    // Modals
+    if(ui.activeModal==="session" && ui.activeSessionId){
+      const m = renderSessionModal();
+      if(m) document.body.appendChild(m);
+    } else if(ui.activeModal==="classEditor"){
+      const m = renderClassEditorModal();
+      if(m) document.body.appendChild(m);
+
+      // If we just added a student, scroll to the new row and focus it.
+      if(ui._scrollToStudentId){
+        const id = ui._scrollToStudentId;
+        ui._scrollToStudentId = null;
+        requestAnimationFrame(()=>{
+          try{
+            const row = document.querySelector(`[data-student-id="${CSS.escape(id)}"]`);
+            if(row){
+              row.scrollIntoView({block:"center", behavior:"instant"});
+              const inp = row.querySelector("input");
+              if(inp) inp.focus();
+            }
+          }catch(e){
+            // Fallback without CSS.escape
+            try{
+              const row = document.querySelector(`[data-student-id="${id}"]`);
+              if(row){
+                row.scrollIntoView({block:"center"});
+                const inp = row.querySelector("input");
+                if(inp) inp.focus();
+              }
+            }catch(_){ }
+          }
+        });
+      }
+    } else if(ui.activeModal==="classDetail" && ui.activeClassId){
+      const m = renderClassDetailModal();
+      if(m) document.body.appendChild(m);
+    }
+  }
+
+  function safeInitReports(){
+    try{
+      // Ensure toast style exists even if CSS missing
+      if(!document.querySelector("style[data-toast]")){
+        const st = el("style",{"data-toast":"1"},[`
+          .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+            z-index:9999;max-width:90vw;padding:10px 14px;border-radius:12px;
+            background:rgba(0,0,0,.78);border:1px solid rgba(255,255,255,.18);
+            color:#fff;font-weight:800;box-shadow:0 10px 30px rgba(0,0,0,.35);
+            text-align:center}
+        `]);
+        document.head.appendChild(st);
+      }
+      // normalize once
+      loadClasses();
+      loadSessions();
+      render();
+    }catch(err){
+      console.error(err);
+      const app = $("#app");
+      if(app){
+        app.innerHTML="";
+        app.appendChild(el("div",{class:"card"},[
+          el("div",{class:"cardTitle"},["Reports error"]),
+          el("div",{class:"cardBody"},[
+            el("div",{class:"dashSub"},[String(err && err.message ? err.message : err)]),
+            el("pre",{style:"white-space:pre-wrap; opacity:.85; font-size:12px; margin-top:10px;"},[String(err && err.stack ? err.stack : "")])
+          ])
+        ]));
+      }
+    }
+  }
+
+  // Init
+  safeInitReports();
+})();
