@@ -3,7 +3,8 @@
 (function(){
   "use strict";
 
-  const CLASSES_KEY = "ccf.classes";
+  // Storage keys (keep in sync with app.js)
+  const CLASSES_KEY = "ccf.classes.v1";
   const SESSIONS_KEY = "ccf_sessions_v1";
 
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -13,6 +14,7 @@
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
+      // DOM event names are lowercase (e.g., "click", "input")
       else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
       else if(v === true) node.setAttribute(k, k);
       else if(v !== false && v != null) node.setAttribute(k, String(v));
@@ -348,7 +350,9 @@
     classDetailTab: "roster", // roster | sessions | summary
     classDetailStudentId: null,
     classEditorMode: "create",
-    classEditorId: null
+    classEditorId: null,
+    // Holds in-progress edits so a render() call doesn't wipe unsaved changes
+    classEditorDraft: null
   };
 
   function clearApp(){
@@ -371,14 +375,14 @@
       el("div",{class:"modal"},[
         el("div",{class:"modalHeader"},[
           el("div",{class:"modalTitle"},[title||"Confirm"]),
-          el("button",{class:"ghostBtn", type:"button", onClick:()=>overlay.remove()},["Close"])
+          el("button",{class:"ghostBtn", onClick:()=>overlay.remove()},["Close"])
         ]),
         el("div",{class:"modalBody"},[
           el("div",{class:"dashSub"},[msg||""])
         ]),
         el("div",{class:"modalFooter"},[
-          el("button",{class:"ghostBtn", type:"button", onClick:()=>overlay.remove()},["Cancel"]),
-          el("button",{class:"dangerBtn", type:"button", onClick:()=>{ overlay.remove(); onYes && onYes(); }},["Delete"])
+          el("button",{class:"ghostBtn", onClick:()=>overlay.remove()},["Cancel"]),
+          el("button",{class:"dangerBtn", onClick:()=>{ overlay.remove(); onYes && onYes(); }},["Delete"])
         ])
       ])
     ]);
@@ -394,6 +398,14 @@
     ui.activeModal="classEditor";
     ui.classEditorMode=mode;
     ui.classEditorId=classId;
+    // Initialize draft once per open (so re-renders don't reset the form)
+    const classes = loadClasses();
+    const existing = (mode==="edit" && classId) ? getClassById(classes, classId) : null;
+    ui.classEditorDraft = existing ? JSON.parse(JSON.stringify(existing)) : {
+      id:null, name:"", date:new Date().toISOString().slice(0,10),
+      location:"", instructor:"", instructorEmail:"", targetCCF:"",
+      students:[]
+    };
     render();
   }
   function openClassDetail(classId){
@@ -407,6 +419,7 @@
     ui.activeModal=null;
     ui.activeSessionId=null;
     ui.classEditorId=null;
+    ui.classEditorDraft=null;
     render();
   }
 
@@ -464,7 +477,7 @@
       el("textarea",{class:"input", rows:"2", placeholder:"Optional instructor note…", onInput:(e)=>{ noteText = e.target.value; }})
     ]);
 
-    const noteToggle = el("button",{class:"ghostBtn", type:"button", onClick:()=>{
+    const noteToggle = el("button",{class:"ghostBtn", onClick:()=>{
       noteOpen = !noteOpen;
       noteWrap.style.display = noteOpen ? "block" : "none";
     }},["Add note (optional)"]);
@@ -474,8 +487,8 @@
       if(ok) render(); // refresh lists
     });
 
-    const openBtn = el("button",{class:"ghostBtn", type:"button", onClick:()=>openSessionModal(s.id)},["Open full report"]);
-    const delBtn = el("button",{class:"dangerBtn", type:"button", onClick:()=>confirmDialog("Delete session?","This will remove this session from device.",()=>{ deleteSession(s.id); render(); })},["Delete"]);
+    const openBtn = el("button",{class:"ghostBtn", onClick:()=>openSessionModal(s.id)},["Open full report"]);
+    const delBtn = el("button",{class:"dangerBtn", onClick:()=>confirmDialog("Delete session?","This will remove this session from device.",()=>{ deleteSession(s.id); render(); })},["Delete"]);
 
     app.appendChild(card("Most Recent (Unassigned)",[
       el("div",{class:"dashRow"},[
@@ -552,9 +565,9 @@
         ])
       ]),
       el("div",{class:"listActions"},[
-        el("button",{class:"ghostBtn", type:"button", onClick:()=>{ drawerOpen=!drawerOpen; drawer.style.display = drawerOpen ? "block" : "none"; }},["Assign"]),
-        el("button",{class:"ghostBtn", type:"button", onClick:()=>openSessionModal(session.id)},["Open"]),
-        el("button",{class:"dangerBtn", type:"button", onClick:()=>confirmDialog("Delete session?","This will remove this session from device.",()=>{ deleteSession(session.id); render(); })},["Delete"]),
+        el("button",{class:"ghostBtn", onClick:()=>{ drawerOpen=!drawerOpen; drawer.style.display = drawerOpen ? "block" : "none"; }},["Assign"]),
+        el("button",{class:"ghostBtn", onClick:()=>openSessionModal(session.id)},["Open"]),
+        el("button",{class:"dangerBtn", onClick:()=>confirmDialog("Delete session?","This will remove this session from device.",()=>{ deleteSession(session.id); render(); })},["Delete"]),
       ])
     ]);
 
@@ -594,7 +607,7 @@
     const noteWrap = el("div",{style:"margin-top:8px; display:none;"},[
       el("textarea",{class:"input", rows:"2", placeholder:"Optional instructor note…", onInput:(e)=>{ noteText = e.target.value; }})
     ]);
-    const noteToggle = el("button",{class:"ghostBtn", type:"button", onClick:()=>{
+    const noteToggle = el("button",{class:"ghostBtn", onClick:()=>{
       noteOpen = !noteOpen;
       noteWrap.style.display = noteOpen ? "block" : "none";
     }},["Add note (optional)"]);
@@ -633,7 +646,7 @@
     });
 
     body.appendChild(el("div",{class:"btnRow"},[
-      el("button",{class:"primaryBtn", type:"button", onClick:()=>openClassEditor("create", null)},["+ New Class"]),
+      el("button",{class:"primaryBtn", onClick:()=>openClassEditor("create", null)},["+ New Class"]),
     ]));
 
     if(classes.length===0){
@@ -647,7 +660,7 @@
             el("div",{class:"listSub"},[`${(c.students||[]).length} students`])
           ]),
           el("div",{class:"listActions"},[
-            el("button",{class:"ghostBtn", type:"button", onClick:()=>openClassDetail(c.id)},["Open"])
+            el("button",{class:"ghostBtn", onClick:()=>openClassDetail(c.id)},["Open"])
           ])
         ]));
       });
@@ -674,13 +687,13 @@
     });
 
     body.appendChild(el("div",{class:"btnCol"},[
-      el("button",{class:"ghostBtn", type:"button", onClick:()=>{
+      el("button",{class:"ghostBtn", onClick:()=>{
         const classes = loadClasses();
         const sessions = loadSessions();
         const rows = sessions.map(s=>sessionToRow(s, classes));
         downloadText(`ccf_sessions_all_${Date.now()}.csv`, toCsv(rows));
       }},["Export all sessions (CSV)"]),
-      el("button",{class:"ghostBtn", type:"button", onClick:()=>{
+      el("button",{class:"ghostBtn", onClick:()=>{
         const classes = loadClasses();
         const sessions = getUnassignedSessions(loadSessions());
         const rows = sessions.map(s=>sessionToRow(s, classes));
@@ -736,7 +749,7 @@
     const noteWrap = el("div",{style:"margin-top:8px; display:none;"},[
       el("textarea",{class:"input", rows:"2", placeholder:"Optional instructor note…", onInput:(e)=>{ noteText = e.target.value; }})
     ]);
-    const noteToggle = el("button",{class:"ghostBtn", type:"button", onClick:()=>{
+    const noteToggle = el("button",{class:"ghostBtn", onClick:()=>{
       noteOpen=!noteOpen;
       noteWrap.style.display = noteOpen ? "block" : "none";
     }},["Add note (optional)"]);
@@ -754,8 +767,8 @@
         el("div",{class:"modalHeader"},[
           el("div",{class:"modalTitle"},["Session Report"]),
           el("div",{class:"modalHdrBtns"},[
-            el("button",{class:"ghostBtn", type:"button", onClick:closeModal},["Close"]),
-            el("button",{class:"dangerBtn", type:"button", onClick:()=>confirmDialog("Delete session?","This will remove this session from device.",()=>{ deleteSession(s.id); closeModal(); })},["Delete"])
+            el("button",{class:"ghostBtn", onClick:closeModal},["Close"]),
+            el("button",{class:"dangerBtn", onClick:()=>confirmDialog("Delete session?","This will remove this session from device.",()=>{ deleteSession(s.id); closeModal(); })},["Delete"])
           ])
         ]),
         el("div",{class:"modalBody"},[
@@ -831,25 +844,32 @@
   }
 
   function renderClassEditorModal(){
+    // Use the persistent draft created in openClassEditor so changes aren't lost on re-render.
+    let cls = ui.classEditorDraft;
+    if(!cls){
+      // Fallback safety: create a new draft if something cleared it unexpectedly.
+      cls = {
+        id:null, name:"", date:new Date().toISOString().slice(0,10),
+        location:"", instructor:"", instructorEmail:"", targetCCF:"",
+        students:[]
+      };
+      ui.classEditorDraft = cls;
+    }
+
     const classes = loadClasses();
     const editing = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
-
-    let cls = editing ? JSON.parse(JSON.stringify(editing)) : {
-      id:null, name:"", date:new Date().toISOString().slice(0,10),
-      location:"", instructor:"", instructorEmail:"", targetCCF:"",
-      students:[]
-    };
 
     const overlay = el("div",{class:"modalOverlay"},[
       el("div",{class:"modal"},[
         el("div",{class:"modalHeader"},[
           el("div",{class:"modalTitle"},[editing ? "Edit Class" : "New Class"]),
           el("div",{class:"modalHdrBtns"},[
-            el("button",{class:"ghostBtn", type:"button", onClick:closeModal},["Cancel"]),
-            el("button",{class:"primaryBtn", type:"button", onClick:()=>{
+            el("button",{class:"ghostBtn", onClick:closeModal},["Cancel"]),
+            el("button",{class:"primaryBtn", onClick:()=>{
               const id = upsertClass(cls);
               ui.activeModal=null;
               ui.activeClassId=id;
+              ui.classEditorDraft=null;
               toast("Saved");
               render();
             }},["Save"])
@@ -863,7 +883,14 @@
           field("Email (opt)", inputText(cls.instructorEmail,(v)=>cls.instructorEmail=v,"Email")),
           field("Target CCF (opt)", inputNumber(cls.targetCCF,(v)=>cls.targetCCF=v,"80")),
           el("div",{class:"dashTitle", style:"margin-top:14px;"},["Students"]),
-          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{ try{e.preventDefault();}catch(_){} cls.students.push({id:uid("stu"), name:"", email:""}); render(); }},["+ Add student"]),
+          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{
+            try{ e && e.preventDefault && e.preventDefault(); }catch(_){ }
+            const newId = uid("stu");
+            cls.students.push({id:newId, name:"", email:""});
+            // After re-render, scroll/focus the newly-added row so it doesn't "jump to top".
+            ui._scrollToStudentId = newId;
+            render();
+          }},["+ Add student"]),
           el("div",{style:"margin-top:10px;"},[
             ...cls.students.map((st, idx)=>renderStudentEditorRow(cls, idx))
           ])
@@ -875,10 +902,10 @@
 
     function renderStudentEditorRow(cls, idx){
       const st = cls.students[idx];
-      return el("div",{class:"studentRow"},[
+      return el("div",{class:"studentRow", "data-student-id": st.id},[
         el("input",{class:"input", value:st.name, placeholder:"Student name", onInput:(e)=>{ st.name=e.target.value; }}),
         el("input",{class:"input", value:st.email, placeholder:"Email (optional)", onInput:(e)=>{ st.email=e.target.value; }}),
-        el("button",{class:"dangerBtn", type:"button", onClick:()=>{ cls.students.splice(idx,1); render(); }},["Remove"])
+        el("button",{class:"dangerBtn", onClick:()=>{ cls.students.splice(idx,1); render(); }},["Remove"])
       ]);
     }
   }
@@ -918,9 +945,9 @@
         el("div",{class:"modalHeader"},[
           el("div",{class:"modalTitle"},[`Class: ${c.name||"Untitled"} • ${c.date||""}`]),
           el("div",{class:"modalHdrBtns"},[
-            el("button",{class:"ghostBtn", type:"button", onClick:closeModal},["Close"]),
-            el("button",{class:"ghostBtn", type:"button", onClick:()=>exportClassCsv(c.id)},["Export"]),
-            el("button",{class:"dangerBtn", type:"button", onClick:()=>confirmDialog("Delete class?","This will delete the class and roster. Sessions will return to Unassigned.",()=>{ deleteClass(c.id); closeModal(); })},["Delete class"])
+            el("button",{class:"ghostBtn", onClick:closeModal},["Close"]),
+            el("button",{class:"ghostBtn", onClick:()=>exportClassCsv(c.id)},["Export"]),
+            el("button",{class:"dangerBtn", onClick:()=>confirmDialog("Delete class?","This will delete the class and roster. Sessions will return to Unassigned.",()=>{ deleteClass(c.id); closeModal(); })},["Delete class"])
           ])
         ]),
         el("div",{class:"modalBody"},[
@@ -950,7 +977,7 @@
         const studentSessions = classSessions.filter(s=>s.assignedStudentId===showingStudent.id);
         const avg = studentSessions.length ? Math.round(studentSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/studentSessions.length) : null;
         return el("div",{},[
-          el("button",{class:"ghostBtn", type:"button", onClick:()=>{ ui.classDetailStudentId=null; render(); }},["← Back to roster"]),
+          el("button",{class:"ghostBtn", onClick:()=>{ ui.classDetailStudentId=null; render(); }},["← Back to roster"]),
           el("div",{class:"dashTitle", style:"margin-top:8px;"},[`Student: ${showingStudent.name}`]),
           el("div",{class:"dashSub"},[`Sessions: ${studentSessions.length}${avg!=null ? ` • Avg CCF ${avg}%` : ""}`]),
           studentSessions.length ? el("div",{class:"list"}, studentSessions.map(s=>sessionRowOpen(s))) :
@@ -961,7 +988,7 @@
       const roster = (c.students||[]);
       return el("div",{},[
         el("div",{class:"btnRow"},[
-          el("button",{class:"primaryBtn", type:"button", onClick:()=>{ ui.activeModal="classEditor"; ui.classEditorMode="edit"; ui.classEditorId=c.id; render(); }},["Edit class / roster"])
+          el("button",{class:"primaryBtn", onClick:()=>{ ui.activeModal="classEditor"; ui.classEditorMode="edit"; ui.classEditorId=c.id; render(); }},["Edit class / roster"])
         ]),
         roster.length ? el("div",{class:"list"}, roster.map(st=>{
           const stSessions = classSessions.filter(s=>s.assignedStudentId===st.id);
@@ -972,7 +999,7 @@
               el("div",{class:"listSub"},[`${stSessions.length} sessions${avg!=null ? ` • Avg ${avg}%` : ""}`])
             ]),
             el("div",{class:"listActions"},[
-              el("button",{class:"ghostBtn", type:"button", onClick:()=>{ ui.classDetailStudentId=st.id; render(); }},["Open"])
+              el("button",{class:"ghostBtn", onClick:()=>{ ui.classDetailStudentId=st.id; render(); }},["Open"])
             ])
           ]);
         })) : el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No students yet. Use Edit class / roster to add students."])
@@ -1038,7 +1065,7 @@
           ])
         ]),
         el("div",{class:"listActions"},[
-          el("button",{class:"ghostBtn", type:"button", onClick:()=>openSessionModal(s.id)},["Open"])
+          el("button",{class:"ghostBtn", onClick:()=>openSessionModal(s.id)},["Open"])
         ])
       ]);
     }
@@ -1086,6 +1113,32 @@
     } else if(ui.activeModal==="classEditor"){
       const m = renderClassEditorModal();
       if(m) document.body.appendChild(m);
+
+      // If we just added a student, scroll to the new row and focus it.
+      if(ui._scrollToStudentId){
+        const id = ui._scrollToStudentId;
+        ui._scrollToStudentId = null;
+        requestAnimationFrame(()=>{
+          try{
+            const row = document.querySelector(`[data-student-id="${CSS.escape(id)}"]`);
+            if(row){
+              row.scrollIntoView({block:"center", behavior:"instant"});
+              const inp = row.querySelector("input");
+              if(inp) inp.focus();
+            }
+          }catch(e){
+            // Fallback without CSS.escape
+            try{
+              const row = document.querySelector(`[data-student-id="${id}"]`);
+              if(row){
+                row.scrollIntoView({block:"center"});
+                const inp = row.querySelector("input");
+                if(inp) inp.focus();
+              }
+            }catch(_){ }
+          }
+        });
+      }
     } else if(ui.activeModal==="classDetail" && ui.activeClassId){
       const m = renderClassDetailModal();
       if(m) document.body.appendChild(m);
