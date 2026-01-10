@@ -943,7 +943,7 @@
     const overlay = el("div",{class:"modalOverlay"},[
       el("div",{class:"modal"},[
         el("div",{class:"modalHeader"},[
-          el("div",{class:"modalTitle"},[editing ? "Edit Class" : "New Class"]),
+          el("div",{class:"modalTitle"},[(ui.classEditorMode==="edit") ? "Edit Class" : "New Class"]),
           el("div",{class:"modalHdrBtns"},[
             el("button",{class:"ghostBtn", onClick:closeModal},["Cancel"]),
             el("button",{class:"primaryBtn", onClick:()=>{
