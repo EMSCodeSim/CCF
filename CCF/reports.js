@@ -366,7 +366,10 @@
     classEditorMode: "create",
     classEditorId: null,
     // Holds in-progress edits so a render() call doesn't wipe unsaved changes
-    classEditorDraft: null
+    classEditorDraft: null,
+    view: "list", // "list" | "class"
+    viewClassId: null
+  };
   };
 
   function clearApp(){
@@ -423,7 +426,9 @@
     render();
   }
   function openClassDetail(classId){
-    ui.activeModal="classDetail";
+    ui.view="class";
+    ui.viewClassId=classId;
+    ui.activeModal=null;
     ui.activeClassId=classId;
     ui.classDetailTab="roster";
     ui.classDetailStudentId=null;
@@ -436,6 +441,15 @@
     ui.classEditorDraft=null;
     render();
   }
+
+  function closeClassView(){
+    ui.view="list";
+    ui.viewClassId=null;
+    ui.activeClassId=null;
+    ui.classDetailStudentId=null;
+    render();
+  }
+
 
   function renderMostRecentUnassigned(app, sessions, classes){
     const s = getMostRecentUnassigned(sessions);
@@ -940,7 +954,130 @@
     return el("input",{class:"input", type:"number", value:val||"", placeholder:ph||"", onInput:(e)=>onSet(e.target.value)});
   }
 
-  function renderClassDetailModal(){
+  
+
+function renderClassDetailPage(app, classId){
+  const classes = loadClasses();
+  const sessions = loadSessions();
+  const c = getClassById(classes, classId);
+  if(!c){
+    ui.view="list"; ui.viewClassId=null;
+    render();
+    return;
+  }
+
+  const classSessions = sessions.filter(s=>s.assignedClassId===c.id)
+    .sort((a,b)=>(b.endedAt||0)-(a.endedAt||0));
+
+  const showingStudent = ui.classDetailStudentId
+    ? (c.students||[]).find(s=>s.id===ui.classDetailStudentId)
+    : null;
+
+  app.appendChild(el("div",{class:"pageTop"},[
+    el("button",{class:"ghostBtn", onClick:closeClassView},["← Back to classes"]),
+    el("div",{class:"pageTopTitle"},[`Class: ${c.name||"Untitled"} • ${c.date||""}`]),
+    el("div",{class:"pageTopBtns"},[
+      el("button",{class:"ghostBtn", onClick:()=>exportClassCsv(c.id)},["Export"]),
+      el("button",{class:"dangerBtn", onClick:()=>confirmDialog("Delete class?", "This will delete the class and roster. Sessions will return to Unassigned.", ()=>{ deleteClass(c.id); closeClassView(); })},["Delete"])
+    ])
+  ]));
+
+  app.appendChild(el("div",{class:"panel"},[
+    renderTabs(),
+    ui.classDetailTab==="roster" ? renderRosterTab() :
+    ui.classDetailTab==="sessions" ? renderSessionsTab() :
+    renderSummaryTab()
+  ]));
+
+  function renderTabs(){
+    const tabs = [
+      ["roster","Roster"],
+      ["sessions","Sessions"],
+      ["summary","Summary"]
+    ];
+    return el("div",{class:"tabRow"}, tabs.map(([key,label])=>
+      el("button",{class: key===ui.classDetailTab ? "tabBtn active" : "tabBtn",
+        onClick:()=>{ ui.classDetailTab=key; ui.classDetailStudentId=null; render(); }
+      },[label])
+    ));
+  }
+
+  function renderRosterTab(){
+    if(showingStudent) return renderStudentDetail();
+
+    const roster = (c.students||[]);
+    return el("div",{},[
+      el("div",{class:"btnRow"},[
+        el("button",{class:"primaryBtn", onClick:()=>openAddStudentInline(c.id)},["+ Add Student"]),
+        el("button",{class:"ghostBtn", onClick:()=>openAssignUnassignedDrawer()},["Assign Unassigned"])
+      ]),
+      roster.length ? el("div",{class:"list"}, roster.map(st=>studentRow(st))) :
+        el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No students yet. Add a student to begin."])
+    ]);
+
+    function studentRow(st){
+      const stSessions = classSessions.filter(s=>s.assignedStudentId===st.id);
+      const avg = stSessions.length ? Math.round(stSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/stSessions.length) : null;
+      return el("div",{class:"row"},[
+        el("div",{class:"rowMain"},[
+          el("div",{class:"rowTitle"},[st.name||"Student"]),
+          el("div",{class:"rowSub"},[
+            `${stSessions.length} sessions${avg!=null ? ` • Avg CCF ${avg}%` : ""}`
+          ])
+        ]),
+        el("div",{class:"rowBtns"},[
+          el("button",{class:"ghostBtn", onClick:()=>{ ui.classDetailStudentId=st.id; render(); }},["View"]),
+          el("button",{class:"dangerBtn", onClick:()=>confirmDialog("Remove student?", "This removes the student from the roster. Their sessions will become Unassigned.", ()=>{
+            removeStudentFromClass(c.id, st.id);
+            render();
+          })},["Remove"])
+        ])
+      ]);
+    }
+  }
+
+  function renderStudentDetail(){
+    const studentSessions = classSessions.filter(s=>s.assignedStudentId===showingStudent.id);
+    const avg = studentSessions.length ? Math.round(studentSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/studentSessions.length) : null;
+    return el("div",{},[
+      el("button",{class:"ghostBtn", onClick:()=>{ ui.classDetailStudentId=null; render(); }},["← Back to roster"]),
+      el("div",{class:"dashTitle", style:"margin-top:8px;"},[`Student: ${showingStudent.name}`]),
+      el("div",{class:"dashSub"},[`Sessions: ${studentSessions.length}${avg!=null ? ` • Avg CCF ${avg}%` : ""}`]),
+      studentSessions.length ? el("div",{class:"list"}, studentSessions.map(s=>sessionRowOpen(s))) :
+        el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No sessions assigned yet."])
+    ]);
+  }
+
+  function renderSessionsTab(){
+    return el("div",{},[
+      classSessions.length ? el("div",{class:"list"}, classSessions.map(s=>sessionRowOpen(s))) :
+        el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No sessions assigned to this class yet."])
+    ]);
+  }
+
+  function renderSummaryTab(){
+    const total = classSessions.length;
+    const avg = total ? Math.round(classSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/total) : null;
+    const best = total ? Math.max(...classSessions.map(s=>s.ccfPct||0)) : null;
+    return el("div",{},[
+      el("div",{class:"dashTitle"},["Class Summary"]),
+      el("div",{class:"dashSub"},[
+        `Sessions: ${total}${avg!=null ? ` • Avg CCF ${avg}%` : ""}${best!=null ? ` • Best ${best}%` : ""}`
+      ])
+    ]);
+  }
+
+  function openAddStudentInline(classId){
+    // Reuse existing add-student modal if present
+    openAddStudentModal && openAddStudentModal(classId);
+  }
+  function openAssignUnassignedDrawer(){
+    // Reuse existing unassigned assign UI on main list; just scroll to it
+    ui.view="list"; ui.viewClassId=null; render();
+    setTimeout(()=>{ const el1=document.querySelector("#unassignedSection"); if(el1) el1.scrollIntoView({behavior:"smooth"}); }, 50);
+  }
+}
+function renderClassDetailModal(){
     const classes = loadClasses();
     const sessions = loadSessions();
     const c = getClassById(classes, ui.activeClassId);
@@ -1113,6 +1250,14 @@
     if(!app) return;
     const classes = loadClasses();
     const sessions = loadSessions();
+
+
+    // Class view (full-page)
+    if(ui.view==="class" && ui.viewClassId){
+      renderClassDetailPage(app, ui.viewClassId);
+      return;
+    }
+
 
     // Home sections
     renderMostRecentUnassigned(app, sessions, classes);
