@@ -169,8 +169,16 @@ function applyAssignmentToLastSession(value) {
   const sess = arr[idx];
 
   if (!value) {
+    // Clear assignment (keep class sticky if set)
+    const stickyClassId = (localStorage.getItem('ccf.currentClassId') || '') || null;
+    sess.classId = stickyClassId;
     sess.studentId = null;
-    sess.classId = (localStorage.getItem('ccf.currentClassId') || '') || null;
+    // Explicit v1 fields used by Reports
+    sess.assignedClassId = stickyClassId;
+    sess.assignedStudentId = null;
+    sess.assignedStudentName = "";
+    sess.assignedClassName = "";
+    // Back-compat shape
     sess.assignedTo = null;
     sess.assignedAt = now();
     arr[idx] = sess;
@@ -184,14 +192,24 @@ function applyAssignmentToLastSession(value) {
   const cls = classes.find(c => c && c.id === classId);
   const student = (cls && Array.isArray(cls.students)) ? cls.students.find(st => (st.id || st.studentId || st.uid || st.name) === studentId) : null;
 
+  const clsName = cls?.name || "";
+  const stuName = student?.name || "";
+
+  // Back-compat fields (some older code uses these)
   sess.classId = classId || null;
   sess.studentId = studentId || null;
   sess.assignedTo = {
     classId: classId || null,
-    className: cls?.name || "",
+    className: clsName,
     studentId: studentId || null,
-    studentName: student?.name || "",
+    studentName: stuName,
   };
+
+  // Explicit v1 fields used by Reports
+  sess.assignedClassId = classId || null;
+  sess.assignedStudentId = studentId || null;
+  sess.assignedClassName = clsName;
+  sess.assignedStudentName = stuName;
   sess.assignedAt = now();
 
   // Sticky class for future sessions

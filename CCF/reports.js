@@ -3,33 +3,31 @@
 (function(){
   "use strict";
 
+  // Storage keys (keep in sync with app.js)
   const CLASSES_KEY = "ccf.classes.v1";
   const SESSIONS_KEY = "ccf_sessions_v1";
 
-
-// Migrate older storage keys to current v1 keys (keeps existing v1 data)
-function migrateStorageKey(oldKey, newKey){
-  try{
-    const oldRaw = localStorage.getItem(oldKey);
-    if(!oldRaw) return;
-    const newRaw = localStorage.getItem(newKey);
-    if(newRaw && newRaw.trim() && newRaw.trim() !== "[]") return; // prefer v1 if present
-    localStorage.setItem(newKey, oldRaw);
-  }catch(e){}
-}
-
-migrateStorageKey("ccf.classes", CLASSES_KEY);
-migrateStorageKey("ccf.sessions", SESSIONS_KEY);
+  // One-time migration from older storage keys (helps when Safari has old cached builds)
+  function migrateStorageKey(oldKey, newKey){
+    try{
+      const oldRaw = localStorage.getItem(oldKey);
+      if(!oldRaw) return;
+      const newRaw = localStorage.getItem(newKey);
+      if(newRaw && newRaw.trim() && newRaw.trim() !== "[]") return; // keep existing v1
+      localStorage.setItem(newKey, oldRaw);
+    }catch(e){}
+  }
+  migrateStorageKey("ccf.classes", CLASSES_KEY);
+  migrateStorageKey("ccf.sessions", SESSIONS_KEY);
 
   const $ = (sel, root=document) => root.querySelector(sel);
 
   function el(tag, attrs={}, children=[]){
     const node = document.createElement(tag);
-    // Prevent <button> default submit behavior inside forms
-    if(tag === "button" && attrs && !("type" in attrs)) attrs.type = "button";
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
+      // DOM event names are lowercase (e.g., "click", "input")
       else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
       else if(v === true) node.setAttribute(k, k);
       else if(v !== false && v != null) node.setAttribute(k, String(v));
@@ -176,8 +174,9 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
       pauseTotalMs,
       pauseBreakdown,
       // assignment fields (normalized)
-      assignedClassId: s.assignedClassId ?? null,
-      assignedStudentId: s.assignedStudentId ?? null,
+      // Support alternate shapes used by Home screen assignment
+      assignedClassId: s.assignedClassId ?? s.classId ?? s.assignedTo?.classId ?? null,
+      assignedStudentId: s.assignedStudentId ?? s.studentId ?? s.assignedTo?.studentId ?? null,
       assignedAt: s.assignedAt ?? null,
       instructorNote: s.instructorNote ?? ""
     };
@@ -365,7 +364,9 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
     classDetailTab: "roster", // roster | sessions | summary
     classDetailStudentId: null,
     classEditorMode: "create",
-    classEditorId: null
+    classEditorId: null,
+    // Holds in-progress edits so a render() call doesn't wipe unsaved changes
+    classEditorDraft: null
   };
 
   function clearApp(){
@@ -411,6 +412,14 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
     ui.activeModal="classEditor";
     ui.classEditorMode=mode;
     ui.classEditorId=classId;
+    // Initialize draft once per open (so re-renders don't reset the form)
+    const classes = loadClasses();
+    const existing = (mode==="edit" && classId) ? getClassById(classes, classId) : null;
+    ui.classEditorDraft = existing ? JSON.parse(JSON.stringify(existing)) : {
+      id:null, name:"", date:new Date().toISOString().slice(0,10),
+      location:"", instructor:"", instructorEmail:"", targetCCF:"",
+      students:[]
+    };
     render();
   }
   function openClassDetail(classId){
@@ -424,6 +433,7 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
     ui.activeModal=null;
     ui.activeSessionId=null;
     ui.classEditorId=null;
+    ui.classEditorDraft=null;
     render();
   }
 
@@ -848,14 +858,20 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
   }
 
   function renderClassEditorModal(){
+    // Use the persistent draft created in openClassEditor so changes aren't lost on re-render.
+    let cls = ui.classEditorDraft;
+    if(!cls){
+      // Fallback safety: create a new draft if something cleared it unexpectedly.
+      cls = {
+        id:null, name:"", date:new Date().toISOString().slice(0,10),
+        location:"", instructor:"", instructorEmail:"", targetCCF:"",
+        students:[]
+      };
+      ui.classEditorDraft = cls;
+    }
+
     const classes = loadClasses();
     const editing = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
-
-    let cls = editing ? JSON.parse(JSON.stringify(editing)) : {
-      id:null, name:"", date:new Date().toISOString().slice(0,10),
-      location:"", instructor:"", instructorEmail:"", targetCCF:"",
-      students:[]
-    };
 
     const overlay = el("div",{class:"modalOverlay"},[
       el("div",{class:"modal"},[
@@ -867,6 +883,7 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
               const id = upsertClass(cls);
               ui.activeModal=null;
               ui.activeClassId=id;
+              ui.classEditorDraft=null;
               toast("Saved");
               render();
             }},["Save"])
@@ -880,7 +897,14 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
           field("Email (opt)", inputText(cls.instructorEmail,(v)=>cls.instructorEmail=v,"Email")),
           field("Target CCF (opt)", inputNumber(cls.targetCCF,(v)=>cls.targetCCF=v,"80")),
           el("div",{class:"dashTitle", style:"margin-top:14px;"},["Students"]),
-          el("button",{class:"primaryBtn", onClick:()=>{ cls.students.push({id:uid("stu"), name:"", email:""}); render(); }},["+ Add student"]),
+          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{
+            try{ e && e.preventDefault && e.preventDefault(); }catch(_){ }
+            const newId = uid("stu");
+            cls.students.push({id:newId, name:"", email:""});
+            // After re-render, scroll/focus the newly-added row so it doesn't "jump to top".
+            ui._scrollToStudentId = newId;
+            render();
+          }},["+ Add student"]),
           el("div",{style:"margin-top:10px;"},[
             ...cls.students.map((st, idx)=>renderStudentEditorRow(cls, idx))
           ])
@@ -892,7 +916,7 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
 
     function renderStudentEditorRow(cls, idx){
       const st = cls.students[idx];
-      return el("div",{class:"studentRow"},[
+      return el("div",{class:"studentRow", "data-student-id": st.id},[
         el("input",{class:"input", value:st.name, placeholder:"Student name", onInput:(e)=>{ st.name=e.target.value; }}),
         el("input",{class:"input", value:st.email, placeholder:"Email (optional)", onInput:(e)=>{ st.email=e.target.value; }}),
         el("button",{class:"dangerBtn", onClick:()=>{ cls.students.splice(idx,1); render(); }},["Remove"])
@@ -978,7 +1002,7 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
       const roster = (c.students||[]);
       return el("div",{},[
         el("div",{class:"btnRow"},[
-          el("button",{class:"primaryBtn", onClick:()=>{ ui.activeModal="classEditor"; ui.classEditorMode="edit"; ui.classEditorId=c.id; render(); }},["Edit class / roster"])
+          el("button",{class:"primaryBtn", onClick:()=>openClassEditor("edit", c.id)},["Edit class / roster"])
         ]),
         roster.length ? el("div",{class:"list"}, roster.map(st=>{
           const stSessions = classSessions.filter(s=>s.assignedStudentId===st.id);
@@ -1103,6 +1127,32 @@ migrateStorageKey("ccf.sessions", SESSIONS_KEY);
     } else if(ui.activeModal==="classEditor"){
       const m = renderClassEditorModal();
       if(m) document.body.appendChild(m);
+
+      // If we just added a student, scroll to the new row and focus it.
+      if(ui._scrollToStudentId){
+        const id = ui._scrollToStudentId;
+        ui._scrollToStudentId = null;
+        requestAnimationFrame(()=>{
+          try{
+            const row = document.querySelector(`[data-student-id="${CSS.escape(id)}"]`);
+            if(row){
+              row.scrollIntoView({block:"center", behavior:"instant"});
+              const inp = row.querySelector("input");
+              if(inp) inp.focus();
+            }
+          }catch(e){
+            // Fallback without CSS.escape
+            try{
+              const row = document.querySelector(`[data-student-id="${id}"]`);
+              if(row){
+                row.scrollIntoView({block:"center"});
+                const inp = row.querySelector("input");
+                if(inp) inp.focus();
+              }
+            }catch(_){ }
+          }
+        });
+      }
     } else if(ui.activeModal==="classDetail" && ui.activeClassId){
       const m = renderClassDetailModal();
       if(m) document.body.appendChild(m);
