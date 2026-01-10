@@ -952,13 +952,27 @@ function init() {
   if (UI.assignStudentSelect && !UI.assignStudentSelect.dataset.bound) {
     UI.assignStudentSelect.addEventListener("change", (e) => {
       try {
-        applyAssignmentToLastSession(e.target.value || "");
+        const val = (e.target.value || "");
+        // Confirm only when assigning to a real student (not "Unassigned")
+        if (val) {
+          const opt = e.target.selectedOptions && e.target.selectedOptions[0];
+          const who = (opt && opt.textContent) ? opt.textContent.trim() : "this student";
+          const ok = window.confirm(`Assign this session to ${who}?`);
+          if (!ok) {
+            // Revert selection back to the current assignment
+            refreshAssignUI();
+            return;
+          }
+        }
+        applyAssignmentToLastSession(val);
         refreshAssignUI();
+
+        // Once confirmed and saved, remove the session summary from the Home screen.
+        if (val) hideEndSummary();
       } catch (err) {
         showErrorBanner("Assign failed: " + (err?.message || err));
       }
-    });
-    UI.assignStudentSelect.dataset.bound = "1";
+    });UI.assignStudentSelect.dataset.bound = "1";
   }
 
 
