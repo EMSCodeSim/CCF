@@ -47,6 +47,13 @@ const now = () => Date.now();
 
 // Reports storage
 const SESSIONS_KEY = "ccf_sessions_v1";
+const CLASSES_KEY  = "ccf.classes.v1";
+
+// Assign-to-student UI (shown near Session Summary on Home screen)
+// Flip ASSIGN_UI_PRO_ONLY to true later when you want this feature gated to Pro.
+const ASSIGN_UI_ENABLED = true;
+const ASSIGN_UI_PRO_ONLY = false;
+
 const PRO_KEY = "ccf.proUnlocked"; // set to "1" by the native app after a successful one-time purchase
 
 function isPro() {
@@ -68,6 +75,127 @@ function saveSessions(arr) {
   try {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(arr));
   } catch {}
+
+function loadClasses() {
+  try {
+    const raw = localStorage.getItem(CLASSES_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function canShowAssignUI() {
+  if (!ASSIGN_UI_ENABLED) return false;
+  if (!ASSIGN_UI_PRO_ONLY) return true;
+  return isPro();
+}
+
+function normalizeStudent(stu) {
+  if (!stu) return null;
+  if (typeof stu === "string") {
+    const name = stu.trim();
+    if (!name) return null;
+    return { id: name.toLowerCase().replace(/\s+/g,"-").slice(0,40), name };
+  }
+  const name = String(stu.name || stu.fullName || stu.label || "").trim();
+  if (!name) return null;
+  const id = String(stu.id || stu.studentId || name.toLowerCase().replace(/\s+/g,"-").slice(0,40));
+  return { id, name };
+}
+
+function setAssignStatus(msg) {
+  if (UI?.assignStudentStatus) UI.assignStudentStatus.textContent = msg || "";
+}
+
+function buildAssignOptions() {
+  if (!UI?.assignStudentSelect) return;
+  const sel = UI.assignStudentSelect;
+  sel.innerHTML = "";
+  // Unassigned option
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = "Unassigned";
+  sel.appendChild(opt0);
+
+  const classes = loadClasses();
+  classes.forEach(c => {
+    const className = (c?.name || c?.title || "Class").toString().trim() || "Class";
+    const studentsRaw = Array.isArray(c?.students) ? c.students : [];
+    const students = studentsRaw.map(normalizeStudent).filter(Boolean);
+    if (!students.length) return;
+
+    const og = document.createElement("optgroup");
+    og.label = className;
+    students.forEach(s => {
+      const o = document.createElement("option");
+      o.value = `${c.id || className}::${s.id}`;
+      o.textContent = s.name;
+      o.dataset.classId = c.id || "";
+      o.dataset.className = className;
+      o.dataset.studentId = s.id;
+      o.dataset.studentName = s.name;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+}
+
+function applyAssignmentToLastSession(value) {
+  const sessions = loadSessions();
+  const sess = sessions.find(s => s && s.id === state.lastSessionId);
+  if (!sess) return;
+
+  if (!value) {
+    delete sess.assignedClassId;
+    delete sess.assignedClassName;
+    delete sess.assignedStudentId;
+    delete sess.assignedStudentName;
+    delete sess.assignedAt;
+    saveSessions(sessions);
+    setAssignStatus("Saved: Unassigned");
+    return;
+  }
+
+  // Find selected option metadata
+  const sel = UI.assignStudentSelect;
+  const opt = sel ? sel.selectedOptions?.[0] : null;
+  const className = opt?.dataset?.className || "";
+  const studentName = opt?.dataset?.studentName || "";
+
+  const [classId, studentId] = value.split("::");
+  sess.assignedClassId = classId || "";
+  sess.assignedClassName = className || "";
+  sess.assignedStudentId = studentId || "";
+  sess.assignedStudentName = studentName || "";
+  sess.assignedAt = Date.now();
+
+  saveSessions(sessions);
+  setAssignStatus(`Saved: ${studentName || "Student"}`);
+}
+
+function refreshAssignUI() {
+  if (!UI?.assignRow || !UI?.assignStudentSelect) return;
+
+  const show = canShowAssignUI() && !!state.lastSessionId;
+  UI.assignRow.style.display = show ? "block" : "none";
+  if (!show) return;
+
+  buildAssignOptions();
+
+  // Set current selection from saved session (if any)
+  const sessions = loadSessions();
+  const sess = sessions.find(s => s && s.id === state.lastSessionId);
+  const targetVal = (sess && sess.assignedClassId && sess.assignedStudentId)
+    ? `${sess.assignedClassId}::${sess.assignedStudentId}`
+    : "";
+
+  UI.assignStudentSelect.value = targetVal || "";
+  setAssignStatus(targetVal ? `Assigned: ${sess.assignedStudentName || ""}` : "");
+}
+
 }
 
 function fmt(ms) {
@@ -190,11 +318,14 @@ function showEndSummary(summary) {
   if (UI.endCcfValue) UI.endCcfValue.textContent = `${summary.finalCCF}%`;
   if (UI.endPauseCount) UI.endPauseCount.textContent = String(summary.pauseCount);
   if (UI.endLongestReason) UI.endLongestReason.textContent = summary.longestReason || "—";
+  refreshAssignUI();
 }
+
 
 function hideEndSummary() {
   if (!UI?.endSummaryCard) return;
   UI.endSummaryCard.style.display = "none";
+  if (UI?.assignRow) UI.assignRow.style.display = "none";
   if (UI.endCcfValue) UI.endCcfValue.textContent = "0%";
   if (UI.endPauseCount) UI.endPauseCount.textContent = "0";
   if (UI.endLongestReason) UI.endLongestReason.textContent = "—";
@@ -744,6 +875,10 @@ function init() {
     endPauseCount: $("endPauseCount"),
     endLongestReason: $("endLongestReason"),
 
+    assignRow: $("assignRow"),
+    assignStudentSelect: $("assignStudentSelect"),
+    assignStudentStatus: $("assignStudentStatus"),
+
     btnCCFScore: $("btnCCFScore"),
     ccfScoreText: $("ccfScoreText"),
 
@@ -776,7 +911,19 @@ function init() {
     advAirwayState: $("advAirwayState"),
 
     pauseOverlay: $("pauseOverlay"),
-    btnResumePause: $("btnResumeFromPause"),
+    btnResumePause: $("btnRe
+  // Assign-to-student dropdown (Home screen, Session Summary)
+  if (UI?.assignStudentSelect && !UI.assignStudentSelect.dataset.bound) {
+    UI.assignStudentSelect.addEventListener("change", (e) => {
+      try {
+        applyAssignmentToLastSession(e.target.value || "");
+      } catch (err) {
+        showErrorBanner("Assign failed: " + (err?.message || err));
+      }
+    });
+    UI.assignStudentSelect.dataset.bound = "1";
+  }
+sumeFromPause"),
     btnClearPauseReasons: $("btnClearPauseReasons"),
     reasonChips: document.querySelectorAll(".reasonChip"),
   };
