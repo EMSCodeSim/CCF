@@ -13,7 +13,7 @@
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
-      else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
+      else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
       else if(v === true) node.setAttribute(k, k);
       else if(v !== false && v != null) node.setAttribute(k, String(v));
     }
@@ -509,20 +509,84 @@
     ]);
   }
 
-  function renderUnassignedAccordion(app, sessions, classes){
+  
+  function renderReportsHeader(app, classes, sessions){
+    const totalStudents = classes.reduce((a,c)=>a+((c.students||[]).length),0);
+    const assignedCount = sessions.filter(s=> (s.assignedStudentId||s.studentId||s.assignedTo)).length;
+    const unassignedCount = sessions.length - assignedCount;
+
+    app.appendChild(card(null,[
+      el("div",{class:"reportsHero"},[
+        el("div",{class:"reportsHeroTitle"},["Instructor Reports"]),
+        el("div",{class:"reportsHeroSub"},["Create classes and rosters, review performance by student, and export reports."])
+      ]),
+      el("div",{class:"statsRow"},[
+        stat("Classes", String(classes.length)),
+        stat("Students", String(totalStudents)),
+        stat("Sessions", String(sessions.length)),
+        stat("Unassigned", String(unassignedCount))
+      ])
+    ]));
+  }
+
+  function renderAssignedOverview(app, classes, sessions){
+    // Recent assigned sessions (quick access)
+    const recent = sessions
+      .filter(s=> (s.assignedStudentId||s.studentId||s.assignedTo))
+      .sort((a,b)=>(b.endedAt||0)-(a.endedAt||0))
+      .slice(0,8);
+
+    const rows = [];
+    if(recent.length===0){
+      rows.push(el("div",{class:"dashSub"},["No assigned sessions yet. Run a session on the Timer screen and assign it to a student."]));
+    } else {
+      const list = el("div",{class:"list"},[]);
+      recent.forEach(s=>{
+        reminderNormalizeAssignment(s);
+        const when = s.endedAt ? new Date(s.endedAt).toLocaleString() : "";
+        list.appendChild(el("div",{class:"listRow"},[
+          el("div",{class:"listMain"},[
+            el("div",{class:"listTitle"},[`${s.assignedStudentName||s.assignedTo||"Assigned"} • ${Math.round(s.ccfPct||0)}%`]),
+            el("div",{class:"listSub"},[`${s.assignedClassName||""}${s.assignedClassName&&when?" • ":""}${when}`])
+          ]),
+          el("div",{class:"listActions"},[
+            el("button",{class:"ghostBtn", type:"button", onClick:()=>openSessionModal(s.id)},["Open"])
+          ])
+        ]));
+      });
+      rows.push(list);
+    }
+
+    app.appendChild(card("Recent Assigned Sessions", rows));
+  }
+
+  function reminderNormalizeAssignment(s){
+    // Ensure legacy fields are reflected for UI labels
+    if(!s.assignedStudentId && s.studentId) s.assignedStudentId = s.studentId;
+    if(!s.assignedStudentName && s.assignedTo) s.assignedStudentName = s.assignedTo;
+    if(!s.assignedClassId && s.classId) s.assignedClassId = s.classId;
+    if(!s.assignedClassName && s.className) s.assignedClassName = s.className;
+  }
+
+
+  function renderUnassignedAccordion(app, sessions, classes, opts){
     const unassigned = getUnassignedSessions(sessions);
     const section = el("div",{class:"accordion"},[]);
     const header = el("button",{class:"accordionHdr"},[
-      el("span",{},[`Unassigned Sessions (${unassigned.length})`]),
+      el("span",{},[`Assign Unassigned Sessions (${unassigned.length})`]),
       el("span",{class:"accordionChev"},["▸"])
     ]);
-    const body = el("div",{class:"accordionBody", style:"display:none;"},[]);
-    let open=false;
+    const body = el("div",{class:"accordionBody"},[]);
+    let open = !!(opts && opts.defaultOpen);
     header.addEventListener("click", ()=>{
       open=!open;
       body.style.display = open ? "block" : "none";
       header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
     });
+
+    // initial open/closed
+    body.style.display = open ? "block" : "none";
+    header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     if(unassigned.length===0){
       body.appendChild(el("div",{class:"dashSub", style:"padding:10px 2px;"},["No unassigned sessions."]));
@@ -618,19 +682,23 @@
     return el("div",{},[row, drawer]);
   }
 
-  function renderClassesAccordion(app, classes){
+  function renderClassesAccordion(app, classes, opts){
     const section = el("div",{class:"accordion"},[]);
     const header = el("button",{class:"accordionHdr"},[
-      el("span",{},["Classes"]),
+      el("span",{},[`Classes & Roster (${classes.length})`]),
       el("span",{class:"accordionChev"},["▸"])
     ]);
-    const body = el("div",{class:"accordionBody", style:"display:none;"},[]);
-    let open=false;
+    const body = el("div",{class:"accordionBody"},[]);
+    let open = !!(opts && opts.defaultOpen);
     header.addEventListener("click", ()=>{
       open=!open;
       body.style.display = open ? "block" : "none";
       header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
     });
+
+    // initial open/closed
+    body.style.display = open ? "block" : "none";
+    header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     body.appendChild(el("div",{class:"btnRow"},[
       el("button",{class:"primaryBtn", onClick:()=>openClassEditor("create", null)},["+ New Class"]),
@@ -1073,13 +1141,16 @@
     const classes = loadClasses();
     const sessions = loadSessions();
 
-    // Home sections
-    renderMostRecentUnassigned(app, sessions, classes);
-    renderUnassignedAccordion(app, sessions, classes);
-    renderClassesAccordion(app, classes);
+    // Modern home: focus on classes/roster + assigned session review
+    renderReportsHeader(app, classes, sessions);
+    renderClassesAccordion(app, classes, {defaultOpen:true});
+    renderAssignedOverview(app, classes, sessions);
+
+    // Unassigned still available, but not the top focus anymore
+    renderUnassignedAccordion(app, sessions, classes, {defaultOpen:false});
     renderExportAccordion(app);
 
-    // Modals
+// Modals
     if(ui.activeModal==="session" && ui.activeSessionId){
       const m = renderSessionModal();
       if(m) document.body.appendChild(m);
