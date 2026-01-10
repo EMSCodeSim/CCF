@@ -23,9 +23,9 @@
 
   function el(tag, attrs={}, children=[]){
     const node = document.createElement(tag);
-    // Prevent accidental form submits when a <button> is rendered inside any form-like container
-    if(tag.toLowerCase()==="button" && (!attrs || attrs.type==null)){
-      node.type = "button";
+    // Prevent accidental form submission/navigation from buttons.
+    if(tag.toLowerCase() === "button" && attrs && !Object.prototype.hasOwnProperty.call(attrs, "type")){
+      attrs = {...attrs, type:"button"};
     }
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
@@ -227,40 +227,35 @@
     saveJson(CLASSES_KEY, classes);
   }
   function loadSessions(){
-    // Some older builds stored sessions under different keys. To avoid "missing sessions",
-    // we probe multiple keys and merge any valid arrays.
-    const candidates = [
+    // Merge sessions from multiple historical keys so Reports shows sessions even after refactors.
+    const keys = [
       SESSIONS_KEY,
       "ccf.sessions",
       "ccf_sessions",
       "ccf.sessions.v1",
-      "ccfSessions"
+      "ccfSessions",
+      "ccf_sessions_v1" // alias (some builds used this exact string)
     ];
-
-    let merged = [];
-    for(const k of candidates){
-      const arr = loadJson(k, null);
-      if(Array.isArray(arr) && arr.length){
-        merged = merged.concat(arr);
+    const merged = [];
+    const seen = new Set();
+    for(const k of keys){
+      const arr = loadJson(k, []);
+      if(!Array.isArray(arr)) continue;
+      for(const raw of arr){
+        const id = raw && (raw.id || raw.sessionId);
+        const sig = id ? `id:${id}` : `sig:${raw?.endedAt||raw?.endAt||raw?.timestamp||""}:${raw?.totalMs||raw?.elapsedMs||""}:${raw?.compMs||""}`;
+        if(seen.has(sig)) continue;
+        seen.add(sig);
+        merged.push(raw);
       }
     }
-
-    // De-dupe by id (or endedAt+totalMs as a fallback)
-    const seen = new Set();
-    const deduped = [];
-    merged.forEach(s=>{
-      const key = (s && s.id) ? String(s.id) : `${s?.endedAt||""}_${s?.totalMs||""}_${s?.compMs||""}`;
-      if(seen.has(key)) return;
-      seen.add(key);
-      deduped.push(s);
-    });
-
-    return normalizeSessions(deduped);
+    const norm = normalizeSessions(merged);
+    // Persist to the canonical key so future loads are fast and consistent.
+    try{ saveJson(SESSIONS_KEY, norm); }catch(e){}
+    return norm;
   }
   function saveSessions(sessions){
     saveJson(SESSIONS_KEY, sessions);
-    // keep legacy key in sync so older pages still see sessions
-    try{ saveJson("ccf.sessions", sessions); }catch(e){}
   }
 
   // Selectors
@@ -762,7 +757,7 @@
     header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     body.appendChild(el("div",{class:"btnRow"},[
-      el("button",{class:"primaryBtn", onClick:(e)=>{ try{e.preventDefault();e.stopPropagation();}catch(_){ } openClassEditor("create", null); }},["+ New Class"]),
+      el("button",{class:"primaryBtn", onClick:()=>openClassEditor("create", null)},["+ New Class"]),
     ]));
 
     if(classes.length===0){
@@ -962,6 +957,7 @@
   function renderClassEditorModal(){
     const classes = loadClasses();
     const editingSrc = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
+    const editing = !!editingSrc;
 
     if(!ui.classEditorDraft){
       ui.classEditorDraft = editingSrc ? JSON.parse(JSON.stringify(editingSrc)) : blankClass();
