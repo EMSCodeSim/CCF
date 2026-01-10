@@ -114,24 +114,47 @@ function buildAssignOptions() {
   sel.appendChild(opt0);
 
   const classes = loadClasses();
-  classes.forEach((cls) => {
-    const students = Array.isArray(cls?.students) ? cls.students : [];
-    if (!students.length) return;
 
-    const grp = document.createElement("optgroup");
-    grp.label = cls?.name ? cls.name : "Class";
+  // "Most current class" = last used class if set, otherwise most recently updated/created.
+  const lastUsedId = (function(){ try { return localStorage.getItem("ccf.currentClassId") || ""; } catch { return ""; } })();
+  let current = null;
 
-    students.forEach((s) => {
-      const o = document.createElement("option");
-      const sid = s?.id || s?.studentId || s?.uid || s?.name || "";
-      const sname = s?.name || s?.studentName || "";
-      if (!sid || !sname) return;
-      o.value = `${cls.id}::${sid}`;
-      o.textContent = sname;
-      grp.appendChild(o);
-    });
+  if (lastUsedId) {
+    current = classes.find(c => c && c.id === lastUsedId) || null;
+  }
+  if (!current && classes.length) {
+    current = classes.reduce((best, c) => {
+      if (!c) return best;
+      const t = (c.updatedAt || c.createdAt || 0);
+      const bt = best ? (best.updatedAt || best.createdAt || 0) : -1;
+      return t > bt ? c : best;
+    }, null);
+  }
 
-    if (grp.children.length) sel.appendChild(grp);
+  const students = Array.isArray(current?.students) ? current.students : [];
+  if (!current || !students.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No students in current class";
+    opt.disabled = true;
+    sel.appendChild(opt);
+    return;
+  }
+
+  // Optional: show class name in the dropdown label area if present
+  if (UI?.assignStudentLabel) {
+    UI.assignStudentLabel.textContent = "Assign to student (" + ((current.name || "Current class").trim()) + ")";
+  }
+
+  // Sort students by name for easier selection
+  const sorted = students.slice().sort((a,b)=> String(a?.name||"").localeCompare(String(b?.name||""), undefined, {sensitivity:"base"}));
+  sorted.forEach((stu) => {
+    const name = (stu?.name || "").trim();
+    if (!name) return;
+    const opt = document.createElement("option");
+    opt.value = current.id + "::" + (stu.id || "");
+    opt.textContent = name;
+    sel.appendChild(opt);
   });
 }
 
