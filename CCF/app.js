@@ -47,13 +47,7 @@ const now = () => Date.now();
 
 // Reports storage
 const SESSIONS_KEY = "ccf_sessions_v1";
-const PRO_KEY = "ccf.proUnlocked"; 
-
-const CLASSES_KEY = "ccf.classes.v1"; // created/managed in Reports (Instructor)
-const ASSIGN_UI_ENABLED = true;       // set false to hide completely
-const ASSIGN_UI_PRO_ONLY = false;     // set true later to gate to Pro users
-
-// set to "1" by the native app after a successful one-time purchase
+const PRO_KEY = "ccf.proUnlocked"; // set to "1" by the native app after a successful one-time purchase
 
 function isPro() {
   return localStorage.getItem(PRO_KEY) === "1";
@@ -75,169 +69,6 @@ function saveSessions(arr) {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(arr));
   } catch {}
 }
-
-
-function loadClasses() {
-  try {
-    const raw = localStorage.getItem(CLASSES_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
-  } catch {
-    return [];
-  }
-}
-
-function isProUnlocked() {
-  try { return localStorage.getItem(PRO_KEY) === "1"; } catch { return false; }
-}
-
-function canShowAssignUI() {
-  if (!ASSIGN_UI_ENABLED) return false;
-  if (ASSIGN_UI_PRO_ONLY && !isProUnlocked()) return false;
-  // Only show when the end-of-session card is visible (we set state.lastSessionId on END)
-  return true;
-}
-
-function setAssignStatus(msg) {
-  if (!UI?.assignStudentStatus) return;
-  UI.assignStudentStatus.textContent = msg || "";
-}
-
-function buildAssignOptions() {
-  if (!UI?.assignStudentSelect) return;
-  const sel = UI.assignStudentSelect;
-  sel.innerHTML = "";
-
-  const opt0 = document.createElement("option");
-  opt0.value = "";
-  opt0.textContent = "Unassigned";
-  sel.appendChild(opt0);
-
-  const classes = loadClasses();
-
-  // "Most current class" = last used class if set, otherwise most recently updated/created.
-  const lastUsedId = (function(){ try { return localStorage.getItem("ccf.currentClassId") || ""; } catch { return ""; } })();
-  let current = null;
-
-  if (lastUsedId) {
-    current = classes.find(c => c && c.id === lastUsedId) || null;
-  }
-  if (!current && classes.length) {
-    current = classes.reduce((best, c) => {
-      if (!c) return best;
-      const t = (c.updatedAt || c.createdAt || 0);
-      const bt = best ? (best.updatedAt || best.createdAt || 0) : -1;
-      return t > bt ? c : best;
-    }, null);
-  }
-
-  const students = Array.isArray(current?.students) ? current.students : [];
-  if (!current || !students.length) {
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "No students in current class";
-    opt.disabled = true;
-    sel.appendChild(opt);
-    return;
-  }
-
-  // Optional: show class name in the dropdown label area if present
-  if (UI?.assignStudentLabel) {
-    UI.assignStudentLabel.textContent = "Assign to student (" + ((current.name || "Current class").trim()) + ")";
-  }
-
-  // Sort students by name for easier selection
-  const sorted = students.slice().sort((a,b)=> String(a?.name||"").localeCompare(String(b?.name||""), undefined, {sensitivity:"base"}));
-  sorted.forEach((stu) => {
-    const name = (stu?.name || "").trim();
-    if (!name) return;
-    const opt = document.createElement("option");
-    opt.value = current.id + "::" + (stu.id || "");
-    opt.textContent = name;
-    sel.appendChild(opt);
-  });
-}
-
-function applyAssignmentToLastSession(value) {
-  const sessionId = state.lastSessionId;
-  if (!sessionId) return;
-
-  const arr = loadSessions();
-  const idx = arr.findIndex(s => s && s.id === sessionId);
-  if (idx < 0) return;
-
-  const sess = arr[idx];
-
-  if (!value) {
-    // Clear assignment (keep class sticky if set)
-    const stickyClassId = (localStorage.getItem('ccf.currentClassId') || '') || null;
-    sess.classId = stickyClassId;
-    sess.studentId = null;
-    // Explicit v1 fields used by Reports
-    sess.assignedClassId = stickyClassId;
-    sess.assignedStudentId = null;
-    sess.assignedStudentName = "";
-    sess.assignedClassName = "";
-    // Back-compat shape
-    sess.assignedTo = null;
-    sess.assignedAt = now();
-    arr[idx] = sess;
-    saveSessions(arr);
-    setAssignStatus("Saved: Unassigned");
-    return;
-  }
-
-  const [classId, studentId] = String(value).split("::");
-  const classes = loadClasses();
-  const cls = classes.find(c => c && c.id === classId);
-  const student = (cls && Array.isArray(cls.students)) ? cls.students.find(st => (st.id || st.studentId || st.uid || st.name) === studentId) : null;
-
-  const clsName = cls?.name || "";
-  const stuName = student?.name || "";
-
-  // Back-compat fields (some older code uses these)
-  sess.classId = classId || null;
-  sess.studentId = studentId || null;
-  sess.assignedTo = {
-    classId: classId || null,
-    className: clsName,
-    studentId: studentId || null,
-    studentName: stuName,
-  };
-
-  // Explicit v1 fields used by Reports
-  sess.assignedClassId = classId || null;
-  sess.assignedStudentId = studentId || null;
-  sess.assignedClassName = clsName;
-  sess.assignedStudentName = stuName;
-  sess.assignedAt = now();
-
-  // Sticky class for future sessions
-  try { localStorage.setItem('ccf.currentClassId', classId || ""); } catch {}
-
-  arr[idx] = sess;
-  saveSessions(arr);
-
-  setAssignStatus(`Saved: ${student?.name || "Student"}`);
-}
-
-function refreshAssignUI() {
-  if (!UI?.assignRow || !UI?.assignStudentSelect) return;
-
-  const show = canShowAssignUI() && !!state.lastSessionId && (UI?.endSummaryCard?.style?.display !== "none");
-  UI.assignRow.style.display = show ? "flex" : "none";
-  if (!show) return;
-
-  buildAssignOptions();
-
-  // Set selection based on current session assignment
-  const arr = loadSessions();
-  const sess = arr.find(s => s && s.id === state.lastSessionId);
-  const targetVal = (sess && sess.classId && sess.studentId) ? `${sess.classId}::${sess.studentId}` : "";
-  UI.assignStudentSelect.value = targetVal || "";
-  setAssignStatus(targetVal ? `Assigned: ${sess?.assignedTo?.studentName || ""}` : "");
-}
-
 
 function fmt(ms) {
   const s = Math.floor(ms / 1000);
@@ -262,8 +93,6 @@ const state = {
 
 
   justEndedAt: 0,
-  lastSessionId: null,
-  lastSummary: null,
   // Multi-select reasons for the current pause
   currentReasons: [],
 
@@ -318,8 +147,6 @@ function resetBreathBox() {
   state.breathsDue = false;
   state.breathCprMs = 0;
   state.breathAdvMs = 0;
-  state.lastSessionId = null;
-  state.lastSummary = null;
 
   // If breath cues are disabled, hide/disable the entire breath UI.
   if (!state.breathTimerEnabled) {
@@ -363,7 +190,6 @@ function showEndSummary(summary) {
   if (UI.endCcfValue) UI.endCcfValue.textContent = `${summary.finalCCF}%`;
   if (UI.endPauseCount) UI.endPauseCount.textContent = String(summary.pauseCount);
   if (UI.endLongestReason) UI.endLongestReason.textContent = summary.longestReason || "—";
-  refreshAssignUI();
 }
 
 function hideEndSummary() {
@@ -372,9 +198,6 @@ function hideEndSummary() {
   if (UI.endCcfValue) UI.endCcfValue.textContent = "0%";
   if (UI.endPauseCount) UI.endPauseCount.textContent = "0";
   if (UI.endLongestReason) UI.endLongestReason.textContent = "—";
-  if (UI?.assignRow) UI.assignRow.style.display = "none";
-  setAssignStatus("");
-  if (UI?.assignStudentSelect) UI.assignStudentSelect.value = "";
 }
 
 function resetSession() {
@@ -393,8 +216,6 @@ function resetSession() {
   state.breathsDue = false;
   state.breathCprMs = 0;
   state.breathAdvMs = 0;
-  state.lastSessionId = null;
-  state.lastSummary = null;
 
   // UI reset
   hideEndSummary();
@@ -566,9 +387,6 @@ function endSession() {
   if (arr.length > 200) arr.length = 200;
 
   saveSessions(arr);
-
-  // Track last saved session for quick assignment on the Home screen
-  state.lastSessionId = session.id;
 
   // Build quick summary for the main screen
   const longestEvent = (state.pauseEvents || []).reduce((best, p) => {
@@ -925,9 +743,6 @@ function init() {
     endCcfValue: $("endCcfValue"),
     endPauseCount: $("endPauseCount"),
     endLongestReason: $("endLongestReason"),
-    assignRow: $("assignRow"),
-    assignStudentSelect: $("assignStudentSelect"),
-    assignStudentStatus: $("assignStudentStatus"),
 
     btnCCFScore: $("btnCCFScore"),
     ccfScoreText: $("ccfScoreText"),
@@ -965,34 +780,6 @@ function init() {
     btnClearPauseReasons: $("btnClearPauseReasons"),
     reasonChips: document.querySelectorAll(".reasonChip"),
   };
-
-  // Assign-to-student dropdown (Home screen, Session Summary)
-  if (UI.assignStudentSelect && !UI.assignStudentSelect.dataset.bound) {
-    UI.assignStudentSelect.addEventListener("change", (e) => {
-      try {
-        const val = (e.target.value || "");
-        // Confirm only when assigning to a real student (not "Unassigned")
-        if (val) {
-          const opt = e.target.selectedOptions && e.target.selectedOptions[0];
-          const who = (opt && opt.textContent) ? opt.textContent.trim() : "this student";
-          const ok = window.confirm(`Assign this session to ${who}?`);
-          if (!ok) {
-            // Revert selection back to the current assignment
-            refreshAssignUI();
-            return;
-          }
-        }
-        applyAssignmentToLastSession(val);
-        refreshAssignUI();
-
-        // Once confirmed and saved, remove the session summary from the Home screen.
-        if (val) hideEndSummary();
-      } catch (err) {
-        showErrorBanner("Assign failed: " + (err?.message || err));
-      }
-    });UI.assignStudentSelect.dataset.bound = "1";
-  }
-
 
   // ------------------------------------------------------------
   // Desktop-safe fallback: event delegation

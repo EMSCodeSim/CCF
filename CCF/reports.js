@@ -3,22 +3,8 @@
 (function(){
   "use strict";
 
-  // Storage keys (keep in sync with app.js)
-  const CLASSES_KEY = "ccf.classes.v1";
-  const SESSIONS_KEY = "ccf_sessions_v1";
-
-  // One-time migration from older storage keys (helps when Safari has old cached builds)
-  function migrateStorageKey(oldKey, newKey){
-    try{
-      const oldRaw = localStorage.getItem(oldKey);
-      if(!oldRaw) return;
-      const newRaw = localStorage.getItem(newKey);
-      if(newRaw && newRaw.trim() && newRaw.trim() !== "[]") return; // keep existing v1
-      localStorage.setItem(newKey, oldRaw);
-    }catch(e){}
-  }
-  migrateStorageKey("ccf.classes", CLASSES_KEY);
-  migrateStorageKey("ccf.sessions", SESSIONS_KEY);
+  const CLASSES_KEY = "ccf.classes";
+  const SESSIONS_KEY = "ccf.sessions";
 
   const $ = (sel, root=document) => root.querySelector(sel);
 
@@ -27,8 +13,7 @@
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
-      // DOM event names are lowercase (e.g., "click", "input")
-      else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
+      else if(k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
       else if(v === true) node.setAttribute(k, k);
       else if(v !== false && v != null) node.setAttribute(k, String(v));
     }
@@ -174,9 +159,8 @@
       pauseTotalMs,
       pauseBreakdown,
       // assignment fields (normalized)
-      // Support alternate shapes used by Home screen assignment
-      assignedClassId: s.assignedClassId ?? s.classId ?? s.assignedTo?.classId ?? null,
-      assignedStudentId: s.assignedStudentId ?? s.studentId ?? s.assignedTo?.studentId ?? null,
+      assignedClassId: s.assignedClassId ?? null,
+      assignedStudentId: s.assignedStudentId ?? null,
       assignedAt: s.assignedAt ?? null,
       instructorNote: s.instructorNote ?? ""
     };
@@ -364,9 +348,7 @@
     classDetailTab: "roster", // roster | sessions | summary
     classDetailStudentId: null,
     classEditorMode: "create",
-    classEditorId: null,
-    // Holds in-progress edits so a render() call doesn't wipe unsaved changes
-    classEditorDraft: null
+    classEditorId: null
   };
 
   function clearApp(){
@@ -412,14 +394,6 @@
     ui.activeModal="classEditor";
     ui.classEditorMode=mode;
     ui.classEditorId=classId;
-    // Initialize draft once per open (so re-renders don't reset the form)
-    const classes = loadClasses();
-    const existing = (mode==="edit" && classId) ? getClassById(classes, classId) : null;
-    ui.classEditorDraft = existing ? JSON.parse(JSON.stringify(existing)) : {
-      id:null, name:"", date:new Date().toISOString().slice(0,10),
-      location:"", instructor:"", instructorEmail:"", targetCCF:"",
-      students:[]
-    };
     render();
   }
   function openClassDetail(classId){
@@ -433,7 +407,6 @@
     ui.activeModal=null;
     ui.activeSessionId=null;
     ui.classEditorId=null;
-    ui.classEditorDraft=null;
     render();
   }
 
@@ -536,20 +509,84 @@
     ]);
   }
 
-  function renderUnassignedAccordion(app, sessions, classes){
+  
+  function renderReportsHeader(app, classes, sessions){
+    const totalStudents = classes.reduce((a,c)=>a+((c.students||[]).length),0);
+    const assignedCount = sessions.filter(s=> (s.assignedStudentId||s.studentId||s.assignedTo)).length;
+    const unassignedCount = sessions.length - assignedCount;
+
+    app.appendChild(card(null,[
+      el("div",{class:"reportsHero"},[
+        el("div",{class:"reportsHeroTitle"},["Instructor Reports"]),
+        el("div",{class:"reportsHeroSub"},["Create classes and rosters, review performance by student, and export reports."])
+      ]),
+      el("div",{class:"statsRow"},[
+        stat("Classes", String(classes.length)),
+        stat("Students", String(totalStudents)),
+        stat("Sessions", String(sessions.length)),
+        stat("Unassigned", String(unassignedCount))
+      ])
+    ]));
+  }
+
+  function renderAssignedOverview(app, classes, sessions){
+    // Recent assigned sessions (quick access)
+    const recent = sessions
+      .filter(s=> (s.assignedStudentId||s.studentId||s.assignedTo))
+      .sort((a,b)=>(b.endedAt||0)-(a.endedAt||0))
+      .slice(0,8);
+
+    const rows = [];
+    if(recent.length===0){
+      rows.push(el("div",{class:"dashSub"},["No assigned sessions yet. Run a session on the Timer screen and assign it to a student."]));
+    } else {
+      const list = el("div",{class:"list"},[]);
+      recent.forEach(s=>{
+        reminderNormalizeAssignment(s);
+        const when = s.endedAt ? new Date(s.endedAt).toLocaleString() : "";
+        list.appendChild(el("div",{class:"listRow"},[
+          el("div",{class:"listMain"},[
+            el("div",{class:"listTitle"},[`${s.assignedStudentName||s.assignedTo||"Assigned"} • ${Math.round(s.ccfPct||0)}%`]),
+            el("div",{class:"listSub"},[`${s.assignedClassName||""}${s.assignedClassName&&when?" • ":""}${when}`])
+          ]),
+          el("div",{class:"listActions"},[
+            el("button",{class:"ghostBtn", type:"button", onClick:()=>openSessionModal(s.id)},["Open"])
+          ])
+        ]));
+      });
+      rows.push(list);
+    }
+
+    app.appendChild(card("Recent Assigned Sessions", rows));
+  }
+
+  function reminderNormalizeAssignment(s){
+    // Ensure legacy fields are reflected for UI labels
+    if(!s.assignedStudentId && s.studentId) s.assignedStudentId = s.studentId;
+    if(!s.assignedStudentName && s.assignedTo) s.assignedStudentName = s.assignedTo;
+    if(!s.assignedClassId && s.classId) s.assignedClassId = s.classId;
+    if(!s.assignedClassName && s.className) s.assignedClassName = s.className;
+  }
+
+
+  function renderUnassignedAccordion(app, sessions, classes, opts){
     const unassigned = getUnassignedSessions(sessions);
     const section = el("div",{class:"accordion"},[]);
     const header = el("button",{class:"accordionHdr"},[
-      el("span",{},[`Unassigned Sessions (${unassigned.length})`]),
+      el("span",{},[`Assign Unassigned Sessions (${unassigned.length})`]),
       el("span",{class:"accordionChev"},["▸"])
     ]);
-    const body = el("div",{class:"accordionBody", style:"display:none;"},[]);
-    let open=false;
+    const body = el("div",{class:"accordionBody"},[]);
+    let open = !!(opts && opts.defaultOpen);
     header.addEventListener("click", ()=>{
       open=!open;
       body.style.display = open ? "block" : "none";
       header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
     });
+
+    // initial open/closed
+    body.style.display = open ? "block" : "none";
+    header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     if(unassigned.length===0){
       body.appendChild(el("div",{class:"dashSub", style:"padding:10px 2px;"},["No unassigned sessions."]));
@@ -645,19 +682,23 @@
     return el("div",{},[row, drawer]);
   }
 
-  function renderClassesAccordion(app, classes){
+  function renderClassesAccordion(app, classes, opts){
     const section = el("div",{class:"accordion"},[]);
     const header = el("button",{class:"accordionHdr"},[
-      el("span",{},["Classes"]),
+      el("span",{},[`Classes & Roster (${classes.length})`]),
       el("span",{class:"accordionChev"},["▸"])
     ]);
-    const body = el("div",{class:"accordionBody", style:"display:none;"},[]);
-    let open=false;
+    const body = el("div",{class:"accordionBody"},[]);
+    let open = !!(opts && opts.defaultOpen);
     header.addEventListener("click", ()=>{
       open=!open;
       body.style.display = open ? "block" : "none";
       header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
     });
+
+    // initial open/closed
+    body.style.display = open ? "block" : "none";
+    header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     body.appendChild(el("div",{class:"btnRow"},[
       el("button",{class:"primaryBtn", onClick:()=>openClassEditor("create", null)},["+ New Class"]),
@@ -858,20 +899,14 @@
   }
 
   function renderClassEditorModal(){
-    // Use the persistent draft created in openClassEditor so changes aren't lost on re-render.
-    let cls = ui.classEditorDraft;
-    if(!cls){
-      // Fallback safety: create a new draft if something cleared it unexpectedly.
-      cls = {
-        id:null, name:"", date:new Date().toISOString().slice(0,10),
-        location:"", instructor:"", instructorEmail:"", targetCCF:"",
-        students:[]
-      };
-      ui.classEditorDraft = cls;
-    }
-
     const classes = loadClasses();
     const editing = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
+
+    let cls = editing ? JSON.parse(JSON.stringify(editing)) : {
+      id:null, name:"", date:new Date().toISOString().slice(0,10),
+      location:"", instructor:"", instructorEmail:"", targetCCF:"",
+      students:[]
+    };
 
     const overlay = el("div",{class:"modalOverlay"},[
       el("div",{class:"modal"},[
@@ -883,7 +918,6 @@
               const id = upsertClass(cls);
               ui.activeModal=null;
               ui.activeClassId=id;
-              ui.classEditorDraft=null;
               toast("Saved");
               render();
             }},["Save"])
@@ -897,14 +931,7 @@
           field("Email (opt)", inputText(cls.instructorEmail,(v)=>cls.instructorEmail=v,"Email")),
           field("Target CCF (opt)", inputNumber(cls.targetCCF,(v)=>cls.targetCCF=v,"80")),
           el("div",{class:"dashTitle", style:"margin-top:14px;"},["Students"]),
-          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{
-            try{ e && e.preventDefault && e.preventDefault(); }catch(_){ }
-            const newId = uid("stu");
-            cls.students.push({id:newId, name:"", email:""});
-            // After re-render, scroll/focus the newly-added row so it doesn't "jump to top".
-            ui._scrollToStudentId = newId;
-            render();
-          }},["+ Add student"]),
+          el("button",{class:"primaryBtn", onClick:()=>{ cls.students.push({id:uid("stu"), name:"", email:""}); render(); }},["+ Add student"]),
           el("div",{style:"margin-top:10px;"},[
             ...cls.students.map((st, idx)=>renderStudentEditorRow(cls, idx))
           ])
@@ -916,7 +943,7 @@
 
     function renderStudentEditorRow(cls, idx){
       const st = cls.students[idx];
-      return el("div",{class:"studentRow", "data-student-id": st.id},[
+      return el("div",{class:"studentRow"},[
         el("input",{class:"input", value:st.name, placeholder:"Student name", onInput:(e)=>{ st.name=e.target.value; }}),
         el("input",{class:"input", value:st.email, placeholder:"Email (optional)", onInput:(e)=>{ st.email=e.target.value; }}),
         el("button",{class:"dangerBtn", onClick:()=>{ cls.students.splice(idx,1); render(); }},["Remove"])
@@ -1002,7 +1029,7 @@
       const roster = (c.students||[]);
       return el("div",{},[
         el("div",{class:"btnRow"},[
-          el("button",{class:"primaryBtn", onClick:()=>openClassEditor("edit", c.id)},["Edit class / roster"])
+          el("button",{class:"primaryBtn", onClick:()=>{ ui.activeModal="classEditor"; ui.classEditorMode="edit"; ui.classEditorId=c.id; render(); }},["Edit class / roster"])
         ]),
         roster.length ? el("div",{class:"list"}, roster.map(st=>{
           const stSessions = classSessions.filter(s=>s.assignedStudentId===st.id);
@@ -1114,45 +1141,22 @@
     const classes = loadClasses();
     const sessions = loadSessions();
 
-    // Home sections
-    renderMostRecentUnassigned(app, sessions, classes);
-    renderUnassignedAccordion(app, sessions, classes);
-    renderClassesAccordion(app, classes);
+    // Modern home: focus on classes/roster + assigned session review
+    renderReportsHeader(app, classes, sessions);
+    renderClassesAccordion(app, classes, {defaultOpen:true});
+    renderAssignedOverview(app, classes, sessions);
+
+    // Unassigned still available, but not the top focus anymore
+    renderUnassignedAccordion(app, sessions, classes, {defaultOpen:false});
     renderExportAccordion(app);
 
-    // Modals
+// Modals
     if(ui.activeModal==="session" && ui.activeSessionId){
       const m = renderSessionModal();
       if(m) document.body.appendChild(m);
     } else if(ui.activeModal==="classEditor"){
       const m = renderClassEditorModal();
       if(m) document.body.appendChild(m);
-
-      // If we just added a student, scroll to the new row and focus it.
-      if(ui._scrollToStudentId){
-        const id = ui._scrollToStudentId;
-        ui._scrollToStudentId = null;
-        requestAnimationFrame(()=>{
-          try{
-            const row = document.querySelector(`[data-student-id="${CSS.escape(id)}"]`);
-            if(row){
-              row.scrollIntoView({block:"center", behavior:"instant"});
-              const inp = row.querySelector("input");
-              if(inp) inp.focus();
-            }
-          }catch(e){
-            // Fallback without CSS.escape
-            try{
-              const row = document.querySelector(`[data-student-id="${id}"]`);
-              if(row){
-                row.scrollIntoView({block:"center"});
-                const inp = row.querySelector("input");
-                if(inp) inp.focus();
-              }
-            }catch(_){ }
-          }
-        });
-      }
     } else if(ui.activeModal==="classDetail" && ui.activeClassId){
       const m = renderClassDetailModal();
       if(m) document.body.appendChild(m);
