@@ -370,7 +370,6 @@
     view: "list", // "list" | "class"
     viewClassId: null
   };
-  };
 
   function clearApp(){
     const app = $("#app");
