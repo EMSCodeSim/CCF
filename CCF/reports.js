@@ -23,6 +23,10 @@
 
   function el(tag, attrs={}, children=[]){
     const node = document.createElement(tag);
+    // Prevent accidental form submits when a <button> is rendered inside any form-like container
+    if(tag.toLowerCase()==="button" && (!attrs || attrs.type==null)){
+      node.type = "button";
+    }
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
@@ -223,10 +227,40 @@
     saveJson(CLASSES_KEY, classes);
   }
   function loadSessions(){
-    return normalizeSessions(loadJson(SESSIONS_KEY, []));
+    // Some older builds stored sessions under different keys. To avoid "missing sessions",
+    // we probe multiple keys and merge any valid arrays.
+    const candidates = [
+      SESSIONS_KEY,
+      "ccf.sessions",
+      "ccf_sessions",
+      "ccf.sessions.v1",
+      "ccfSessions"
+    ];
+
+    let merged = [];
+    for(const k of candidates){
+      const arr = loadJson(k, null);
+      if(Array.isArray(arr) && arr.length){
+        merged = merged.concat(arr);
+      }
+    }
+
+    // De-dupe by id (or endedAt+totalMs as a fallback)
+    const seen = new Set();
+    const deduped = [];
+    merged.forEach(s=>{
+      const key = (s && s.id) ? String(s.id) : `${s?.endedAt||""}_${s?.totalMs||""}_${s?.compMs||""}`;
+      if(seen.has(key)) return;
+      seen.add(key);
+      deduped.push(s);
+    });
+
+    return normalizeSessions(deduped);
   }
   function saveSessions(sessions){
     saveJson(SESSIONS_KEY, sessions);
+    // keep legacy key in sync so older pages still see sessions
+    try{ saveJson("ccf.sessions", sessions); }catch(e){}
   }
 
   // Selectors
@@ -728,7 +762,7 @@
     header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     body.appendChild(el("div",{class:"btnRow"},[
-      el("button",{class:"primaryBtn", onClick:()=>openClassEditor("create", null)},["+ New Class"]),
+      el("button",{class:"primaryBtn", onClick:(e)=>{ try{e.preventDefault();e.stopPropagation();}catch(_){ } openClassEditor("create", null); }},["+ New Class"]),
     ]));
 
     if(classes.length===0){
@@ -928,7 +962,6 @@
   function renderClassEditorModal(){
     const classes = loadClasses();
     const editingSrc = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
-    const editing = !!editingSrc;
 
     if(!ui.classEditorDraft){
       ui.classEditorDraft = editingSrc ? JSON.parse(JSON.stringify(editingSrc)) : blankClass();
@@ -943,7 +976,7 @@
     const overlay = el("div",{class:"modalOverlay"},[
       el("div",{class:"modal"},[
         el("div",{class:"modalHeader"},[
-          el("div",{class:"modalTitle"},[(ui.classEditorMode==="edit") ? "Edit Class" : "New Class"]),
+          el("div",{class:"modalTitle"},[editing ? "Edit Class" : "New Class"]),
           el("div",{class:"modalHdrBtns"},[
             el("button",{class:"ghostBtn", onClick:closeModal},["Cancel"]),
             el("button",{class:"primaryBtn", onClick:()=>{
