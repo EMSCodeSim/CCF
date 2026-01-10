@@ -3,8 +3,21 @@
 (function(){
   "use strict";
 
-  const CLASSES_KEY = "ccf.classes";
-  const SESSIONS_KEY = "ccf.sessions";
+  const CLASSES_KEY = "ccf.classes.v1";
+  const SESSIONS_KEY = "ccf_sessions_v1";
+
+  // One-time migration from legacy keys (pre-v1)
+  (function migrateLegacyStorage(){
+    try{
+      const legacyClasses = localStorage.getItem("ccf.classes");
+      const legacySessions = localStorage.getItem("ccf.sessions");
+      const hasV1Classes = !!localStorage.getItem(CLASSES_KEY);
+      const hasV1Sessions = !!localStorage.getItem(SESSIONS_KEY);
+
+      if(!hasV1Classes && legacyClasses) localStorage.setItem(CLASSES_KEY, legacyClasses);
+      if(!hasV1Sessions && legacySessions) localStorage.setItem(SESSIONS_KEY, legacySessions);
+    }catch(e){}
+  })();
 
   const $ = (sel, root=document) => root.querySelector(sel);
 
@@ -348,7 +361,9 @@
     classDetailTab: "roster", // roster | sessions | summary
     classDetailStudentId: null,
     classEditorMode: "create",
-    classEditorId: null
+    classEditorId: null,
+    classEditorDraft: null,
+    postModalScroll: null
   };
 
   function clearApp(){
@@ -394,6 +409,16 @@
     ui.activeModal="classEditor";
     ui.classEditorMode=mode;
     ui.classEditorId=classId;
+
+    // Initialize a persistent draft so Add Student works without losing changes on re-render.
+    const classes = loadClasses();
+    if(mode === "edit" && classId){
+      const src = classes.find(c=>c.id===classId);
+      ui.classEditorDraft = src ? JSON.parse(JSON.stringify(src)) : blankClass();
+    } else {
+      ui.classEditorDraft = blankClass();
+    }
+    ui.postModalScroll = null;
     render();
   }
   function openClassDetail(classId){
@@ -407,6 +432,8 @@
     ui.activeModal=null;
     ui.activeSessionId=null;
     ui.classEditorId=null;
+    ui.classEditorDraft=null;
+    ui.postModalScroll=null;
     render();
   }
 
@@ -900,13 +927,17 @@
 
   function renderClassEditorModal(){
     const classes = loadClasses();
-    const editing = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
+    const editingSrc = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
 
-    let cls = editing ? JSON.parse(JSON.stringify(editing)) : {
-      id:null, name:"", date:new Date().toISOString().slice(0,10),
-      location:"", instructor:"", instructorEmail:"", targetCCF:"",
-      students:[]
-    };
+    if(!ui.classEditorDraft){
+      ui.classEditorDraft = editingSrc ? JSON.parse(JSON.stringify(editingSrc)) : blankClass();
+    }
+    // Keep draft in sync with editor intent if the target class changes
+    if(editingSrc && ui.classEditorDraft && ui.classEditorDraft.id !== editingSrc.id){
+      ui.classEditorDraft = JSON.parse(JSON.stringify(editingSrc));
+    }
+
+    const cls = ui.classEditorDraft;
 
     const overlay = el("div",{class:"modalOverlay"},[
       el("div",{class:"modal"},[
@@ -917,6 +948,8 @@
             el("button",{class:"primaryBtn", onClick:()=>{
               const id = upsertClass(cls);
               ui.activeModal=null;
+              ui.classEditorDraft=null;
+              ui.postModalScroll=null;
               ui.activeClassId=id;
               toast("Saved");
               render();
@@ -931,7 +964,7 @@
           field("Email (opt)", inputText(cls.instructorEmail,(v)=>cls.instructorEmail=v,"Email")),
           field("Target CCF (opt)", inputNumber(cls.targetCCF,(v)=>cls.targetCCF=v,"80")),
           el("div",{class:"dashTitle", style:"margin-top:14px;"},["Students"]),
-          el("button",{class:"primaryBtn", onClick:()=>{ cls.students.push({id:uid("stu"), name:"", email:""}); render(); }},["+ Add student"]),
+          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{ if(e){e.preventDefault(); e.stopPropagation();} cls.students.push({id:uid("stu"), name:"", email:""}); ui.postModalScroll="studentsBottom"; render(); }},["+ Add student"]),
           el("div",{style:"margin-top:10px;"},[
             ...cls.students.map((st, idx)=>renderStudentEditorRow(cls, idx))
           ])
@@ -939,14 +972,28 @@
       ])
     ]);
 
-    return overlay;
+    
+    // After re-render (e.g., Add Student), keep the editor from jumping to the top.
+    setTimeout(()=>{
+      try{
+        if(ui.postModalScroll==="studentsBottom"){
+          const body = document.querySelector(".modalOverlay .modalBody");
+          if(body) body.scrollTop = body.scrollHeight;
+          // focus the last student name input
+          const inputs = document.querySelectorAll(".modalOverlay .studentRow input");
+          if(inputs && inputs.length) inputs[inputs.length - 2].focus?.(); // name field
+          ui.postModalScroll = null;
+        }
+      }catch(e){}
+    }, 0);
+return overlay;
 
     function renderStudentEditorRow(cls, idx){
       const st = cls.students[idx];
       return el("div",{class:"studentRow"},[
         el("input",{class:"input", value:st.name, placeholder:"Student name", onInput:(e)=>{ st.name=e.target.value; }}),
         el("input",{class:"input", value:st.email, placeholder:"Email (optional)", onInput:(e)=>{ st.email=e.target.value; }}),
-        el("button",{class:"dangerBtn", onClick:()=>{ cls.students.splice(idx,1); render(); }},["Remove"])
+        el("button",{class:"dangerBtn", type:"button", onClick:(e)=>{ if(e){e.preventDefault(); e.stopPropagation();} cls.students.splice(idx,1); render(); }},["Remove"])
       ]);
     }
   }
