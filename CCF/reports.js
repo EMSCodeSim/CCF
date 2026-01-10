@@ -23,10 +23,6 @@
 
   function el(tag, attrs={}, children=[]){
     const node = document.createElement(tag);
-    // Prevent accidental form submission/navigation from buttons.
-    if(tag.toLowerCase() === "button" && attrs && !Object.prototype.hasOwnProperty.call(attrs, "type")){
-      attrs = {...attrs, type:"button"};
-    }
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
@@ -227,32 +223,7 @@
     saveJson(CLASSES_KEY, classes);
   }
   function loadSessions(){
-    // Merge sessions from multiple historical keys so Reports shows sessions even after refactors.
-    const keys = [
-      SESSIONS_KEY,
-      "ccf.sessions",
-      "ccf_sessions",
-      "ccf.sessions.v1",
-      "ccfSessions",
-      "ccf_sessions_v1" // alias (some builds used this exact string)
-    ];
-    const merged = [];
-    const seen = new Set();
-    for(const k of keys){
-      const arr = loadJson(k, []);
-      if(!Array.isArray(arr)) continue;
-      for(const raw of arr){
-        const id = raw && (raw.id || raw.sessionId);
-        const sig = id ? `id:${id}` : `sig:${raw?.endedAt||raw?.endAt||raw?.timestamp||""}:${raw?.totalMs||raw?.elapsedMs||""}:${raw?.compMs||""}`;
-        if(seen.has(sig)) continue;
-        seen.add(sig);
-        merged.push(raw);
-      }
-    }
-    const norm = normalizeSessions(merged);
-    // Persist to the canonical key so future loads are fast and consistent.
-    try{ saveJson(SESSIONS_KEY, norm); }catch(e){}
-    return norm;
+    return normalizeSessions(loadJson(SESSIONS_KEY, []));
   }
   function saveSessions(sessions){
     saveJson(SESSIONS_KEY, sessions);
@@ -953,29 +924,45 @@
     wrap.appendChild(list);
     return wrap;
   }
-
   function renderClassEditorModal(){
     const classes = loadClasses();
-    const editingSrc = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
+    const editingSrc = (ui.classEditorMode==="edit" && ui.classEditorId)
+      ? getClassById(classes, ui.classEditorId)
+      : null;
     const editing = !!editingSrc;
 
+    // Initialize / refresh draft
     if(!ui.classEditorDraft){
       ui.classEditorDraft = editingSrc ? JSON.parse(JSON.stringify(editingSrc)) : blankClass();
     }
-    // Keep draft in sync with editor intent if the target class changes
     if(editingSrc && ui.classEditorDraft && ui.classEditorDraft.id !== editingSrc.id){
       ui.classEditorDraft = JSON.parse(JSON.stringify(editingSrc));
     }
-
     const cls = ui.classEditorDraft;
+
+    function renderStudentEditorRow(cls, idx){
+      const st = cls.students[idx];
+      return el("div",{class:"studentRow"},[
+        el("input",{class:"input", value:st.name||"", placeholder:"Student name",
+          onInput:(e)=>{ st.name=e.target.value; }}),
+        el("input",{class:"input", value:st.email||"", placeholder:"Email (optional)",
+          onInput:(e)=>{ st.email=e.target.value; }}),
+        el("button",{class:"dangerBtn", type:"button", onClick:(e)=>{ 
+          if(e){e.preventDefault(); e.stopPropagation();}
+          cls.students.splice(idx,1); 
+          render(); 
+        }},["Remove"])
+      ]);
+    }
 
     const overlay = el("div",{class:"modalOverlay"},[
       el("div",{class:"modal"},[
         el("div",{class:"modalHeader"},[
           el("div",{class:"modalTitle"},[editing ? "Edit Class" : "New Class"]),
           el("div",{class:"modalHdrBtns"},[
-            el("button",{class:"ghostBtn", onClick:closeModal},["Cancel"]),
-            el("button",{class:"primaryBtn", onClick:()=>{
+            el("button",{class:"ghostBtn", type:"button", onClick:(e)=>{ if(e){e.preventDefault();} closeModal(); }},["Cancel"]),
+            el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{
+              if(e){e.preventDefault(); e.stopPropagation();}
               const id = upsertClass(cls);
               ui.activeModal=null;
               ui.classEditorDraft=null;
@@ -994,285 +981,36 @@
           field("Email (opt)", inputText(cls.instructorEmail,(v)=>cls.instructorEmail=v,"Email")),
           field("Target CCF (opt)", inputNumber(cls.targetCCF,(v)=>cls.targetCCF=v,"80")),
           el("div",{class:"dashTitle", style:"margin-top:14px;"},["Students"]),
-          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{ if(e){e.preventDefault(); e.stopPropagation();} cls.students.push({id:uid("stu"), name:"", email:""}); ui.postModalScroll="studentsBottom"; render(); }},["+ Add student"]),
+          el("button",{class:"primaryBtn", type:"button", onClick:(e)=>{ 
+            if(e){e.preventDefault(); e.stopPropagation();}
+            if(!Array.isArray(cls.students)) cls.students=[];
+            cls.students.push({id:uid("stu"), name:"", email:""}); 
+            ui.postModalScroll="studentsBottom"; 
+            render(); 
+          }},["+ Add student"]),
           el("div",{style:"margin-top:10px;"},[
-            ...cls.students.map((st, idx)=>renderStudentEditorRow(cls, idx))
+            ...(Array.isArray(cls.students)?cls.students:[]).map((st, idx)=>renderStudentEditorRow(cls, idx))
           ])
         ])
       ])
     ]);
 
-    
-    // After re-render (e.g., Add Student), keep the editor from jumping to the top.
+    // Keep the editor from jumping to the top after Add Student
     setTimeout(()=>{
       try{
         if(ui.postModalScroll==="studentsBottom"){
           const body = document.querySelector(".modalOverlay .modalBody");
           if(body) body.scrollTop = body.scrollHeight;
-          // focus the last student name input
-          const inputs = document.querySelectorAll(".modalOverlay .studentRow input");
-          if(inputs && inputs.length) inputs[inputs.length - 2].focus?.(); // name field
-          ui.postModalScroll = null;
+          const rows = document.querySelectorAll(".modalOverlay .studentRow");
+          const last = rows && rows.length ? rows[rows.length-1] : null;
+          const inp = last ? last.querySelector("input") : null;
+          inp && inp.focus && inp.focus();
+          ui.postModalScroll=null;
         }
       }catch(e){}
-    }, 0);
-return overlay;
-
-    function renderStudentEditorRow(cls, idx){
-      const st = cls.students[idx];
-      return el("div",{class:"studentRow"},[
-        el("input",{class:"input", value:st.name, placeholder:"Student name", onInput:(e)=>{ st.name=e.target.value; }}),
-        el("input",{class:"input", value:st.email, placeholder:"Email (optional)", onInput:(e)=>{ st.email=e.target.value; }}),
-        el("button",{class:"dangerBtn", type:"button", onClick:(e)=>{ if(e){e.preventDefault(); e.stopPropagation();} cls.students.splice(idx,1); render(); }},["Remove"])
-      ]);
-    }
-  }
-
-  function field(label, inputNode){
-    return el("div",{class:"field"},[
-      el("label",{class:"fieldLbl"},[label]),
-      inputNode
-    ]);
-  }
-  function inputText(val, onSet, ph){
-    return el("input",{class:"input", value:val||"", placeholder:ph||"", onInput:(e)=>onSet(e.target.value)});
-  }
-  function inputDate(val, onSet){
-    return el("input",{class:"input", type:"date", value:val||"", onInput:(e)=>onSet(e.target.value)});
-  }
-  function inputNumber(val, onSet, ph){
-    return el("input",{class:"input", type:"number", value:val||"", placeholder:ph||"", onInput:(e)=>onSet(e.target.value)});
-  }
-
-  function renderClassDetailModal(){
-    const classes = loadClasses();
-    const sessions = loadSessions();
-    const c = getClassById(classes, ui.activeClassId);
-    if(!c) return null;
-
-    const classSessions = sessions.filter(s=>s.assignedClassId===c.id)
-      .sort((a,b)=>(b.endedAt||0)-(a.endedAt||0));
-
-    // student panel
-    const showingStudent = ui.classDetailStudentId
-      ? (c.students||[]).find(s=>s.id===ui.classDetailStudentId)
-      : null;
-
-    const overlay = el("div",{class:"modalOverlay"},[
-      el("div",{class:"modal wide"},[
-        el("div",{class:"modalHeader"},[
-          el("div",{class:"modalTitle"},[`Class: ${c.name||"Untitled"} • ${c.date||""}`]),
-          el("div",{class:"modalHdrBtns"},[
-            el("button",{class:"ghostBtn", onClick:closeModal},["Close"]),
-            el("button",{class:"ghostBtn", onClick:()=>exportClassCsv(c.id)},["Export"]),
-            el("button",{class:"dangerBtn", onClick:()=>confirmDialog("Delete class?","This will delete the class and roster. Sessions will return to Unassigned.",()=>{ deleteClass(c.id); closeModal(); })},["Delete class"])
-          ])
-        ]),
-        el("div",{class:"modalBody"},[
-          renderTabs(),
-          ui.classDetailTab==="roster" ? renderRosterTab() :
-          ui.classDetailTab==="sessions" ? renderSessionsTab() :
-          renderSummaryTab()
-        ])
-      ])
-    ]);
+    },0);
 
     return overlay;
-
-    function renderTabs(){
-      const tabs = [
-        ["roster","Roster"],
-        ["sessions","Sessions"],
-        ["summary","Summary"]
-      ];
-      return el("div",{class:"tabRow"}, tabs.map(([key,label])=>{
-        return el("button",{class: ui.classDetailTab===key ? "tabBtn active" : "tabBtn", onClick:()=>{ ui.classDetailTab=key; ui.classDetailStudentId=null; render(); }},[label]);
-      }));
-    }
-
-    function renderRosterTab(){
-      if(showingStudent){
-        const studentSessions = classSessions.filter(s=>s.assignedStudentId===showingStudent.id);
-        const avg = studentSessions.length ? Math.round(studentSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/studentSessions.length) : null;
-        return el("div",{},[
-          el("button",{class:"ghostBtn", onClick:()=>{ ui.classDetailStudentId=null; render(); }},["← Back to roster"]),
-          el("div",{class:"dashTitle", style:"margin-top:8px;"},[`Student: ${showingStudent.name}`]),
-          el("div",{class:"dashSub"},[`Sessions: ${studentSessions.length}${avg!=null ? ` • Avg CCF ${avg}%` : ""}`]),
-          studentSessions.length ? el("div",{class:"list"}, studentSessions.map(s=>sessionRowOpen(s))) :
-            el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No sessions assigned yet."])
-        ]);
-      }
-
-      const roster = (c.students||[]);
-      return el("div",{},[
-        el("div",{class:"btnRow"},[
-          el("button",{class:"primaryBtn", onClick:()=>{ ui.activeModal="classEditor"; ui.classEditorMode="edit"; ui.classEditorId=c.id; render(); }},["Edit class / roster"])
-        ]),
-        roster.length ? el("div",{class:"list"}, roster.map(st=>{
-          const stSessions = classSessions.filter(s=>s.assignedStudentId===st.id);
-          const avg = stSessions.length ? Math.round(stSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/stSessions.length) : null;
-          return el("div",{class:"listRow"},[
-            el("div",{class:"listMain"},[
-              el("div",{class:"listTitle"},[st.name]),
-              el("div",{class:"listSub"},[`${stSessions.length} sessions${avg!=null ? ` • Avg ${avg}%` : ""}`])
-            ]),
-            el("div",{class:"listActions"},[
-              el("button",{class:"ghostBtn", onClick:()=>{ ui.classDetailStudentId=st.id; render(); }},["Open"])
-            ])
-          ]);
-        })) : el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No students yet. Use Edit class / roster to add students."])
-      ]);
-    }
-
-    function renderSessionsTab(){
-      if(!classSessions.length){
-        return el("div",{class:"dashSub", style:"opacity:.85; margin-top:8px;"},["No sessions assigned to this class yet."]);
-      }
-      // grouped by student
-      const byStu = new Map();
-      classSessions.forEach(s=>{
-        const key = s.assignedStudentId || "unknown";
-        if(!byStu.has(key)) byStu.set(key, []);
-        byStu.get(key).push(s);
-      });
-
-      const blocks = [];
-      byStu.forEach((arr, stuId)=>{
-        const st = (c.students||[]).find(x=>x.id===stuId);
-        blocks.push(el("div",{style:"margin-top:10px;"},[
-          el("div",{class:"dashTitle"},[st ? st.name : "Unknown student"]),
-          el("div",{class:"list"}, arr.map(s=>sessionRowOpen(s)))
-        ]));
-      });
-      return el("div",{},blocks);
-    }
-
-    function renderSummaryTab(){
-      const avg = classSessions.length ? Math.round(classSessions.reduce((a,s)=>a+(s.ccfPct||0),0)/classSessions.length) : null;
-
-      // aggregate pause breakdown
-      const agg = new Map();
-      classSessions.forEach(s=>{
-        (s.pauseBreakdown||[]).forEach(r=>{
-          agg.set(r.reason, (agg.get(r.reason)||0) + r.ms);
-        });
-      });
-      const top = Array.from(agg.entries()).map(([reason,ms])=>({reason,ms})).sort((a,b)=>b.ms-a.ms).slice(0,6);
-
-      return el("div",{},[
-        el("div",{class:"dashTitle"},["Class summary"]),
-        el("div",{class:"dashSub"},[
-          `${classSessions.length} sessions${avg!=null ? ` • Avg CCF ${avg}%` : ""}`
-        ]),
-        top.length ? el("div",{class:"breakdownBox", style:"margin-top:12px;"},[
-          el("div",{class:"dashTitle"},["Top pause reasons (total time)"]),
-          ...top.map(r=>el("div",{class:"breakdownRow"},[
-            el("div",{class:"breakdownReason"},[r.reason]),
-            el("div",{class:"breakdownVal"},[fmtTimeMs(r.ms)])
-          ]))
-        ]) : el("div",{class:"dashSub", style:"opacity:.85; margin-top:10px;"},["No pauses recorded across class sessions yet."])
-      ]);
-    }
-
-    function sessionRowOpen(s){
-      return el("div",{class:"listRow"},[
-        el("div",{class:"listMain"},[
-          el("div",{class:"listTitle"},[`${fmtDateOnly(s.endedAt)} ${fmtTimeOnly(s.endedAt)} • CCF ${s.ccfPct!=null ? Math.round(s.ccfPct) : "—"}%`]),
-          el("div",{class:"listSub"},[
-            s.longestPauseMs ? `Longest ${s.longestPauseReason||"Unspecified"} ${fmtTimeMs(s.longestPauseMs)}` : "No pauses"
-          ])
-        ]),
-        el("div",{class:"listActions"},[
-          el("button",{class:"ghostBtn", onClick:()=>openSessionModal(s.id)},["Open"])
-        ])
-      ]);
-    }
   }
 
-  function exportClassCsv(classId){
-    const classes = loadClasses();
-    const sessions = loadSessions();
-    const c = getClassById(classes, classId);
-    if(!c){ toast("Class not found"); return; }
-    const classSessions = sessions.filter(s=>s.assignedClassId===classId)
-      .sort((a,b)=>(b.endedAt||0)-(a.endedAt||0));
-    const rows = classSessions.map(s=>{
-      const row = sessionToRow(s, classes);
-      return {
-        class_id: c.id,
-        class_name: c.name||"",
-        class_date: c.date||"",
-        instructor: c.instructor||"",
-        location: c.location||"",
-        target_ccf: c.targetCCF||"",
-        ...row
-      };
-    });
-    downloadText(`ccf_class_${(c.name||"class").replace(/\s+/g,"_")}_${Date.now()}.csv`, toCsv(rows));
-  }
-
-  function render(){
-    clearApp();
-    const app = $("#app");
-    if(!app) return;
-    const classes = loadClasses();
-    const sessions = loadSessions();
-
-    // Modern home: focus on classes/roster + assigned session review
-    renderReportsHeader(app, classes, sessions);
-    renderClassesAccordion(app, classes, {defaultOpen:true});
-    renderAssignedOverview(app, classes, sessions);
-
-    // Unassigned still available, but not the top focus anymore
-    renderUnassignedAccordion(app, sessions, classes, {defaultOpen:false});
-    renderExportAccordion(app);
-
-// Modals
-    if(ui.activeModal==="session" && ui.activeSessionId){
-      const m = renderSessionModal();
-      if(m) document.body.appendChild(m);
-    } else if(ui.activeModal==="classEditor"){
-      const m = renderClassEditorModal();
-      if(m) document.body.appendChild(m);
-    } else if(ui.activeModal==="classDetail" && ui.activeClassId){
-      const m = renderClassDetailModal();
-      if(m) document.body.appendChild(m);
-    }
-  }
-
-  function safeInitReports(){
-    try{
-      // Ensure toast style exists even if CSS missing
-      if(!document.querySelector("style[data-toast]")){
-        const st = el("style",{"data-toast":"1"},[`
-          .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
-            z-index:9999;max-width:90vw;padding:10px 14px;border-radius:12px;
-            background:rgba(0,0,0,.78);border:1px solid rgba(255,255,255,.18);
-            color:#fff;font-weight:800;box-shadow:0 10px 30px rgba(0,0,0,.35);
-            text-align:center}
-        `]);
-        document.head.appendChild(st);
-      }
-      // normalize once
-      loadClasses();
-      loadSessions();
-      render();
-    }catch(err){
-      console.error(err);
-      const app = $("#app");
-      if(app){
-        app.innerHTML="";
-        app.appendChild(el("div",{class:"card"},[
-          el("div",{class:"cardTitle"},["Reports error"]),
-          el("div",{class:"cardBody"},[
-            el("div",{class:"dashSub"},[String(err && err.message ? err.message : err)]),
-            el("pre",{style:"white-space:pre-wrap; opacity:.85; font-size:12px; margin-top:10px;"},[String(err && err.stack ? err.stack : "")])
-          ])
-        ]));
-      }
-    }
-  }
-
-  // Init
-  safeInitReports();
-})();
+  function field(
