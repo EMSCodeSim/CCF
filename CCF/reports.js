@@ -3,7 +3,7 @@
 (function(){
   "use strict";
 
-  const CLASSES_KEY = "ccf.classes";
+  const CLASSES_KEY = "ccf.classes.v1";
   const SESSIONS_KEY = "ccf_sessions_v1";
 
   const $ = (sel, root=document) => root.querySelector(sel);
