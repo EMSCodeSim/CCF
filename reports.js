@@ -1319,6 +1319,24 @@ function renderClassDetailModal(){
       // normalize once
       loadClasses();
       loadSessions();
+      // Default to "class-first" view (most recent class) when available
+      const __classes = loadClasses() || [];
+      if(__classes.length){
+        const score = (c)=>{
+          const d = (c.updatedAt||c.createdAt||c.modifiedAt||c.date||c.startDate||"");
+          const t = (typeof d==='number') ? d : Date.parse(d);
+          return isNaN(t) ? 0 : t;
+        };
+        const most = __classes.slice().sort((a,b)=>score(b)-score(a))[0];
+        ui.view = "class";
+        ui.viewClassId = most.id;
+        ui.activeClassId = most.id;
+        ui.classDetailTab = ui.classDetailTab || "roster";
+      } else {
+        ui.view = "list";
+        ui.viewClassId = null;
+        ui.activeClassId = null;
+      }
       render();
     }catch(err){
       console.error(err);
