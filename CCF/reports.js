@@ -23,6 +23,10 @@
 
   function el(tag, attrs={}, children=[]){
     const node = document.createElement(tag);
+    // Prevent accidental form submissions (default <button> type is 'submit' inside forms)
+    if(String(tag).toLowerCase()==='button' && !(attrs && Object.prototype.hasOwnProperty.call(attrs,'type'))){
+      node.type = 'button';
+    }
     for(const [k,v] of Object.entries(attrs||{})){
       if(k === "class") node.className = v;
       else if(k === "style") node.setAttribute("style", v);
@@ -728,7 +732,7 @@
     header.querySelector(".accordionChev").textContent = open ? "▾" : "▸";
 
     body.appendChild(el("div",{class:"btnRow"},[
-      el("button",{class:"primaryBtn", onClick:()=>openClassEditor("create", null)},["+ New Class"]),
+      el("button",{class:"primaryBtn", onClick:(e)=>{ try{ e && e.preventDefault && e.preventDefault(); }catch(_){ } openClassEditor("create", null); }},["+ New Class"]),
     ]));
 
     if(classes.length===0){
