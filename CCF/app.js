@@ -136,7 +136,7 @@ function setupAssignStudentUI(){
 
   // Feature flags (Pro gating later)
   const ASSIGN_UI_ENABLED = true;
-  const ASSIGN_UI_PRO_ONLY = false;
+  const ASSIGN_UI_PRO_ONLY = true;
   const isPro = (localStorage.getItem("ccf.proUnlocked") === "1");
 
   if(!ASSIGN_UI_ENABLED) return;
