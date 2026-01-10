@@ -928,8 +928,6 @@
   function renderClassEditorModal(){
     const classes = loadClasses();
     const editingSrc = (ui.classEditorMode==="edit" && ui.classEditorId) ? getClassById(classes, ui.classEditorId) : null;
-    // IMPORTANT: the UI below uses `editing` to choose the title.
-    // If `editing` is undefined, the modal throws and never appears.
     const editing = !!editingSrc;
 
     if(!ui.classEditorDraft){
