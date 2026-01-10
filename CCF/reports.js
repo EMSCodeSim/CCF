@@ -988,7 +988,7 @@
       const roster = (c.students||[]);
       return el("div",{},[
         el("div",{class:"btnRow"},[
-          el("button",{class:"primaryBtn", onClick:()=>{ ui.activeModal="classEditor"; ui.classEditorMode="edit"; ui.classEditorId=c.id; render(); }},["Edit class / roster"])
+          el("button",{class:"primaryBtn", onClick:()=>openClassEditor("edit", c.id)},["Edit class / roster"])
         ]),
         roster.length ? el("div",{class:"list"}, roster.map(st=>{
           const stSessions = classSessions.filter(s=>s.assignedStudentId===st.id);
