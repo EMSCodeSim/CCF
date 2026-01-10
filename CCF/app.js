@@ -47,14 +47,13 @@ const now = () => Date.now();
 
 // Reports storage
 const SESSIONS_KEY = "ccf_sessions_v1";
-const CLASSES_KEY  = "ccf.classes.v1";
+const PRO_KEY = "ccf.proUnlocked"; 
 
-// Assign-to-student UI (shown near Session Summary on Home screen)
-// Flip ASSIGN_UI_PRO_ONLY to true later when you want this feature gated to Pro.
-const ASSIGN_UI_ENABLED = true;
-const ASSIGN_UI_PRO_ONLY = false;
+const CLASSES_KEY = "ccf.classes.v1"; // created/managed in Reports (Instructor)
+const ASSIGN_UI_ENABLED = true;       // set false to hide completely
+const ASSIGN_UI_PRO_ONLY = false;     // set true later to gate to Pro users
 
-const PRO_KEY = "ccf.proUnlocked"; // set to "1" by the native app after a successful one-time purchase
+// set to "1" by the native app after a successful one-time purchase
 
 function isPro() {
   return localStorage.getItem(PRO_KEY) === "1";
@@ -75,128 +74,129 @@ function saveSessions(arr) {
   try {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(arr));
   } catch {}
+}
+
 
 function loadClasses() {
   try {
     const raw = localStorage.getItem(CLASSES_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
+    const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr : [];
   } catch {
     return [];
   }
 }
 
-function canShowAssignUI() {
-  if (!ASSIGN_UI_ENABLED) return false;
-  if (!ASSIGN_UI_PRO_ONLY) return true;
-  return isPro();
+function isProUnlocked() {
+  try { return localStorage.getItem(PRO_KEY) === "1"; } catch { return false; }
 }
 
-function normalizeStudent(stu) {
-  if (!stu) return null;
-  if (typeof stu === "string") {
-    const name = stu.trim();
-    if (!name) return null;
-    return { id: name.toLowerCase().replace(/\s+/g,"-").slice(0,40), name };
-  }
-  const name = String(stu.name || stu.fullName || stu.label || "").trim();
-  if (!name) return null;
-  const id = String(stu.id || stu.studentId || name.toLowerCase().replace(/\s+/g,"-").slice(0,40));
-  return { id, name };
+function canShowAssignUI() {
+  if (!ASSIGN_UI_ENABLED) return false;
+  if (ASSIGN_UI_PRO_ONLY && !isProUnlocked()) return false;
+  // Only show when the end-of-session card is visible (we set state.lastSessionId on END)
+  return true;
 }
 
 function setAssignStatus(msg) {
-  if (UI?.assignStudentStatus) UI.assignStudentStatus.textContent = msg || "";
+  if (!UI?.assignStudentStatus) return;
+  UI.assignStudentStatus.textContent = msg || "";
 }
 
 function buildAssignOptions() {
   if (!UI?.assignStudentSelect) return;
   const sel = UI.assignStudentSelect;
   sel.innerHTML = "";
-  // Unassigned option
+
   const opt0 = document.createElement("option");
   opt0.value = "";
   opt0.textContent = "Unassigned";
   sel.appendChild(opt0);
 
   const classes = loadClasses();
-  classes.forEach(c => {
-    const className = (c?.name || c?.title || "Class").toString().trim() || "Class";
-    const studentsRaw = Array.isArray(c?.students) ? c.students : [];
-    const students = studentsRaw.map(normalizeStudent).filter(Boolean);
+  classes.forEach((cls) => {
+    const students = Array.isArray(cls?.students) ? cls.students : [];
     if (!students.length) return;
 
-    const og = document.createElement("optgroup");
-    og.label = className;
-    students.forEach(s => {
+    const grp = document.createElement("optgroup");
+    grp.label = cls?.name ? cls.name : "Class";
+
+    students.forEach((s) => {
       const o = document.createElement("option");
-      o.value = `${c.id || className}::${s.id}`;
-      o.textContent = s.name;
-      o.dataset.classId = c.id || "";
-      o.dataset.className = className;
-      o.dataset.studentId = s.id;
-      o.dataset.studentName = s.name;
-      og.appendChild(o);
+      const sid = s?.id || s?.studentId || s?.uid || s?.name || "";
+      const sname = s?.name || s?.studentName || "";
+      if (!sid || !sname) return;
+      o.value = `${cls.id}::${sid}`;
+      o.textContent = sname;
+      grp.appendChild(o);
     });
-    sel.appendChild(og);
+
+    if (grp.children.length) sel.appendChild(grp);
   });
 }
 
 function applyAssignmentToLastSession(value) {
-  const sessions = loadSessions();
-  const sess = sessions.find(s => s && s.id === state.lastSessionId);
-  if (!sess) return;
+  const sessionId = state.lastSessionId;
+  if (!sessionId) return;
+
+  const arr = loadSessions();
+  const idx = arr.findIndex(s => s && s.id === sessionId);
+  if (idx < 0) return;
+
+  const sess = arr[idx];
 
   if (!value) {
-    delete sess.assignedClassId;
-    delete sess.assignedClassName;
-    delete sess.assignedStudentId;
-    delete sess.assignedStudentName;
-    delete sess.assignedAt;
-    saveSessions(sessions);
+    sess.studentId = null;
+    sess.classId = (localStorage.getItem('ccf.currentClassId') || '') || null;
+    sess.assignedTo = null;
+    sess.assignedAt = now();
+    arr[idx] = sess;
+    saveSessions(arr);
     setAssignStatus("Saved: Unassigned");
     return;
   }
 
-  // Find selected option metadata
-  const sel = UI.assignStudentSelect;
-  const opt = sel ? sel.selectedOptions?.[0] : null;
-  const className = opt?.dataset?.className || "";
-  const studentName = opt?.dataset?.studentName || "";
+  const [classId, studentId] = String(value).split("::");
+  const classes = loadClasses();
+  const cls = classes.find(c => c && c.id === classId);
+  const student = (cls && Array.isArray(cls.students)) ? cls.students.find(st => (st.id || st.studentId || st.uid || st.name) === studentId) : null;
 
-  const [classId, studentId] = value.split("::");
-  sess.assignedClassId = classId || "";
-  sess.assignedClassName = className || "";
-  sess.assignedStudentId = studentId || "";
-  sess.assignedStudentName = studentName || "";
-  sess.assignedAt = Date.now();
+  sess.classId = classId || null;
+  sess.studentId = studentId || null;
+  sess.assignedTo = {
+    classId: classId || null,
+    className: cls?.name || "",
+    studentId: studentId || null,
+    studentName: student?.name || "",
+  };
+  sess.assignedAt = now();
 
-  saveSessions(sessions);
-  setAssignStatus(`Saved: ${studentName || "Student"}`);
+  // Sticky class for future sessions
+  try { localStorage.setItem('ccf.currentClassId', classId || ""); } catch {}
+
+  arr[idx] = sess;
+  saveSessions(arr);
+
+  setAssignStatus(`Saved: ${student?.name || "Student"}`);
 }
 
 function refreshAssignUI() {
   if (!UI?.assignRow || !UI?.assignStudentSelect) return;
 
-  const show = canShowAssignUI() && !!state.lastSessionId;
-  UI.assignRow.style.display = show ? "block" : "none";
+  const show = canShowAssignUI() && !!state.lastSessionId && (UI?.endSummaryCard?.style?.display !== "none");
+  UI.assignRow.style.display = show ? "flex" : "none";
   if (!show) return;
 
   buildAssignOptions();
 
-  // Set current selection from saved session (if any)
-  const sessions = loadSessions();
-  const sess = sessions.find(s => s && s.id === state.lastSessionId);
-  const targetVal = (sess && sess.assignedClassId && sess.assignedStudentId)
-    ? `${sess.assignedClassId}::${sess.assignedStudentId}`
-    : "";
-
+  // Set selection based on current session assignment
+  const arr = loadSessions();
+  const sess = arr.find(s => s && s.id === state.lastSessionId);
+  const targetVal = (sess && sess.classId && sess.studentId) ? `${sess.classId}::${sess.studentId}` : "";
   UI.assignStudentSelect.value = targetVal || "";
-  setAssignStatus(targetVal ? `Assigned: ${sess.assignedStudentName || ""}` : "");
+  setAssignStatus(targetVal ? `Assigned: ${sess?.assignedTo?.studentName || ""}` : "");
 }
 
-}
 
 function fmt(ms) {
   const s = Math.floor(ms / 1000);
@@ -221,6 +221,8 @@ const state = {
 
 
   justEndedAt: 0,
+  lastSessionId: null,
+  lastSummary: null,
   // Multi-select reasons for the current pause
   currentReasons: [],
 
@@ -275,6 +277,8 @@ function resetBreathBox() {
   state.breathsDue = false;
   state.breathCprMs = 0;
   state.breathAdvMs = 0;
+  state.lastSessionId = null;
+  state.lastSummary = null;
 
   // If breath cues are disabled, hide/disable the entire breath UI.
   if (!state.breathTimerEnabled) {
@@ -321,14 +325,15 @@ function showEndSummary(summary) {
   refreshAssignUI();
 }
 
-
 function hideEndSummary() {
   if (!UI?.endSummaryCard) return;
   UI.endSummaryCard.style.display = "none";
-  if (UI?.assignRow) UI.assignRow.style.display = "none";
   if (UI.endCcfValue) UI.endCcfValue.textContent = "0%";
   if (UI.endPauseCount) UI.endPauseCount.textContent = "0";
   if (UI.endLongestReason) UI.endLongestReason.textContent = "—";
+  if (UI?.assignRow) UI.assignRow.style.display = "none";
+  setAssignStatus("");
+  if (UI?.assignStudentSelect) UI.assignStudentSelect.value = "";
 }
 
 function resetSession() {
@@ -347,6 +352,8 @@ function resetSession() {
   state.breathsDue = false;
   state.breathCprMs = 0;
   state.breathAdvMs = 0;
+  state.lastSessionId = null;
+  state.lastSummary = null;
 
   // UI reset
   hideEndSummary();
@@ -518,6 +525,9 @@ function endSession() {
   if (arr.length > 200) arr.length = 200;
 
   saveSessions(arr);
+
+  // Track last saved session for quick assignment on the Home screen
+  state.lastSessionId = session.id;
 
   // Build quick summary for the main screen
   const longestEvent = (state.pauseEvents || []).reduce((best, p) => {
@@ -874,7 +884,6 @@ function init() {
     endCcfValue: $("endCcfValue"),
     endPauseCount: $("endPauseCount"),
     endLongestReason: $("endLongestReason"),
-
     assignRow: $("assignRow"),
     assignStudentSelect: $("assignStudentSelect"),
     assignStudentStatus: $("assignStudentStatus"),
@@ -911,22 +920,24 @@ function init() {
     advAirwayState: $("advAirwayState"),
 
     pauseOverlay: $("pauseOverlay"),
-    btnResumePause: $("btnRe
+    btnResumePause: $("btnResumeFromPause"),
+    btnClearPauseReasons: $("btnClearPauseReasons"),
+    reasonChips: document.querySelectorAll(".reasonChip"),
+  };
+
   // Assign-to-student dropdown (Home screen, Session Summary)
-  if (UI?.assignStudentSelect && !UI.assignStudentSelect.dataset.bound) {
+  if (UI.assignStudentSelect && !UI.assignStudentSelect.dataset.bound) {
     UI.assignStudentSelect.addEventListener("change", (e) => {
       try {
         applyAssignmentToLastSession(e.target.value || "");
+        refreshAssignUI();
       } catch (err) {
         showErrorBanner("Assign failed: " + (err?.message || err));
       }
     });
     UI.assignStudentSelect.dataset.bound = "1";
   }
-sumeFromPause"),
-    btnClearPauseReasons: $("btnClearPauseReasons"),
-    reasonChips: document.querySelectorAll(".reasonChip"),
-  };
+
 
   // ------------------------------------------------------------
   // Desktop-safe fallback: event delegation

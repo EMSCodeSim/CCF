@@ -1661,32 +1661,33 @@ body{
 .studentRow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px}
 
 
-/* Home screen: assign session to student (shown near Session Summary) */
+/* ---- Assign-to-student row (Home screen, Session Summary) ---- */
 .assignRow{
   margin-top: 12px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(0,0,0,0.18);
-  border: 1px solid rgba(255,255,255,0.10);
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .assignLabel{
   font-size: 13px;
-  opacity: 0.85;
-  margin-bottom: 8px;
+  opacity: 0.9;
 }
 .assignSelect{
   width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: #fff;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(0,0,0,0.25);
-  color: #fff;
   font-size: 16px;
-  outline: none;
+}
+.assignSelect option, .assignSelect optgroup{
+  color: #000;
 }
 .assignStatus{
-  margin-top: 8px;
   font-size: 12px;
   opacity: 0.75;
-  min-height: 16px;
+  min-height: 14px;
 }
