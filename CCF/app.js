@@ -70,6 +70,164 @@ function saveSessions(arr) {
   } catch {}
 }
 
+function loadClasses(){
+  // Reports uses v1 key. Keep a fallback for older installs.
+  const raw = localStorage.getItem("ccf.classes.v1") || localStorage.getItem("ccf.classes") || "[]";
+  const arr = safeParseJSON(raw, []);
+  return Array.isArray(arr) ? arr : [];
+}
+
+function getMostCurrentClass(){
+  const classes = loadClasses();
+  if(!classes.length) return null;
+
+  const stickyId = localStorage.getItem("ccf.currentClassId");
+  if(stickyId){
+    const found = classes.find(c=>c && c.id===stickyId);
+    if(found) return found;
+  }
+
+  // pick most recently updated/created
+  const sorted = [...classes].sort((a,b)=>{
+    const at = (a?.updatedAt || a?.createdAt || 0);
+    const bt = (b?.updatedAt || b?.createdAt || 0);
+    return bt - at;
+  });
+  const current = sorted[0] || null;
+  if(current?.id) localStorage.setItem("ccf.currentClassId", current.id);
+  return current;
+}
+
+function updateLatestSessionAssignment({classObj, studentObj}){
+  const arr = loadSessions();
+  if(!arr.length) return false;
+  // prefer the session we just saved
+  const targetId = state.lastSavedSessionId;
+  let idx = targetId ? arr.findIndex(s=>s && s.id===targetId) : -1;
+  if(idx < 0) idx = 0;
+  const sess = arr[idx];
+  if(!sess) return false;
+
+  const classId = classObj?.id || null;
+  const className = classObj?.name || "";
+  const studentId = studentObj?.id || null;
+  const studentName = studentObj?.name || "";
+
+  // Write both formats so Reports/legacy screens always show it.
+  sess.classId = classId;
+  sess.studentId = studentId;
+  sess.assignedTo = studentName || null;
+
+  sess.assignedClassId = classId;
+  sess.assignedClassName = className;
+  sess.assignedStudentId = studentId;
+  sess.assignedStudentName = studentName;
+  sess.assignedAt = now();
+
+  arr[idx] = sess;
+  saveSessions(arr);
+  if(classId) localStorage.setItem("ccf.currentClassId", classId);
+  return true;
+}
+
+function setupAssignStudentUI(){
+  const card = document.getElementById("endSummaryCard");
+  if(!card) return;
+
+  // Feature flags (Pro gating later)
+  const ASSIGN_UI_ENABLED = true;
+  const ASSIGN_UI_PRO_ONLY = false;
+  const isPro = (localStorage.getItem("ccf.proUnlocked") === "1");
+
+  if(!ASSIGN_UI_ENABLED) return;
+  if(ASSIGN_UI_PRO_ONLY && !isPro) return;
+
+  // Create container if missing
+  let row = document.getElementById("assignRow");
+  if(!row){
+    row = document.createElement("div");
+    row.id = "assignRow";
+    row.className = "assignRow";
+    row.innerHTML = `
+      <div class="assignLabel">Assign session to student</div>
+      <div class="assignControls">
+        <select id="assignStudentSelect" class="assignSelect">
+          <option value="">Select student…</option>
+        </select>
+        <button id="assignConfirmBtn" class="assignBtn" type="button" disabled>Assign</button>
+      </div>
+      <div id="assignStatus" class="assignStatus" aria-live="polite"></div>
+    `;
+    card.appendChild(row);
+  }
+
+  const sel = document.getElementById("assignStudentSelect");
+  const btn = document.getElementById("assignConfirmBtn");
+  const status = document.getElementById("assignStatus");
+
+  if(!sel || !btn) return;
+
+  function refreshOptions(){
+    const cls = getMostCurrentClass();
+    // clear
+    sel.innerHTML = `<option value="">Select student…</option>`;
+    btn.disabled = true;
+    if(status) status.textContent = "";
+
+    if(!cls || !Array.isArray(cls.students) || cls.students.length===0){
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "No students in current class";
+      sel.appendChild(opt);
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+
+    cls.students.forEach(st=>{
+      const opt = document.createElement("option");
+      opt.value = st.id || st.name || "";
+      opt.textContent = st.name || "Unnamed";
+      sel.appendChild(opt);
+    });
+
+    // remember last student?
+  }
+
+  refreshOptions();
+
+  sel.onchange = ()=>{
+    btn.disabled = !sel.value;
+    if(status) status.textContent = "";
+  };
+
+  btn.onclick = ()=>{
+    if(!sel.value) return;
+    const cls = getMostCurrentClass();
+    if(!cls) return;
+
+    const st = (cls.students||[]).find(s => (s.id||s.name) === sel.value) || null;
+    if(!st) return;
+
+    const ok = confirm(`Assign this session to ${st.name || "this student"}?`);
+    if(!ok){
+      sel.value = "";
+      btn.disabled = true;
+      return;
+    }
+
+    const saved = updateLatestSessionAssignment({classObj: cls, studentObj: st});
+    if(saved){
+      if(status) status.textContent = `Assigned to ${st.name || ""} ✓`;
+      // hide the summary card after assignment (per your request)
+      hideEndSummary();
+    } else {
+      if(status) status.textContent = "Could not assign (no session found)";
+    }
+  };
+}
+
+
 function fmt(ms) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
@@ -387,6 +545,7 @@ function endSession() {
   if (arr.length > 200) arr.length = 200;
 
   saveSessions(arr);
+  state.lastSavedSessionId = session.id;
 
   // Build quick summary for the main screen
   const longestEvent = (state.pauseEvents || []).reduce((best, p) => {
@@ -780,6 +939,8 @@ function init() {
     btnClearPauseReasons: $("btnClearPauseReasons"),
     reasonChips: document.querySelectorAll(".reasonChip"),
   };
+
+  setupAssignStudentUI();
 
   // ------------------------------------------------------------
   // Desktop-safe fallback: event delegation

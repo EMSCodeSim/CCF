@@ -1711,3 +1711,49 @@ body{
   font-size:16px;
   font-weight:900;
 }
+
+
+
+/* Home: assign session to student (shown in end-of-session summary) */
+.assignRow{
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  background: rgba(0,0,0,0.12);
+}
+.assignLabel{
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.assignControls{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.assignSelect{
+  flex: 1 1 220px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.25);
+  color: inherit;
+}
+.assignBtn{
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 0;
+  font-weight: 800;
+  background: rgba(255,255,255,0.14);
+  color: inherit;
+}
+.assignBtn:disabled{
+  opacity: 0.5;
+}
+.assignStatus{
+  margin-top: 8px;
+  opacity: 0.85;
+  font-size: 13px;
+}
