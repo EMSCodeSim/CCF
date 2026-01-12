@@ -1,4 +1,3 @@
-window.__REPORTS_JS_LOADED = true;
 
 /* =========================================================
    Reports (Mobile-first)
@@ -91,12 +90,89 @@ function saveUI(){
 /* ---------- DOM ---------- */
 const app = () => document.getElementById("app");
 function el(tag, attrs, ...children){
+
+function normalizeSession(raw){
+  const s = raw || {};
+  // timestamps
+  const endedAt = s.endedAt ?? s.endAt ?? s.timestamp ?? null;
+  const totalMs = toNum(s.totalMs) ?? null;
+  const startedAt = s.startedAt ?? s.startAt ?? (endedAt && totalMs!=null ? (new Date(endedAt).getTime() - totalMs) : null);
+
+  // CCF
+  const ccfPct = toNum(
+    s.ccfPct ?? s.finalCCF ?? s.finalCcf ?? s.ccf ?? s.ccfPercent ?? s.ccf_percentage ?? s.ccfScore
+  );
+
+  // pause events
+  const pauses = Array.isArray(s.pauses) ? s.pauses : (Array.isArray(s.pauseEvents) ? s.pauseEvents : []);
+  const pauseCount = pauses.length || toNum(s.pauseCount) || 0;
+
+  // hands-off
+  let handsOffSec = toNum(s.handsOffSec);
+  if(handsOffSec==null){
+    const offMs = toNum(s.offMs);
+    if(offMs!=null) handsOffSec = offMs/1000;
+  }
+  if(handsOffSec==null && pauses.length){
+    handsOffSec = pauses.reduce((a,p)=>a + (toNum(p.ms ?? p.durMs ?? p.durationMs) || 0),0)/1000;
+  }
+
+  // duration
+  let durationSec = toNum(s.durationSec);
+  if(durationSec==null){
+    if(totalMs!=null) durationSec = totalMs/1000;
+    else if(startedAt && endedAt) durationSec = Math.max(0,(new Date(endedAt)-new Date(startedAt))/1000);
+  }
+
+  // longest pause
+  let longestPause = null;
+  if(pauses.length){
+    const best = pauses.slice().sort((a,b)=>(toNum(b.ms??b.durMs)??0)-(toNum(a.ms??a.durMs)??0))[0];
+    const ms = toNum(best.ms ?? best.durMs ?? best.durationMs) ?? 0;
+    const reason = (best.reasons && best.reasons.length) ? best.reasons.join(", ") : (best.reason || "Unspecified");
+    const startMs = toNum(best.startMs ?? best.atMs ?? best.tMs);
+    longestPause = { ms, reason, startMs };
+  } else if(s.longestPauseMs || s.longestPauseSec){
+    const ms = toNum(s.longestPauseMs) ?? (toNum(s.longestPauseSec) ?? 0)*1000;
+    const reason = s.longestPauseReason ?? s.longestReason ?? "Unspecified";
+    longestPause = { ms, reason, startMs: null };
+  }
+
+  return {
+    ...s,
+    startedAt,
+    endedAt,
+    ccfPct,
+    durationSec,
+    handsOffSec,
+    pauseCount,
+    pauses,
+    longestPause,
+    totalMs,
+  };
+}
+function toNum(v){
+  if(v===null || v===undefined || v==="") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function stamp(ts){
+  if(!ts) return "";
+  try { return new Date(ts).toLocaleString(); } catch { return ""; }
+}
+function fmtMs(ms){
+  ms = Math.max(0, Number(ms)||0);
+  const s = Math.round(ms/1000);
+  const mm = String(Math.floor(s/60)).padStart(2,"0");
+  const ss = String(s%60).padStart(2,"0");
+  return `${mm}:${ss}`;
+}
+
+
   const n = document.createElement(tag);
 
-  const isAttrs =
-    attrs &&
-    typeof attrs === "object" &&
-    !Array.isArray(attrs) &&
+  // Allow el(tag, child1, child2...) (attrs omitted)
+  const isAttrs = attrs && typeof attrs === "object" && !Array.isArray(attrs) &&
     !(attrs instanceof Node) &&
     !(attrs instanceof NodeList) &&
     !(attrs instanceof HTMLCollection);
@@ -109,38 +185,28 @@ function el(tag, attrs, ...children){
   Object.entries(attrs||{}).forEach(([k,v])=>{
     if(k==="class") n.className = v;
     else if(k==="html") n.innerHTML = v;
-    else if(k.startsWith("on") && typeof v==="function")
-      n.addEventListener(k.slice(2).toLowerCase(), v);
-    else if(v!==null && v!==undefined)
-      n.setAttribute(k, String(v));
+    else if(k.startsWith("on") && typeof v==="function") n.addEventListener(k.slice(2).toLowerCase(), v);
+    else if(v!==null && v!==undefined) n.setAttribute(k, String(v));
   });
 
-  const append = (ch)=>{
+  // Normalize children: allow single node/string, arrays, NodeList, HTMLCollection
+  const flat = [];
+  const pushChild = (ch)=>{
     if(ch===null || ch===undefined || ch===false) return;
-
-    if(Array.isArray(ch)){
-      ch.forEach(append);
-    }
-    else if(ch instanceof Node){
-      n.appendChild(ch);
-    }
-    else if(ch instanceof NodeList || ch instanceof HTMLCollection){
-      Array.from(ch).forEach(append);
-    }
-    else {
-      n.appendChild(document.createTextNode(String(ch)));
-    }
+    if(Array.isArray(ch)) ch.forEach(pushChild);
+    else if(ch instanceof NodeList || ch instanceof HTMLCollection) Array.from(ch).forEach(pushChild);
+    else flat.push(ch);
   };
+  children.forEach(pushChild);
 
-  children.forEach(append);
+  flat.forEach(ch=>{
+    if(ch===null || ch===undefined) return;
+    if(typeof ch==="string" || typeof ch==="number") n.appendChild(document.createTextNode(String(ch)));
+    else n.appendChild(ch);
+  });
+
   return n;
 }
-
-function sessionStamp(s){
-  const t = s?.startedAt ?? s?.endedAt ?? s?.ended ?? s?.timestamp ?? null;
-  return t ? new Date(t).toLocaleString() : "";
-}
-
 function fmtDateISO(iso){
   try{
     if(!iso) return "";
@@ -176,8 +242,7 @@ function setOpen(classId, sectionId, open){
 }
 function Accordion({classId, id, title, subtitle, defaultOpen=false, bodyEl}){
   const open = isOpen(classId, id) || defaultOpen;
-  const hdr = el("button", { class:"accHeader",
-    "data-acc": id, type:"button" }, [
+  const hdr = el("button", { class:"accHeader", type:"button" }, [
     el("div", { class:"accHdrLeft" }, [
       el("div", { class:"accTitle" }, [title]),
       subtitle ? el("div", { class:"accSub" }, [subtitle]) : null
@@ -221,14 +286,8 @@ function renderList(){
   const unassigned = sessions.filter(s => !s.studentId).slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0));
 
   const container = el("div", { class:"pad16" }, []);
-
-
-  // View classes button (opens classes accordion)
-  container.appendChild(el("button", { class:"secondaryBtn", type:"button", id:"btnViewClasses", style:"margin-top:10px;" }, ["View classes"]));
-
-  // Classes accordion body
-  const classesBody = el("div", {}, []);
   if(!classes.length){
+    classesBody.appendChild(el("div", { class:"dashSub" }, ["No classes yet. Tap + New Class to start."]));
   }else{
     classesBody.appendChild(el("div", { class:"dashSub" }, ["All saved classes (tap to open)."]));
     const list = el("div", { class:"stack10", style:"margin-top:10px;" }, []);
@@ -279,7 +338,7 @@ function renderList(){
       el("span", { class:"fieldLabel" }, ["Student"]),
       el("select", { id:"latestStudentSelect" }, [ el("option", { value:"" }, ["— Select student —"]) ])
     ]),
-    el("button", { class:"endBtn", type:"button", id:"btnAssignLatest" }, ["Assign to student"])
+    el("button", { class:"endBtn", type:"button", id:"btnAssignLatest" }, ["Assign"])
   ]));
 
   // Add student inline (simple)
@@ -342,9 +401,7 @@ function renderList(){
   app().appendChild(container);
 
   // Wire buttons
-  safeBind("btnNewClassTop", ()=>{
-    const d = loadDefaults();
-    const cls = {
+const cls = {
       id: uid(),
       name: "",
       dateISO: todayISO(),
@@ -414,21 +471,10 @@ renderList();
   });
 
   safeBind("btnAssignLatest", ()=>{
+  const classId = document.getElementById("latestClassPicker").value;
   if(!latestSession) return alert("No sessions saved yet.");
-  const classId = document.getElementById("latestClassPicker")?.value || "";
   if(!classId) return alert("Select a class first.");
-  const studentId = document.getElementById("latestStudentSelect")?.value || "";
-  if(!studentId) return alert("Select a student (or use Add Student).");
-  const arr = loadSessions();
-  const idx = arr.findIndex(x=>x.id===latestSession.id);
-  if(idx<0) return;
-  arr[idx].classId = classId;
-  arr[idx].studentId = studentId;
-  saveSessions(arr);
-  localStorage.setItem("ccf.currentClassId", classId);
-  alert("Assigned to student.");
-  boot();
-});
+  showAssignModal(latestSession, { classId });
 });
 
   populateLatestStudents();
@@ -777,14 +823,18 @@ function renderStudents(cls, focusNew){
 }
 
 /* ---------- Sessions listing + assignment ---------- */
-function sessionTitle(s){
+function sessionTitle(raw){
+  const s = normalizeSession(raw);
+
   const when = s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session";
   const ccf = (s.ccfPct!==undefined && s.ccfPct!==null) ? `${Math.round(s.ccfPct)}%` : "—";
   const pauses = (s.pauses && Array.isArray(s.pauses)) ? s.pauses.length : (s.pauseCount ?? 0);
   const ho = (s.handsOffSec!==undefined && s.handsOffSec!==null) ? `${Math.round(s.handsOffSec)}s hands-off` : "";
   return `${ccf} • ${pauses} pauses • ${ho}`.trim();
 }
-function sessionRow(s, {mode, classId}){
+function sessionRow(raw, {mode, classId}){
+  const s = normalizeSession(raw);
+
   const row = el("div", { class:"sessionRow" }, [
     el("div", { class:"sessionLeft" }, [
       el("div", { class:"sessionMain" }, [s.startedAt ? new Date(s.startedAt).toLocaleString() : "Session"]),
@@ -1402,8 +1452,6 @@ function escapeHtml(s){
 
 /* ---------- Boot ---------- */
 function boot(){
-  window.__REPORTS_BOOTED = true;
-
   // restore view
   const saved = loadJson(UI_KEY, null);
   if(saved && saved.view==="class" && saved.classId && getClassById(saved.classId)){
@@ -1679,49 +1727,15 @@ function renderLatestSession(latestSession){
     card.appendChild(el("div", { class:"dashSub" }, ["No saved sessions yet. Run a session to see it here."]));
     return;
   }
-
-  // Header
-  card.appendChild(el("div", { class:"dashTitle" }, ["Last session report"]));
-  const stamp = sessionStamp(latestSession);
-  if(stamp) card.appendChild(el("div", { class:"dashSub" }, [stamp]));
-
-  // Key stats
-  card.appendChild(el("div", { class:"dashGrid", style:"margin-top:10px;" }, [
+  card.appendChild(el("div", { class:"dashGrid" }, [
     stat("CCF", latestSession.ccfPct==null?"—":`${Math.round(latestSession.ccfPct)}%`),
     stat("Pauses", String((latestSession.pauses && latestSession.pauses.length) ? latestSession.pauses.length : (latestSession.pauseCount ?? 0))),
     stat("Hands-off", latestSession.handsOffSec==null?"—":`${Math.round(latestSession.handsOffSec)}s`),
     stat("Duration", latestSession.durationSec==null?"—":`${Math.round(latestSession.durationSec)}s`),
   ]));
-
   card.appendChild(el("div", { class:"dashSub", style:"margin-top:10px;" }, [
     "Longest pause: ", longestPauseSummary(latestSession)
   ]));
-
-  // Pause list
-  const pauses = Array.isArray(latestSession.pauses) ? latestSession.pauses : [];
-  if(!pauses.length){
-    card.appendChild(el("div", { class:"dashSub", style:"margin-top:10px; opacity:.85;" }, [
-      "No pauses recorded (pause prompt may be OFF)."
-    ]));
-    return;
-  }
-
-  card.appendChild(el("div", { class:"dashTitle", style:"margin-top:12px;" }, ["Pauses"]));
-  const list = el("div", { class:"pauseList", style:"display:grid; gap:8px; margin-top:8px;" }, []);
-  pauses.forEach((p,i)=>{
-    const reason = (p.reasons && p.reasons.length) ? p.reasons.join(", ") : (p.reason || "Unspecified");
-    const ms = p.ms ?? p.durMs ?? 0;
-    // show either relative time (if startMs exists) or order
-    const rel = (p.startMs!=null) ? `@ ${fmt(p.startMs)}` : `#${i+1}`;
-    list.appendChild(el("div", { class:"pauseRow", style:"padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(0,0,0,.08);" }, [
-      el("div", { style:"display:flex; justify-content:space-between; gap:10px; align-items:baseline;" }, [
-        el("div", { style:"font-weight:800;" }, [reason]),
-        el("div", { style:"opacity:.9; font-variant-numeric: tabular-nums;" }, [fmt(ms)])
-      ]),
-      el("div", { class:"dashSub", style:"margin-top:4px; opacity:.85;" }, [rel])
-    ]));
-  });
-  card.appendChild(list);
 }
 
 
