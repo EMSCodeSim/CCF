@@ -1,6 +1,19 @@
 const REPORTS_VERSION = "v17";
 window.__REPORTS_JS_LOADED = true;
 
+
+// Safe DOM helpers: prevent blank screens if an element id changes
+const $ = (id) => document.getElementById(id);
+function on(id, evt, fn){
+  const el = $(id);
+  if(!el){
+    console.warn("[reports] missing element:", id);
+    return false;
+  }
+  el.addEventListener(evt, fn);
+  return true;
+}
+
 /* =========================================================
    Reports (Mobile-first)
    - Local-only class + roster storage
@@ -751,7 +764,7 @@ el("div", { class:"row", style:"gap:10px; flex-wrap:wrap; align-items:flex-end; 
   renderDashboard(cls);
 
   // Handlers
-  document.getElementById("btnBack").addEventListener("click", renderList);
+  on("btnBack", "click", renderList);
 
 // Class picker + new class (inside Class setup)
 const clsPick = document.getElementById("classPicker");
@@ -807,36 +820,36 @@ if(btnNewFrom){
   hookField("classLoc", v=>{ cls.location = v; debSave(); });
   hookField("targetCcf", v=>{ cls.targetCcf = clampInt(v, 0, 100, 80); debSave(); });
 
-  document.getElementById("btnAddStudent").addEventListener("click", ()=>{
+  on("btnAddStudent", "click", ()=>{
     cls.students.push({ id: uid(), name:"", email:"", contact:"" });
     upsertClass(cls);
     renderStudents(cls, true);
   });
 
-  document.getElementById("btnDeleteClass").addEventListener("click", ()=>{
+  on("btnDeleteClass", "click", ()=>{
     if(confirm("Delete this class? This does not delete the CPR sessions, only the class record.")){
       deleteClass(cls.id);
       renderList();
     }
   });
 
-  document.getElementById("btnDownloadClass").addEventListener("click", ()=>{
+  on("btnDownloadClass", "click", ()=>{
     downloadText(buildClassCsv(cls), safeFile(`class-${cls.name||cls.id}.csv`));
   });
 
-  document.getElementById("btnPrintClass").addEventListener("click", ()=>{
+  on("btnPrintClass", "click", ()=>{
     printClass(cls);
   });
 
-  document.getElementById("btnEmailInstructor").addEventListener("click", ()=>{
+  on("btnEmailInstructor", "click", ()=>{
     emailInstructor(cls);
   });
 
-  document.getElementById("btnEmailStudents").addEventListener("click", ()=>{
+  on("btnEmailStudents", "click", ()=>{
     emailStudents(cls);
   });
 
-  document.getElementById("btnDownloadAllSessions").addEventListener("click", ()=>{
+  on("btnDownloadAllSessions", "click", ()=>{
     downloadText(buildAssignedSessionsCsv(cls), safeFile(`sessions-${cls.name||cls.id}.csv`));
   });
 }
