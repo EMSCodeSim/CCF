@@ -1,19 +1,6 @@
 const REPORTS_VERSION = "v17";
 window.__REPORTS_JS_LOADED = true;
 
-
-// Safe DOM helpers: prevent blank screens if an element id changes
-const $ = (id) => document.getElementById(id);
-function on(id, evt, fn){
-  const el = $(id);
-  if(!el){
-    console.warn("[reports] missing element:", id);
-    return false;
-  }
-  el.addEventListener(evt, fn);
-  return true;
-}
-
 /* =========================================================
    Reports (Mobile-first)
    - Local-only class + roster storage
@@ -521,10 +508,6 @@ function renderList(){
     upsertClass(cls);
     openClass(cls.id, true);
   });
-renderList();
-    setTimeout(()=>scrollToAcc("classes"), 0);
-  });
-
   safeBind("btnDlAllClasses", ()=>{
     downloadText(exportAllClassesCSV(), safeFile("ccf-classes-all.csv"));
   });
@@ -590,7 +573,6 @@ renderList();
   localStorage.setItem("ccf.currentClassId", classId);
   alert("Assigned to student.");
   boot();
-});
 });
 
   populateLatestStudents();
@@ -764,7 +746,7 @@ el("div", { class:"row", style:"gap:10px; flex-wrap:wrap; align-items:flex-end; 
   renderDashboard(cls);
 
   // Handlers
-  on("btnBack", "click", renderList);
+  document.getElementById("btnBack").addEventListener("click", renderList);
 
 // Class picker + new class (inside Class setup)
 const clsPick = document.getElementById("classPicker");
@@ -820,36 +802,36 @@ if(btnNewFrom){
   hookField("classLoc", v=>{ cls.location = v; debSave(); });
   hookField("targetCcf", v=>{ cls.targetCcf = clampInt(v, 0, 100, 80); debSave(); });
 
-  on("btnAddStudent", "click", ()=>{
+  document.getElementById("btnAddStudent").addEventListener("click", ()=>{
     cls.students.push({ id: uid(), name:"", email:"", contact:"" });
     upsertClass(cls);
     renderStudents(cls, true);
   });
 
-  on("btnDeleteClass", "click", ()=>{
+  document.getElementById("btnDeleteClass").addEventListener("click", ()=>{
     if(confirm("Delete this class? This does not delete the CPR sessions, only the class record.")){
       deleteClass(cls.id);
       renderList();
     }
   });
 
-  on("btnDownloadClass", "click", ()=>{
+  document.getElementById("btnDownloadClass").addEventListener("click", ()=>{
     downloadText(buildClassCsv(cls), safeFile(`class-${cls.name||cls.id}.csv`));
   });
 
-  on("btnPrintClass", "click", ()=>{
+  document.getElementById("btnPrintClass").addEventListener("click", ()=>{
     printClass(cls);
   });
 
-  on("btnEmailInstructor", "click", ()=>{
+  document.getElementById("btnEmailInstructor").addEventListener("click", ()=>{
     emailInstructor(cls);
   });
 
-  on("btnEmailStudents", "click", ()=>{
+  document.getElementById("btnEmailStudents").addEventListener("click", ()=>{
     emailStudents(cls);
   });
 
-  on("btnDownloadAllSessions", "click", ()=>{
+  document.getElementById("btnDownloadAllSessions").addEventListener("click", ()=>{
     downloadText(buildAssignedSessionsCsv(cls), safeFile(`sessions-${cls.name||cls.id}.csv`));
   });
 }
