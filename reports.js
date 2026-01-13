@@ -22,8 +22,41 @@ function isPro(){
 
 // If you want to temporarily bypass Pro gating (for testing), set to true.
 const PRO_DEBUG_BYPASS = false;
+
+// Desktop preview bypass:
+// - Desktop browser (mouse/trackpad) shows Reports with NO paywall so you can edit/test.
+// - Native app still requires Pro unlock.
+const DESKTOP_NO_PAYWALL = true;
+
+function isNativeApp(){
+  try{
+    if(window.Capacitor){
+      if(typeof window.Capacitor.isNativePlatform === "function"){
+        return !!window.Capacitor.isNativePlatform();
+      }
+      if(typeof window.Capacitor.getPlatform === "function"){
+        return window.Capacitor.getPlatform() !== "web";
+      }
+    }
+  }catch(e){}
+  return !!window.cordova;
+}
+
+function isDesktopBrowser(){
+  try{
+    const w = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    const fine = !!(window.matchMedia && window.matchMedia("(pointer:fine)").matches);
+    // pointer:fine catches mouse/trackpad; width gate avoids most phones.
+    return fine && w >= 900;
+  }catch(e){
+    return false;
+  }
+}
+
 function proEnabled(){
-  return PRO_DEBUG_BYPASS ? true : isPro();
+  if(PRO_DEBUG_BYPASS) return true;
+  if(DESKTOP_NO_PAYWALL && !isNativeApp() && isDesktopBrowser()) return true;
+  return isPro();
 }
 
 function renderProPaywall(){
