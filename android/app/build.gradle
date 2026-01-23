@@ -8,8 +8,8 @@ android {
         applicationId "com.emscodesim.ccf"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 15
-        versionName "2.3"
+        versionCode 14
+        versionName "2.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         aaptOptions {
@@ -47,7 +47,7 @@ dependencies {
     implementation project(':capacitor-android')
 
     // REQUIRED: Play Billing Library (fixes AIDL / must be >= 6.0.1)
-    implementation "com.android.billingclient:billing:6.1.0"
+    implementation "com.android.billingclient:billing:7.0.0"
 
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
