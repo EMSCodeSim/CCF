@@ -34,8 +34,9 @@ subprojects { proj ->
             force 'com.android.billingclient:billing-ktx:7.0.0'
 
             eachDependency { details ->
-                if (details.requested.group == 'com.android.billingclient' &&
-                        (details.requested.name == 'billing' || details.requested.name == 'billing-ktx')) {
+                // Some plugins pull additional artifacts (e.g., billing-ktx, billing-common).
+                // Force ALL of them to 7.0.0 to satisfy Play Console policy scanning.
+                if (details.requested.group == 'com.android.billingclient') {
                     details.useVersion '7.0.0'
                     details.because 'Play Billing policy requires 7.0.0+'
                 }
