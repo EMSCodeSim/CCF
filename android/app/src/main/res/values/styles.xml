@@ -13,10 +13,17 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Android 9+ cutout API: avoid deprecated SHORT_EDGES behavior flagged by Play Console. -->
+        <item name="android:windowLayoutInDisplayCutoutMode">default</item>
+        <!-- Edge-to-edge friendly colors (actual insets handled in MainActivity). -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Keep launch consistent with runtime cutout behavior -->
+        <item name="android:windowLayoutInDisplayCutoutMode">default</item>
     </style>
 </resources>
