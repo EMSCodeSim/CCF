@@ -1,14 +1,52 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
 allprojects {
     repositories {
         google()
         mavenCentral()
     }
+}
 
-    // ✅ Force Google Play Billing everywhere (fix cc.fovea PurchasePlugin compile errors)
-    configurations.all {
-        resolutionStrategy {
-            force "com.android.billingclient:billing:7.1.1"
-            force "com.android.billingclient:billing-ktx:7.1.1"
+// Google Play Billing Library policy enforcement:
+// Force BillingClient >= 7.0.0 even if a transitive dependency pulls an older version.
+// (Play Console scans the final bundle for old billing artifacts.)
+subprojects { proj ->
+    proj.configurations.all { cfg ->
+        cfg.resolutionStrategy {
+            // Use a newer 7.x that includes the newer API surface used by some Cordova/Capacitor purchase plugins
+            // (e.g., QueryProductDetailsResult, enableAutoServiceReconnection, OneTimePurchaseOfferDetails.*)
+            force 'com.android.billingclient:billing:7.1.1'
+            force 'com.android.billingclient:billing-ktx:7.1.1'
+
+            eachDependency { details ->
+                // Some plugins pull additional artifacts (e.g., billing-ktx, billing-common).
+                // Force ALL of them to 7.1.1 to satisfy Play Console policy scanning.
+                if (details.requested.group == 'com.android.billingclient') {
+                    details.useVersion '7.1.1'
+                    details.because 'Play Billing policy requires 7.0.0+'
+                }
+            }
         }
     }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
 }
