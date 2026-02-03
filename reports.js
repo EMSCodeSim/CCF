@@ -1634,19 +1634,28 @@ window.addEventListener("error", (e)=>{ __reportsFatal(e.error || e.message || e
 window.addEventListener("unhandledrejection", (e)=>{ __reportsFatal(e.reason || e); });
 document.addEventListener("DOMContentLoaded", ()=>{ try{ boot(); }catch(err){ __reportsFatal(err); } });
 
-// If Pro is purchased while this page is open, refresh the UI.
-window.addEventListener("ccf:pro-changed", ()=>{
-  try{
-    if(proEnabled()) location.reload();
-    else renderProPaywall();
-  }catch(e){}
-});
+// If Pro is purchased while this page is open, update UI *without* a hard reload.
+// Hard reloads can cause a "refresh loop" in native WebViews immediately after purchase.
+let __proUiUpdatePending = false;
+function __onProMaybeChanged(){
+  if(__proUiUpdatePending) return;
+  __proUiUpdatePending = true;
+  setTimeout(()=>{
+    __proUiUpdatePending = false;
+    try{
+      if(proEnabled()){
+        // Re-run boot logic to restore the last view safely.
+        boot();
+      }else{
+        renderProPaywall();
+      }
+    }catch(e){}
+  }, 50);
+}
+window.addEventListener("ccf:pro-changed", __onProMaybeChanged);
 window.addEventListener("storage", (e)=>{
   try{
-    if(e && e.key === PRO_KEY){
-      if(proEnabled()) location.reload();
-      else renderProPaywall();
-    }
+    if(e && e.key === PRO_KEY) __onProMaybeChanged();
   }catch(_e){}
 });
 function safeBind(id, fn, evt="click"){
