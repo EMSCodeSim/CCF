@@ -43,11 +43,14 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    // Needed for WindowCompat / edge-to-edge insets handling
+    implementation "androidx.core:core:1.13.1"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
 
     // REQUIRED: Play Billing Library (fixes AIDL / must be >= 6.0.1)
-    implementation "com.android.billingclient:billing:7.0.0"
+    // Keep in sync with android/build.gradle resolutionStrategy (7.1.1)
+    implementation "com.android.billingclient:billing:7.1.1"
 
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
